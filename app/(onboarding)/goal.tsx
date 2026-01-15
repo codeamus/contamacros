@@ -1,3 +1,4 @@
+// app/(onboarding)/goal.tsx
 import { router } from "expo-router";
 import { Pressable, Text, View } from "react-native";
 

@@ -1,68 +1,89 @@
-// app/(tabs)/settings.tsx
-import { useTheme } from "@/presentation/theme/ThemeProvider";
-import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+
+import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
+import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
+import React, { useState } from "react";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 
 export default function SettingsScreen() {
-  const { theme, setThemeMode } = useTheme();
-  const s = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-      padding: 20,
-      gap: 12,
-    },
-    title: theme.typography.title,
-    body: theme.typography.body,
-    button: {
-      paddingVertical: 12,
-      paddingHorizontal: 14,
-      borderRadius: 14,
-      backgroundColor: theme.colors.cta,
-      alignSelf: "flex-start",
-    },
-    buttonText: {
-      ...theme.typography.subtitle,
-      color: theme.colors.onCta,
-    },
-    row: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
-    chip: {
-      paddingVertical: 10,
-      paddingHorizontal: 12,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      backgroundColor: theme.colors.surface,
-    },
-    chipText: {
-      ...theme.typography.body,
-      color: theme.colors.textPrimary,
-    },
-  });
+  const { profile, signOut } = useAuth();
+  const [loading, setLoading] = useState(false);
+
+  async function onLogout() {
+    Alert.alert("Cerrar sesión", "¿Seguro que quieres salir?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Salir",
+        style: "destructive",
+        onPress: async () => {
+          setLoading(true);
+          try {
+            await signOut();
+            // ✅ AuthGate redirige a login
+          } finally {
+            setLoading(false);
+          }
+        },
+      },
+    ]);
+  }
 
   return (
-    <View style={s.container}>
-      <Text style={s.title}>Ajustes</Text>
-      <Text style={s.body}>Tema actual: {theme.mode}</Text>
+    <View style={styles.screen}>
+      <Text style={styles.title}>Ajustes</Text>
 
-      <View style={s.row}>
-        <Pressable style={s.chip} onPress={() => setThemeMode("system")}>
-          <Text style={s.chipText}>Sistema</Text>
-        </Pressable>
-        <Pressable style={s.chip} onPress={() => setThemeMode("light")}>
-          <Text style={s.chipText}>Light</Text>
-        </Pressable>
-        <Pressable style={s.chip} onPress={() => setThemeMode("dark")}>
-          <Text style={s.chipText}>Dark</Text>
-        </Pressable>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Cuenta</Text>
+        <Text style={styles.row}>
+          <Text style={styles.label}>Email: </Text>
+          {profile?.email ?? "—"}
+        </Text>
+        <Text style={styles.row}>
+          <Text style={styles.label}>Objetivo: </Text>
+          {profile?.goal ?? "—"}
+        </Text>
+      </View>
+
+      <View style={{ marginTop: 16 }}>
+        <PrimaryButton
+          title="Cerrar sesión"
+          onPress={onLogout}
+          loading={loading}
+        />
       </View>
 
       <Pressable
-        style={s.button}
-        onPress={() => setThemeMode(theme.mode === "dark" ? "light" : "dark")}
+        onPress={() =>
+          Alert.alert(
+            "Próximo",
+            "Aquí después agregamos: theme, privacidad, soporte, rate app."
+          )
+        }
+        style={{ marginTop: 16 }}
       >
-        <Text style={s.buttonText}>Cambiar tema</Text>
+        <Text style={styles.link}>Ver opciones futuras</Text>
       </Pressable>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, padding: 18, backgroundColor: "#F9FAFB" },
+  title: { fontSize: 28, fontWeight: "800", color: "#111827", marginTop: 12 },
+  card: {
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: "white",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#111827",
+    marginBottom: 8,
+  },
+  row: { color: "#374151", marginTop: 6 },
+  label: { fontWeight: "700", color: "#111827" },
+  link: { textAlign: "center", color: "#374151" },
+});
