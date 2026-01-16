@@ -4,6 +4,7 @@ import { ThemeProvider } from "@/presentation/theme/ThemeProvider";
 import { Stack, useRouter, useSegments } from "expo-router";
 import React, { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 function AuthGate() {
   const { initializing, session, profile } = useAuth();
@@ -56,10 +57,12 @@ function AuthGate() {
 
 export default function RootLayout() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <AuthGate />
-      </AuthProvider>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <AuthGate />
+        </AuthProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
