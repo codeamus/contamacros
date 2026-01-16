@@ -10,6 +10,6 @@ export type ProfileDb = {
 
   goal: GoalDb | null;
   onboarding_completed: boolean;
-
+  daily_calorie_target: number | null;
   created_at: string | null;
 };

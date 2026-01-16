@@ -41,6 +41,12 @@ export default function SettingsScreen() {
           <Text style={styles.label}>Objetivo: </Text>
           {profile?.goal ?? "—"}
         </Text>
+        <Text style={styles.row}>
+          <Text style={styles.label}>Meta diaria: </Text>
+          {profile?.daily_calorie_target
+            ? `${profile.daily_calorie_target} kcal`
+            : "—"}
+        </Text>
       </View>
 
       <View style={{ marginTop: 16 }}>

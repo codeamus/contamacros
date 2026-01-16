@@ -124,9 +124,15 @@ export const AuthService = {
         .update(input)
         .eq("id", uid)
         .select("*")
-        .single();
+        .maybeSingle();
 
       if (error) return { ok: false, message: error.message, code: error.code };
+      if (!data)
+        return {
+          ok: false,
+          message: "No se pudo actualizar el perfil (sin filas).",
+        };
+
       return { ok: true, data: data as ProfileDb };
     } catch (e) {
       return { ok: false, ...mapSupabaseError(e) };
