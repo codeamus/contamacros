@@ -26,11 +26,12 @@ export type AppColors = {
   brand: string;
 };
 
+// src/presentation/theme/colors.ts
 export function makeColors(mode: Exclude<ThemeMode, "system">): AppColors {
   if (mode === "dark") {
     return {
       background: palette.avocadoSkin,
-      surface: "#163126", // un poco más claro que background
+      surface: "#163126",
       border: "#244235",
 
       textPrimary: palette.avocadoCream,
@@ -43,11 +44,11 @@ export function makeColors(mode: Exclude<ThemeMode, "system">): AppColors {
     };
   }
 
-  // light
+  // ✅ light (más descansado)
   return {
-    background: palette.avocadoGreen,
-    surface: palette.avocadoCream,
-    border: "#D8DBC9",
+    background: palette.avocadoCream, // ✅ antes: avocadoGreen
+    surface: palette.white,           // ✅ cards más “limpias”
+    border: "#E1E5D3",
 
     textPrimary: palette.avocadoSkin,
     textSecondary: "#2C4B40",
@@ -58,3 +59,4 @@ export function makeColors(mode: Exclude<ThemeMode, "system">): AppColors {
     brand: palette.avocadoGreen,
   };
 }
+
