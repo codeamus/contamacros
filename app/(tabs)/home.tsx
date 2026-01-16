@@ -1,31 +1,37 @@
 // app/(tabs)/home.tsx
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
+import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
+import { useTodaySummary } from "@/presentation/hooks/diary/useTodaySummary";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
+import { todayStrLocal } from "@/presentation/utils/date";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React from "react";
-import {
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import React, { useMemo } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function HomeScreen() {
   const { theme } = useTheme();
   const { colors, typography } = theme;
   const s = makeStyles(colors, typography);
 
-  // Placeholder data (después viene de DB/state)
-  const caloriesConsumed = 1420;
-  const caloriesTarget = 2100;
-  const remaining = Math.max(caloriesTarget - caloriesConsumed, 0);
+  const { profile } = useAuth();
+  const { day, totals, loading } = useTodaySummary();
 
-  const protein = { value: 98, target: 140 };
-  const carbs = { value: 160, target: 220 };
-  const fat = { value: 45, target: 70 };
+  const caloriesConsumed = totals.calories;
+
+  const caloriesTarget = profile?.daily_calorie_target ?? 0;
+  const remaining =
+    caloriesTarget > 0 ? Math.max(caloriesTarget - caloriesConsumed, 0) : 0;
+
+  const caloriesPct = useMemo(() => {
+    if (!caloriesTarget || caloriesTarget <= 0) return 0;
+    return Math.min((caloriesConsumed / caloriesTarget) * 100, 100);
+  }, [caloriesConsumed, caloriesTarget]);
+
+  const protein = { value: totals.protein, target: profile?.protein_g ?? 0 };
+  const carbs = { value: totals.carbs, target: profile?.carbs_g ?? 0 };
+  const fat = { value: totals.fat, target: profile?.fat_g ?? 0 };
 
   return (
     <SafeAreaView style={s.safe}>
@@ -37,23 +43,18 @@ export default function HomeScreen() {
         <View style={s.header}>
           <View style={{ flex: 1 }}>
             <Text style={s.headerKicker}>Diario</Text>
-            <Text style={s.headerTitle}>Hoy</Text>
+            <Text style={s.headerTitle}>
+              {day === todayStrLocal() ? "Hoy" : day}
+            </Text>
           </View>
 
-          <Pressable
-            style={s.headerIconBtn}
-            onPress={() => {
-              /* luego: settings o calendar */
-            }}
-          >
+          <Pressable style={s.headerIconBtn} onPress={() => {}}>
             <Feather name="calendar" size={18} color={colors.textPrimary} />
           </Pressable>
 
           <Pressable
             style={s.headerIconBtn}
-            onPress={() => {
-              /* luego: settings */
-            }}
+            onPress={() => router.push("/(tabs)/settings")}
           >
             <Feather name="settings" size={18} color={colors.textPrimary} />
           </Pressable>
@@ -63,7 +64,7 @@ export default function HomeScreen() {
         <View style={s.summaryRow}>
           <MiniStat
             title="Restantes"
-            value={`${remaining}`}
+            value={loading ? "—" : `${remaining}`}
             unit="kcal"
             icon={
               <MaterialCommunityIcons
@@ -77,7 +78,7 @@ export default function HomeScreen() {
           />
           <MiniStat
             title="Consumidas"
-            value={`${caloriesConsumed}`}
+            value={loading ? "—" : `${caloriesConsumed}`}
             unit="kcal"
             icon={
               <MaterialCommunityIcons
@@ -107,33 +108,27 @@ export default function HomeScreen() {
 
             <View style={s.chip}>
               <Feather name="flag" size={14} color={colors.textSecondary} />
-              <Text style={s.chipText}>{caloriesTarget} kcal</Text>
+              <Text style={s.chipText}>
+                {caloriesTarget ? `${caloriesTarget} kcal` : "Sin objetivo"}
+              </Text>
             </View>
           </View>
 
           <Text style={s.bigValue}>
-            {caloriesConsumed}
+            {loading ? "—" : caloriesConsumed}
             <Text style={s.bigUnit}> kcal</Text>
           </Text>
 
           <View style={s.progressTrack}>
-            <View
-              style={[
-                s.progressFill,
-                {
-                  width: `${Math.min(
-                    (caloriesConsumed / caloriesTarget) * 100,
-                    100
-                  )}%`,
-                },
-              ]}
-            />
+            <View style={[s.progressFill, { width: `${caloriesPct}%` }]} />
           </View>
 
           <View style={s.hintRow}>
             <Feather name="info" size={14} color={colors.textSecondary} />
             <Text style={s.hintText}>
-              {remaining} kcal para llegar a tu objetivo
+              {caloriesTarget
+                ? `${remaining} kcal para llegar a tu objetivo`
+                : "Define tu objetivo para ver restantes"}
             </Text>
           </View>
         </View>
@@ -148,11 +143,7 @@ export default function HomeScreen() {
             />
             <Text style={s.sectionTitle}>Macros</Text>
           </View>
-          <Pressable
-            onPress={() => {
-              /* luego: detalles */
-            }}
-          >
+          <Pressable onPress={() => {}}>
             <Text style={s.sectionAction}>Ver detalle</Text>
           </Pressable>
         </View>
@@ -163,6 +154,7 @@ export default function HomeScreen() {
             icon="food-steak"
             value={protein.value}
             target={protein.target}
+            loading={loading}
             colors={colors}
             typography={typography}
           />
@@ -171,6 +163,7 @@ export default function HomeScreen() {
             icon="bread-slice"
             value={carbs.value}
             target={carbs.target}
+            loading={loading}
             colors={colors}
             typography={typography}
           />
@@ -179,6 +172,7 @@ export default function HomeScreen() {
             icon="peanut"
             value={fat.value}
             target={fat.target}
+            loading={loading}
             colors={colors}
             typography={typography}
           />
@@ -194,11 +188,7 @@ export default function HomeScreen() {
             />
             <Text style={s.sectionTitle}>Comidas</Text>
           </View>
-          <Pressable
-            onPress={() => {
-              /* luego: historial del día */
-            }}
-          >
+          <Pressable onPress={() => router.push("/(tabs)/diary")}>
             <Text style={s.sectionAction}>Ver todo</Text>
           </Pressable>
         </View>
@@ -207,7 +197,7 @@ export default function HomeScreen() {
           <MealRow
             title="Desayuno"
             icon="coffee"
-            subtitle="Sin registros"
+            subtitle="Agregar alimentos"
             colors={colors}
             typography={typography}
             onAdd={() =>
@@ -221,7 +211,7 @@ export default function HomeScreen() {
           <MealRow
             title="Almuerzo"
             icon="food"
-            subtitle="Sin registros"
+            subtitle="Agregar alimentos"
             colors={colors}
             typography={typography}
             onAdd={() =>
@@ -235,7 +225,7 @@ export default function HomeScreen() {
           <MealRow
             title="Cena"
             icon="food-variant"
-            subtitle="Sin registros"
+            subtitle="Agregar alimentos"
             colors={colors}
             typography={typography}
             onAdd={() =>
@@ -255,9 +245,7 @@ export default function HomeScreen() {
       <View style={s.fab}>
         <PrimaryButton
           title="Agregar comida"
-          onPress={() => {
-            // siguiente: /(tabs)/add-meal (screen) o modal
-          }}
+          onPress={() => router.push("/(tabs)/diary")}
           icon={<Feather name="plus" size={18} color={colors.onCta} />}
         />
       </View>
@@ -303,6 +291,7 @@ function MiniStat({
           {title}
         </Text>
       </View>
+
       <Text
         style={[
           mini.value,
@@ -354,6 +343,7 @@ function MacroCard({
   icon,
   value,
   target,
+  loading,
   colors,
   typography,
 }: {
@@ -361,10 +351,14 @@ function MacroCard({
   icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
   value: number;
   target: number;
+  loading: boolean;
   colors: any;
   typography: any;
 }) {
-  const pct = Math.min(value / target, 1);
+  const pct = useMemo(() => {
+    if (!target || target <= 0) return 0;
+    return Math.min(value / target, 1);
+  }, [value, target]);
 
   return (
     <View
@@ -378,29 +372,21 @@ function MacroCard({
         gap: 10,
       }}
     >
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <MaterialCommunityIcons
-            name={icon}
-            size={18}
-            color={colors.textSecondary}
-          />
-          <Text
-            style={{
-              fontFamily: typography.subtitle?.fontFamily,
-              fontSize: 13,
-              color: colors.textSecondary,
-            }}
-          >
-            {label}
-          </Text>
-        </View>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <MaterialCommunityIcons
+          name={icon}
+          size={18}
+          color={colors.textSecondary}
+        />
+        <Text
+          style={{
+            fontFamily: typography.subtitle?.fontFamily,
+            fontSize: 13,
+            color: colors.textSecondary,
+          }}
+        >
+          {label}
+        </Text>
       </View>
 
       <Text
@@ -410,7 +396,7 @@ function MacroCard({
           color: colors.textPrimary,
         }}
       >
-        {value}
+        {loading ? "—" : value}
         <Text
           style={{
             fontFamily: typography.body?.fontFamily,
@@ -447,7 +433,7 @@ function MacroCard({
           color: colors.textSecondary,
         }}
       >
-        de {target} g
+        {target ? `de ${target} g` : "Sin objetivo"}
       </Text>
     </View>
   );
