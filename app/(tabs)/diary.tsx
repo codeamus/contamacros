@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { foodLogRepository } from "@/data/food/foodLogRepository";
@@ -6,6 +7,9 @@ import type { FoodLogDb, MealType } from "@/domain/models/foodLogDb";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { todayStrLocal } from "@/presentation/utils/date";
+import { MEAL_LABELS } from "@/presentation/utils/mealLabels";
+
+const MEAL_ORDER: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
 
 function sumLogs(logs: FoodLogDb[]) {
   return logs.reduce(
@@ -20,6 +24,17 @@ function sumLogs(logs: FoodLogDb[]) {
   );
 }
 
+function groupByMeal(logs: FoodLogDb[]) {
+  const map: Record<MealType, FoodLogDb[]> = {
+    breakfast: [],
+    lunch: [],
+    dinner: [],
+    snack: [],
+  };
+  for (const it of logs) map[it.meal].push(it);
+  return map;
+}
+
 export default function DiaryScreen() {
   const { profile } = useAuth();
   const day = todayStrLocal();
@@ -29,50 +44,30 @@ export default function DiaryScreen() {
   const [err, setErr] = useState<string | null>(null);
 
   const totals = useMemo(() => sumLogs(logs), [logs]);
+  const grouped = useMemo(() => groupByMeal(logs), [logs]);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setErr(null);
+
     const res = await foodLogRepository.listByDay(day);
     if (!res.ok) {
       setErr(res.message);
+      setLogs([]);
       setLoading(false);
       return;
     }
+
     setLogs(res.data);
     setLoading(false);
-  }
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [day]);
 
-  async function addQuickItem() {
-    setErr(null);
-    setLoading(true);
-
-    // MVP: item dummy. Luego esto será un modal "Agregar alimento"
-    const input = {
-      day,
-      meal: "snack" as MealType,
-      name: "Item manual",
-      calories: 250,
-      protein_g: 15,
-      carbs_g: 25,
-      fat_g: 8,
-    };
-
-    const res = await foodLogRepository.create(input);
-    if (!res.ok) {
-      setErr(res.message ?? "No pudimos agregar el item.");
-      setLoading(false);
-      return;
-    }
-
-    setLogs((prev) => [...prev, res.data]);
-    setLoading(false);
-  }
+  // ✅ se ejecuta al entrar y al volver desde add-food
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   async function onDelete(id: string) {
     Alert.alert("Eliminar", "¿Eliminar este item del diario?", [
@@ -139,28 +134,42 @@ export default function DiaryScreen() {
 
       <PrimaryButton
         title={loading ? "Cargando..." : "+ Añadir"}
-        onPress={addQuickItem}
-        loading={loading}
+        onPress={() => router.push("/(tabs)/add-food")}
         disabled={loading}
       />
 
-      <View style={{ marginTop: 14, gap: 10 }}>
-        {logs.map((it) => (
-          <Pressable
-            key={it.id}
-            style={styles.item}
-            onLongPress={() => onDelete(it.id)}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={styles.itemName}>{it.name}</Text>
-              <Text style={styles.itemMeta}>
-                {it.meal} · {it.calories} kcal · P {it.protein_g} / C{" "}
-                {it.carbs_g} / F {it.fat_g}
+      <View style={{ marginTop: 14, gap: 14 }}>
+        {MEAL_ORDER.map((m) => {
+          const items = grouped[m];
+          if (!items.length) return null;
+
+          return (
+            <View key={m} style={{ gap: 10 }}>
+              <Text
+                style={{ fontWeight: "900", color: "#111827", marginTop: 6 }}
+              >
+                {MEAL_LABELS[m]}
               </Text>
+
+              {items.map((it) => (
+                <Pressable
+                  key={it.id}
+                  style={styles.item}
+                  onLongPress={() => onDelete(it.id)}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.itemName}>{it.name}</Text>
+                    <Text style={styles.itemMeta}>
+                      {it.calories} kcal · P {it.protein_g} / C {it.carbs_g} / F{" "}
+                      {it.fat_g}
+                    </Text>
+                  </View>
+                  <Text style={styles.itemChevron}>⋯</Text>
+                </Pressable>
+              ))}
             </View>
-            <Text style={styles.itemChevron}>⋯</Text>
-          </Pressable>
-        ))}
+          );
+        })}
 
         {!loading && logs.length === 0 && (
           <Text

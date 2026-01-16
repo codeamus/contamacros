@@ -1,3 +1,4 @@
+// src/data/food/foodLogRepository.ts
 import { supabase } from "@/data/supabase/supabaseClient";
 import type { FoodLogDb, MealType } from "@/domain/models/foodLogDb";
 
@@ -57,7 +58,7 @@ export const foodLogRepository = {
         .from("food_logs")
         .insert(payload)
         .select("*")
-        .single();
+        .maybeSingle();
 
       if (error) return { ok: false, message: error.message, code: error.code };
       return { ok: true, data: data as FoodLogDb };
