@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -75,7 +75,14 @@ function macroChipIcon(
   }
 }
 
+const MEALS: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
+
+function isMealType(x: unknown): x is MealType {
+  return typeof x === "string" && (MEALS as string[]).includes(x);
+}
+
 export default function AddFoodScreen() {
+  const params = useLocalSearchParams<{ meal?: string }>();
   const { theme } = useTheme();
   const { colors, typography } = theme;
   const s = makeStyles(colors, typography);
@@ -94,6 +101,14 @@ export default function AddFoodScreen() {
 
   const [meal, setMeal] = useState<MealType>("snack");
   const [isSearching, setIsSearching] = useState(false);
+
+  useEffect(() => {
+    if (isMealType(params.meal)) {
+      setMeal(params.meal);
+    }
+    // solo una vez
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Debounce search
   useEffect(() => {

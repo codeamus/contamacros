@@ -378,7 +378,12 @@ export default function DiaryScreen() {
                   </View>
 
                   <Pressable
-                    onPress={() => router.push("/(tabs)/add-food")}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/(tabs)/add-food",
+                        params: { meal: m },
+                      })
+                    }
                     style={({ pressed }) => [
                       s.mealAddBtn,
                       pressed && {

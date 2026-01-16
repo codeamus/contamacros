@@ -2,6 +2,7 @@
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React from "react";
 import {
   Pressable,
@@ -209,7 +210,12 @@ export default function HomeScreen() {
             subtitle="Sin registros"
             colors={colors}
             typography={typography}
-            onAdd={() => {}}
+            onAdd={() =>
+              router.push({
+                pathname: "/(tabs)/add-food",
+                params: { meal: "breakfast" },
+              })
+            }
           />
           <View style={s.divider} />
           <MealRow
@@ -218,7 +224,12 @@ export default function HomeScreen() {
             subtitle="Sin registros"
             colors={colors}
             typography={typography}
-            onAdd={() => {}}
+            onAdd={() =>
+              router.push({
+                pathname: "/(tabs)/add-food",
+                params: { meal: "lunch" },
+              })
+            }
           />
           <View style={s.divider} />
           <MealRow
@@ -227,7 +238,12 @@ export default function HomeScreen() {
             subtitle="Sin registros"
             colors={colors}
             typography={typography}
-            onAdd={() => {}}
+            onAdd={() =>
+              router.push({
+                pathname: "/(tabs)/add-food",
+                params: { meal: "dinner" },
+              })
+            }
           />
         </View>
 
