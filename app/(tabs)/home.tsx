@@ -264,7 +264,7 @@ export default function HomeScreen() {
             onOpen={() =>
               router.push({
                 pathname: "/(tabs)/diary",
-                params: { meal: "lunch" },
+                params: { meal: "breakfast" },
               })
             }
             onAdd={() =>

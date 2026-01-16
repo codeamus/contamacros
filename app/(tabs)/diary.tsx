@@ -1,14 +1,14 @@
-import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { foodLogRepository } from "@/data/food/foodLogRepository";
 import type { FoodLogDb, MealType } from "@/domain/models/foodLogDb";
@@ -20,6 +20,11 @@ import { MEAL_LABELS } from "@/presentation/utils/mealLabels";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 
 const MEAL_ORDER: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
+type MealFilter = MealType | "all";
+
+function isMealType(v: any): v is MealType {
+  return v === "breakfast" || v === "lunch" || v === "dinner" || v === "snack";
+}
 
 function sumLogs(logs: FoodLogDb[]) {
   return logs.reduce(
@@ -50,6 +55,28 @@ function clamp01(n: number) {
   if (n < 0) return 0;
   if (n > 1) return 1;
   return n;
+}
+
+function mealIcon(
+  meal: MealType
+): React.ComponentProps<typeof MaterialCommunityIcons>["name"] {
+  switch (meal) {
+    case "breakfast":
+      return "coffee";
+    case "lunch":
+      return "food";
+    case "dinner":
+      return "food-variant";
+    case "snack":
+      return "cookie";
+    default:
+      return "silverware-fork-knife";
+  }
+}
+
+function filterLabel(k: MealFilter) {
+  if (k === "all") return "Todas";
+  return MEAL_LABELS[k];
 }
 
 function MacroProgress({
@@ -128,24 +155,9 @@ function MacroProgress({
   );
 }
 
-function mealIcon(
-  meal: MealType
-): React.ComponentProps<typeof MaterialCommunityIcons>["name"] {
-  switch (meal) {
-    case "breakfast":
-      return "coffee";
-    case "lunch":
-      return "food";
-    case "dinner":
-      return "food-variant";
-    case "snack":
-      return "cookie";
-    default:
-      return "silverware-fork-knife";
-  }
-}
-
 export default function DiaryScreen() {
+  const params = useLocalSearchParams<{ meal?: string }>();
+
   const { profile } = useAuth();
   const { theme } = useTheme();
   const { colors, typography } = theme;
@@ -155,6 +167,15 @@ export default function DiaryScreen() {
   const [logs, setLogs] = useState<FoodLogDb[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const [filterMeal, setFilterMeal] = useState<MealFilter>("all");
+
+  // ✅ Sync param -> state siempre (aunque el tab quede montado)
+  useEffect(() => {
+    const m = params.meal;
+    if (isMealType(m)) setFilterMeal(m);
+    else setFilterMeal("all");
+  }, [params.meal]);
 
   const totals = useMemo(() => sumLogs(logs), [logs]);
   const grouped = useMemo(() => groupByMeal(logs), [logs]);
@@ -211,6 +232,12 @@ export default function DiaryScreen() {
 
   const s = makeStyles(colors, typography);
 
+  const visibleMeals: MealType[] =
+    filterMeal === "all" ? MEAL_ORDER : [filterMeal];
+
+  const addMealParam: MealType | undefined =
+    filterMeal === "all" ? undefined : filterMeal;
+
   return (
     <SafeAreaView style={s.safe}>
       <ScrollView
@@ -230,10 +257,61 @@ export default function DiaryScreen() {
 
           <Pressable
             style={s.iconBtn}
-            onPress={() => router.push("/(tabs)/add-food")}
+            onPress={() =>
+              router.push({
+                pathname: "/(tabs)/add-food",
+                params: addMealParam ? { meal: addMealParam } : undefined,
+              })
+            }
           >
             <Feather name="plus" size={18} color={colors.textPrimary} />
           </Pressable>
+        </View>
+
+        {/* Filter chips */}
+        <View style={s.chipsRow}>
+          {(["all", "breakfast", "lunch", "dinner", "snack"] as const).map(
+            (k) => {
+              const active = filterMeal === k;
+              return (
+                <Pressable
+                  key={k}
+                  onPress={() => setFilterMeal(k)}
+                  style={({ pressed }) => [
+                    s.chipPill,
+                    {
+                      borderColor: active ? colors.textPrimary : colors.border,
+                      backgroundColor: active
+                        ? "rgba(34,197,94,0.10)"
+                        : colors.surface,
+                      opacity: pressed ? 0.9 : 1,
+                    },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name={
+                      k === "all" ? "filter-variant" : mealIcon(k as MealType)
+                    }
+                    size={16}
+                    color={active ? colors.brand : colors.textSecondary}
+                  />
+                  <Text
+                    style={[
+                      s.chipPillText,
+                      {
+                        color: active
+                          ? colors.textPrimary
+                          : colors.textSecondary,
+                        fontFamily: typography.subtitle?.fontFamily,
+                      },
+                    ]}
+                  >
+                    {filterLabel(k)}
+                  </Text>
+                </Pressable>
+              );
+            }
+          )}
         </View>
 
         {/* Error */}
@@ -259,9 +337,9 @@ export default function DiaryScreen() {
             </View>
 
             {targetKcal && (
-              <View style={s.chip}>
+              <View style={s.smallChip}>
                 <Feather name="flag" size={14} color={colors.textSecondary} />
-                <Text style={s.chipText}>{targetKcal} kcal</Text>
+                <Text style={s.smallChipText}>{targetKcal} kcal</Text>
               </View>
             )}
           </View>
@@ -324,18 +402,31 @@ export default function DiaryScreen() {
               size={18}
               color={colors.textPrimary}
             />
-            <Text style={s.sectionTitle}>Comidas</Text>
+            <Text style={s.sectionTitle}>
+              {filterMeal === "all" ? "Comidas" : filterLabel(filterMeal)}
+            </Text>
           </View>
-          <Pressable onPress={() => router.push("/(tabs)/add-food")}>
+
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: "/(tabs)/add-food",
+                params: addMealParam ? { meal: addMealParam } : undefined,
+              })
+            }
+          >
             <Text style={s.sectionAction}>Añadir</Text>
           </Pressable>
         </View>
 
         {/* Meal sections */}
         <View style={{ gap: 12 }}>
-          {MEAL_ORDER.map((m) => {
+          {visibleMeals.map((m) => {
             const items = grouped[m];
             const isEmpty = !items.length;
+
+            // Si estás en ALL, ocultamos secciones vacías (más limpio).
+            if (filterMeal === "all" && isEmpty) return null;
 
             const mealTotals = isEmpty
               ? { kcal: 0, p: 0, c: 0, f: 0 }
@@ -361,9 +452,10 @@ export default function DiaryScreen() {
                         color={colors.textPrimary}
                       />
                     </View>
-                    <View style={{ gap: 2 }}>
+
+                    <View style={{ gap: 2, flex: 1 }}>
                       <Text style={s.mealTitle}>{MEAL_LABELS[m]}</Text>
-                      <Text style={s.mealSub}>
+                      <Text style={s.mealSub} numberOfLines={1}>
                         {isEmpty
                           ? "Sin registros"
                           : `${Math.round(
@@ -397,7 +489,34 @@ export default function DiaryScreen() {
                   </Pressable>
                 </View>
 
-                {!isEmpty && (
+                {isEmpty ? (
+                  <View style={s.mealEmpty}>
+                    <MaterialCommunityIcons
+                      name="clipboard-text-outline"
+                      size={20}
+                      color={colors.textSecondary}
+                    />
+                    <Text style={s.mealEmptyText}>
+                      Aún no registras {MEAL_LABELS[m].toLowerCase()}.
+                    </Text>
+
+                    <Pressable
+                      onPress={() =>
+                        router.push({
+                          pathname: "/(tabs)/add-food",
+                          params: { meal: m },
+                        })
+                      }
+                      style={({ pressed }) => [
+                        s.mealEmptyBtn,
+                        pressed && { opacity: 0.9 },
+                      ]}
+                    >
+                      <Feather name="plus" size={14} color={colors.brand} />
+                      <Text style={s.mealEmptyBtnText}>Agregar</Text>
+                    </Pressable>
+                  </View>
+                ) : (
                   <View style={{ marginTop: 12, gap: 10 }}>
                     {items.map((it) => (
                       <Pressable
@@ -411,10 +530,11 @@ export default function DiaryScreen() {
                         ]}
                         onLongPress={() => onDelete(it.id)}
                       >
-                        <View style={{ flex: 1, gap: 4 }}>
+                        <View style={{ flex: 1, gap: 6 }}>
                           <Text style={s.itemName} numberOfLines={1}>
                             {it.name}
                           </Text>
+
                           <View style={s.itemMetaRow}>
                             <View style={s.metaChip}>
                               <MaterialCommunityIcons
@@ -475,7 +595,8 @@ export default function DiaryScreen() {
             );
           })}
 
-          {!loading && logs.length === 0 && (
+          {/* Empty global solo si ALL y no hay logs */}
+          {filterMeal === "all" && !loading && logs.length === 0 && (
             <View style={s.emptyCard}>
               <View style={s.emptyIcon}>
                 <MaterialCommunityIcons
@@ -489,7 +610,7 @@ export default function DiaryScreen() {
                 Empieza agregando tu primera comida para ver tus macros.
               </Text>
 
-              <View style={{ marginTop: 12 }}>
+              <View style={{ marginTop: 12, width: "100%" }}>
                 <PrimaryButton
                   title="Agregar comida"
                   onPress={() => router.push("/(tabs)/add-food")}
@@ -503,18 +624,6 @@ export default function DiaryScreen() {
 
         <View style={{ height: 20 }} />
       </ScrollView>
-
-      {/* Bottom CTA fijo (si ya tienes uno global, puedes quitar este) */}
-      {logs.length > 0 && (
-        <View style={s.fab}>
-          <PrimaryButton
-            title="Agregar comida"
-            onPress={() => router.push("/(tabs)/add-food")}
-            disabled={loading}
-            icon={<Feather name="plus" size={18} color={colors.onCta} />}
-          />
-        </View>
-      )}
     </SafeAreaView>
   );
 }
@@ -550,6 +659,25 @@ function makeStyles(colors: any, typography: any) {
       backgroundColor: colors.surface,
       alignItems: "center",
       justifyContent: "center",
+    },
+
+    chipsRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+      marginTop: 2,
+    },
+    chipPill: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      paddingHorizontal: 12,
+      height: 36,
+      borderRadius: 999,
+      borderWidth: 1,
+    },
+    chipPillText: {
+      fontSize: 13,
     },
 
     alert: {
@@ -604,7 +732,7 @@ function makeStyles(colors: any, typography: any) {
       color: colors.textSecondary,
     },
 
-    chip: {
+    smallChip: {
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
@@ -615,7 +743,7 @@ function makeStyles(colors: any, typography: any) {
       borderColor: colors.border,
       backgroundColor: "transparent",
     },
-    chipText: {
+    smallChipText: {
       fontFamily: typography.body?.fontFamily,
       fontSize: 12,
       color: colors.textSecondary,
@@ -725,6 +853,38 @@ function makeStyles(colors: any, typography: any) {
       color: colors.brand,
     },
 
+    mealEmpty: {
+      marginTop: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 18,
+      padding: 12,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+    mealEmptyText: {
+      flex: 1,
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    mealEmptyBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: 10,
+      height: 32,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    mealEmptyBtnText: {
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 12,
+      color: colors.brand,
+    },
+
     item: {
       borderRadius: 16,
       borderWidth: 1,
@@ -791,7 +951,5 @@ function makeStyles(colors: any, typography: any) {
       color: colors.textSecondary,
       textAlign: "center",
     },
-
-    fab: { position: "absolute", left: 18, right: 18, bottom: 18 },
   });
 }
