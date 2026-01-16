@@ -106,9 +106,7 @@ export default function AddFoodScreen() {
     if (isMealType(params.meal)) {
       setMeal(params.meal);
     }
-    // solo una vez
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [params.meal]);
 
   // Debounce search
   useEffect(() => {
