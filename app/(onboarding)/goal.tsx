@@ -1,14 +1,52 @@
 // app/(onboarding)/goal.tsx
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
+import { useTheme } from "@/presentation/theme/ThemeProvider";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Animated,
+  Easing,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 type Goal = "deficit" | "maintain" | "surplus";
 
+const goalMeta: Record<
+  Goal,
+  {
+    title: string;
+    desc: string;
+    icon: React.ComponentProps<typeof Feather>["name"];
+  }
+> = {
+  deficit: {
+    title: "Bajar de peso",
+    desc: "Déficit calórico",
+    icon: "trending-down",
+  },
+  maintain: {
+    title: "Mantener",
+    desc: "Mantener tu peso actual",
+    icon: "minus",
+  },
+  surplus: {
+    title: "Subir masa",
+    desc: "Superávit calórico",
+    icon: "trending-up",
+  },
+};
+
 export default function GoalScreen() {
   const { updateProfile } = useAuth();
+  const { theme } = useTheme();
+  const { colors, typography } = theme;
 
   const [goal, setGoal] = useState<Goal | null>(null);
   const [loading, setLoading] = useState(false);
@@ -33,44 +71,91 @@ export default function GoalScreen() {
     router.push("/(onboarding)/profile");
   }
 
+  // Animación de entrada
+  const enter = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(enter, {
+      toValue: 1,
+      duration: 260,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [enter]);
+
+  const styles = makeStyles(colors, typography);
+
   return (
     <View style={styles.screen}>
-      <Text style={styles.title}>Tu objetivo</Text>
-      <Text style={styles.subtitle}>
-        Esto nos ayuda a estimar tus calorías diarias.
-      </Text>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <Animated.View
+          style={[
+            styles.card,
+            {
+              opacity: enter,
+              transform: [
+                {
+                  translateY: enter.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [10, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.logoBadge}>
+              <MaterialCommunityIcons
+                name="target"
+                size={22}
+                color={colors.onCta}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.brand}>Onboarding</Text>
+              <Text style={styles.title}>Tu objetivo</Text>
+            </View>
+          </View>
 
-      <View style={{ gap: 10, marginTop: 16 }}>
-        <GoalOption
-          title="Bajar de peso"
-          desc="Déficit calórico"
-          selected={goal === "deficit"}
-          onPress={() => setGoal("deficit")}
-        />
-        <GoalOption
-          title="Mantener"
-          desc="Mantener tu peso actual"
-          selected={goal === "maintain"}
-          onPress={() => setGoal("maintain")}
-        />
-        <GoalOption
-          title="Subir masa"
-          desc="Superávit calórico"
-          selected={goal === "surplus"}
-          onPress={() => setGoal("surplus")}
-        />
-      </View>
+          <Text style={styles.subtitle}>
+            Esto nos ayuda a estimar tus calorías diarias.
+          </Text>
 
-      {!!error && <Text style={styles.error}>{error}</Text>}
+          <View style={{ gap: 12, marginTop: 18 }}>
+            {(Object.keys(goalMeta) as Goal[]).map((k) => (
+              <GoalOption
+                key={k}
+                title={goalMeta[k].title}
+                desc={goalMeta[k].desc}
+                icon={goalMeta[k].icon}
+                selected={goal === k}
+                onPress={() => setGoal(k)}
+                colors={colors}
+                typography={typography}
+              />
+            ))}
+          </View>
 
-      <View style={{ marginTop: 18 }}>
-        <PrimaryButton
-          title="Continuar"
-          onPress={onContinue}
-          loading={loading}
-          disabled={!canContinue}
-        />
-      </View>
+          {!!error && (
+            <View style={styles.alert}>
+              <Feather name="alert-triangle" size={16} color={colors.onCta} />
+              <Text style={styles.alertText}>{error}</Text>
+            </View>
+          )}
+
+          <View style={{ marginTop: 18 }}>
+            <PrimaryButton
+              title="Continuar"
+              onPress={onContinue}
+              loading={loading}
+              disabled={!canContinue}
+            />
+          </View>
+        </Animated.View>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -78,78 +163,148 @@ export default function GoalScreen() {
 function GoalOption({
   title,
   desc,
+  icon,
   selected,
   onPress,
+  colors,
+  typography,
 }: {
   title: string;
   desc: string;
+  icon: React.ComponentProps<typeof Feather>["name"];
   selected: boolean;
   onPress: () => void;
+  colors: any;
+  typography: any;
 }) {
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.option, selected && styles.optionSelected]}
+      style={({ pressed }) => [
+        {
+          borderWidth: 1,
+          borderColor: selected ? colors.brand : colors.border,
+          backgroundColor: selected ? "rgba(34,197,94,0.12)" : colors.surface,
+          borderRadius: 16,
+          padding: 14,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+          opacity: pressed ? 0.95 : 1,
+          transform: pressed ? [{ scale: 0.995 }] : [],
+        },
+      ]}
     >
-      <View style={{ gap: 2 }}>
+      <View
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: 14,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: selected ? colors.brand : colors.cta,
+        }}
+      >
+        <Feather name={icon} size={18} color={colors.onCta} />
+      </View>
+
+      <View style={{ flex: 1, gap: 2 }}>
         <Text
-          style={[styles.optionTitle, selected && styles.optionTitleSelected]}
+          style={{
+            fontFamily: typography.subtitle?.fontFamily,
+            fontSize: 16,
+            color: colors.textPrimary,
+          }}
         >
           {title}
         </Text>
         <Text
-          style={[styles.optionDesc, selected && styles.optionDescSelected]}
+          style={{
+            fontFamily: typography.body?.fontFamily,
+            fontSize: 13,
+            color: colors.textSecondary,
+          }}
         >
           {desc}
         </Text>
       </View>
+
+      {selected && <Feather name="check" size={18} color={colors.brand} />}
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    padding: 20,
-    justifyContent: "center",
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "700",
-  },
-  subtitle: {
-    marginTop: 6,
-    fontSize: 14,
-    color: "#6B7280",
-  },
-  option: {
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    padding: 14,
-  },
-  optionSelected: {
-    borderColor: "#111827",
-  },
-  optionTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#111827",
-  },
-  optionTitleSelected: {
-    color: "#111827",
-  },
-  optionDesc: {
-    fontSize: 13,
-    color: "#6B7280",
-  },
-  optionDescSelected: {
-    color: "#374151",
-  },
-  error: {
-    marginTop: 12,
-    color: "#EF4444",
-    fontSize: 13,
-  },
-});
+function makeStyles(colors: any, typography: any) {
+  return StyleSheet.create({
+    screen: {
+      flex: 1,
+      padding: 18,
+      justifyContent: "center",
+      backgroundColor:
+        colors.background === "#22C55E"
+          ? "rgba(34,197,94,0.95)"
+          : colors.background,
+    },
+
+    card: {
+      padding: 18,
+      borderRadius: 24,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOpacity: 0.14,
+          shadowRadius: 22,
+          shadowOffset: { width: 0, height: 12 },
+        },
+        android: { elevation: 7 },
+        default: {},
+      }),
+    },
+
+    header: { flexDirection: "row", alignItems: "center", gap: 12 },
+
+    logoBadge: {
+      width: 44,
+      height: 44,
+      borderRadius: 16,
+      backgroundColor: colors.cta,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+
+    brand: {
+      color: colors.textSecondary,
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 12,
+      marginBottom: 2,
+    },
+
+    title: { ...typography.title, color: colors.textPrimary },
+
+    subtitle: { marginTop: 8, color: colors.textSecondary, ...typography.body },
+
+    alert: {
+      marginTop: 14,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: 14,
+      backgroundColor: colors.cta,
+    },
+
+    alertText: {
+      flex: 1,
+      color: colors.onCta,
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 12,
+      lineHeight: 16,
+    },
+  });
+}
