@@ -1,13 +1,22 @@
 // app/(tabs)/home.tsx
+import type { MealType } from "@/domain/models/foodLogDb";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
+import { useTodayMeals } from "@/presentation/hooks/diary/useTodayMeals";
 import { useTodaySummary } from "@/presentation/hooks/diary/useTodaySummary";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { todayStrLocal } from "@/presentation/utils/date";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useMemo } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Animated,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function HomeScreen() {
@@ -17,10 +26,19 @@ export default function HomeScreen() {
 
   const { profile } = useAuth();
   const { day, totals, loading } = useTodaySummary();
+  const { meals, loading: mealsLoading } = useTodayMeals(day);
 
-  const caloriesConsumed = totals.calories;
-
+  // Targets
   const caloriesTarget = profile?.daily_calorie_target ?? 0;
+  const proteinTarget = profile?.protein_g ?? 0;
+  const carbsTarget = profile?.carbs_g ?? 0;
+  const fatTarget = profile?.fat_g ?? 0;
+
+  const hasTargets =
+    caloriesTarget > 0 && proteinTarget > 0 && carbsTarget > 0 && fatTarget > 0;
+
+  // Summary
+  const caloriesConsumed = totals.calories;
   const remaining =
     caloriesTarget > 0 ? Math.max(caloriesTarget - caloriesConsumed, 0) : 0;
 
@@ -29,9 +47,12 @@ export default function HomeScreen() {
     return Math.min((caloriesConsumed / caloriesTarget) * 100, 100);
   }, [caloriesConsumed, caloriesTarget]);
 
-  const protein = { value: totals.protein, target: profile?.protein_g ?? 0 };
-  const carbs = { value: totals.carbs, target: profile?.carbs_g ?? 0 };
-  const fat = { value: totals.fat, target: profile?.fat_g ?? 0 };
+  const protein = { value: totals.protein, target: proteinTarget };
+  const carbs = { value: totals.carbs, target: carbsTarget };
+  const fat = { value: totals.fat, target: fatTarget };
+
+  // Bottom sheet "Agregar comida"
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   return (
     <SafeAreaView style={s.safe}>
@@ -59,6 +80,43 @@ export default function HomeScreen() {
             <Feather name="settings" size={18} color={colors.textPrimary} />
           </Pressable>
         </View>
+
+        {/* Missing targets card */}
+        {!hasTargets && (
+          <View style={s.noticeCard}>
+            <View style={s.noticeIcon}>
+              <MaterialCommunityIcons
+                name="account-edit"
+                size={18}
+                color={colors.onCta}
+              />
+            </View>
+
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={s.noticeTitle}>Completa tu perfil</Text>
+              <Text style={s.noticeBody}>
+                Define tu objetivo y tus macros para que el diario sea exacto.
+              </Text>
+            </View>
+
+            <Pressable
+              onPress={() => {
+                if (!profile?.onboarding_completed) {
+                  router.push("/(onboarding)/goal");
+                } else {
+                  router.push("/(tabs)/settings");
+                }
+              }}
+              style={({ pressed }) => [
+                s.noticeCta,
+                pressed && s.noticeCtaPressed,
+              ]}
+            >
+              <Text style={s.noticeCtaText}>Configurar</Text>
+              <Feather name="chevron-right" size={16} color={colors.brand} />
+            </Pressable>
+          </View>
+        )}
 
         {/* Summary Cards */}
         <View style={s.summaryRow}>
@@ -197,9 +255,18 @@ export default function HomeScreen() {
           <MealRow
             title="Desayuno"
             icon="coffee"
-            subtitle="Agregar alimentos"
+            count={meals.breakfast.count}
+            kcal={meals.breakfast.calories}
+            totalKcal={caloriesConsumed}
+            loading={mealsLoading || loading}
             colors={colors}
             typography={typography}
+            onOpen={() =>
+              router.push({
+                pathname: "/(tabs)/diary",
+                params: { meal: "lunch" },
+              })
+            }
             onAdd={() =>
               router.push({
                 pathname: "/(tabs)/add-food",
@@ -208,12 +275,22 @@ export default function HomeScreen() {
             }
           />
           <View style={s.divider} />
+
           <MealRow
             title="Almuerzo"
             icon="food"
-            subtitle="Agregar alimentos"
+            count={meals.lunch.count}
+            kcal={meals.lunch.calories}
+            totalKcal={caloriesConsumed}
+            loading={mealsLoading || loading}
             colors={colors}
             typography={typography}
+            onOpen={() =>
+              router.push({
+                pathname: "/(tabs)/diary",
+                params: { meal: "lunch" },
+              })
+            }
             onAdd={() =>
               router.push({
                 pathname: "/(tabs)/add-food",
@@ -221,13 +298,48 @@ export default function HomeScreen() {
               })
             }
           />
+
           <View style={s.divider} />
+
           <MealRow
             title="Cena"
             icon="food-variant"
-            subtitle="Agregar alimentos"
+            count={meals.dinner.count}
+            kcal={meals.dinner.calories}
+            totalKcal={caloriesConsumed}
+            loading={mealsLoading || loading}
             colors={colors}
             typography={typography}
+            onOpen={() =>
+              router.push({
+                pathname: "/(tabs)/diary",
+                params: { meal: "dinner" },
+              })
+            }
+            onAdd={() =>
+              router.push({
+                pathname: "/(tabs)/add-food",
+                params: { meal: "dinner" },
+              })
+            }
+          />
+          <View style={s.divider} />
+
+          <MealRow
+            title="Snack"
+            icon="food-apple"
+            count={meals.snack.count}
+            kcal={meals.snack.calories}
+            totalKcal={caloriesConsumed}
+            loading={mealsLoading || loading}
+            colors={colors}
+            typography={typography}
+            onOpen={() =>
+              router.push({
+                pathname: "/(tabs)/diary",
+                params: { meal: "snack" },
+              })
+            }
             onAdd={() =>
               router.push({
                 pathname: "/(tabs)/add-food",
@@ -238,18 +350,233 @@ export default function HomeScreen() {
         </View>
 
         {/* bottom spacer for FAB */}
-        <View style={{ height: 86 }} />
+        <View style={{ height: 96 }} />
       </ScrollView>
 
-      {/* Bottom CTA */}
+      {/* Bottom CTA -> sheet */}
       <View style={s.fab}>
         <PrimaryButton
           title="Agregar comida"
-          onPress={() => router.push("/(tabs)/diary")}
+          onPress={() => setSheetOpen(true)}
           icon={<Feather name="plus" size={18} color={colors.onCta} />}
         />
       </View>
+
+      <MealPickerSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        colors={colors}
+        typography={typography}
+        onPick={(meal) => {
+          setSheetOpen(false);
+          requestAnimationFrame(() => goAddFood(meal));
+        }}
+      />
     </SafeAreaView>
+  );
+
+  function goAddFood(meal: MealType) {
+    router.push({
+      pathname: "/(tabs)/add-food",
+      params: { meal },
+    });
+  }
+}
+
+function MealPickerSheet({
+  open,
+  onClose,
+  onPick,
+  colors,
+  typography,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onPick: (meal: MealType) => void;
+  colors: any;
+  typography: any;
+}) {
+  const translateY = useRef(new Animated.Value(420)).current;
+  const backdrop = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (open) {
+      Animated.parallel([
+        Animated.timing(backdrop, {
+          toValue: 1,
+          duration: 180,
+          useNativeDriver: true,
+        }),
+        Animated.timing(translateY, {
+          toValue: 0,
+          duration: 220,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(backdrop, {
+          toValue: 0,
+          duration: 140,
+          useNativeDriver: true,
+        }),
+        Animated.timing(translateY, {
+          toValue: 420,
+          duration: 180,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [open, backdrop, translateY]);
+
+  if (!open) return null;
+
+  return (
+    <View style={sheet.wrap} pointerEvents="box-none">
+      <Animated.View style={[sheet.backdrop, { opacity: backdrop }]}>
+        <Pressable style={{ flex: 1 }} onPress={onClose} />
+      </Animated.View>
+
+      <Animated.View
+        style={[
+          sheet.panel,
+          {
+            transform: [{ translateY }],
+            backgroundColor: colors.surface,
+            borderColor: colors.border,
+          },
+        ]}
+      >
+        <View style={[sheet.handle, { backgroundColor: colors.border }]} />
+
+        <View style={sheet.headRow}>
+          <Text
+            style={{
+              fontFamily: typography.subtitle?.fontFamily,
+              fontSize: 16,
+              color: colors.textPrimary,
+            }}
+          >
+            Agregar comida
+          </Text>
+
+          <Pressable onPress={onClose} style={sheet.closeBtn}>
+            <Feather name="x" size={18} color={colors.textSecondary} />
+          </Pressable>
+        </View>
+
+        <View style={{ gap: 10, marginTop: 8 }}>
+          <SheetOption
+            title="Desayuno"
+            subtitle="Café, pan, avena…"
+            icon="coffee"
+            colors={colors}
+            typography={typography}
+            onPress={() => onPick("breakfast")}
+          />
+          <SheetOption
+            title="Almuerzo"
+            subtitle="Plato principal…"
+            icon="food"
+            colors={colors}
+            typography={typography}
+            onPress={() => onPick("lunch")}
+          />
+          <SheetOption
+            title="Cena"
+            subtitle="Liviano o completo…"
+            icon="food-variant"
+            colors={colors}
+            typography={typography}
+            onPress={() => onPick("dinner")}
+          />
+          <SheetOption
+            title="Snack"
+            subtitle="Colación / picoteo…"
+            icon="food-apple"
+            colors={colors}
+            typography={typography}
+            onPress={() => onPick("snack")}
+          />
+        </View>
+      </Animated.View>
+    </View>
+  );
+}
+
+function SheetOption({
+  title,
+  subtitle,
+  icon,
+  colors,
+  typography,
+  onPress,
+}: {
+  title: string;
+  subtitle: string;
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+  colors: any;
+  typography: any;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        {
+          borderWidth: 1,
+          borderColor: colors.border,
+          backgroundColor: pressed ? "rgba(34,197,94,0.10)" : "transparent",
+          borderRadius: 18,
+          padding: 14,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+        },
+      ]}
+    >
+      <View
+        style={{
+          width: 42,
+          height: 42,
+          borderRadius: 16,
+          borderWidth: 1,
+          borderColor: colors.border,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "transparent",
+        }}
+      >
+        <MaterialCommunityIcons
+          name={icon}
+          size={20}
+          color={colors.textPrimary}
+        />
+      </View>
+
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text
+          style={{
+            fontFamily: typography.subtitle?.fontFamily,
+            fontSize: 15,
+            color: colors.textPrimary,
+          }}
+        >
+          {title}
+        </Text>
+        <Text
+          style={{
+            fontFamily: typography.body?.fontFamily,
+            fontSize: 12,
+            color: colors.textSecondary,
+          }}
+        >
+          {subtitle}
+        </Text>
+      </View>
+
+      <Feather name="chevron-right" size={18} color={colors.textSecondary} />
+    </Pressable>
   );
 }
 
@@ -291,7 +618,6 @@ function MiniStat({
           {title}
         </Text>
       </View>
-
       <Text
         style={[
           mini.value,
@@ -439,23 +765,62 @@ function MacroCard({
   );
 }
 
+/**
+ * ✅ NUEVO MealRow premium:
+ * - subtitle (items + kcal)
+ * - chip kcal
+ * - mini progress kcal_meal / kcal_total_dia
+ */
 function MealRow({
   title,
   icon,
-  subtitle,
+  count,
+  kcal,
+  totalKcal,
+  loading,
   colors,
   typography,
+  onOpen,
   onAdd,
 }: {
   title: string;
   icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
-  subtitle: string;
+  count: number;
+  kcal: number;
+  totalKcal: number;
+  loading: boolean;
   colors: any;
   typography: any;
+  onOpen: () => void;
   onAdd: () => void;
 }) {
+  const pct = useMemo(() => {
+    if (!totalKcal || totalKcal <= 0) return 0;
+    return Math.min(kcal / totalKcal, 1);
+  }, [kcal, totalKcal]);
+
+  const subtitle = useMemo(() => {
+    if (loading) return "Cargando…";
+    if (count === 0) return "Sin registros";
+    if (count === 1) return `1 item · ${kcal} kcal`;
+    return `${count} items · ${kcal} kcal`;
+  }, [loading, count, kcal]);
+
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+    <Pressable
+      onPress={onOpen}
+      style={({ pressed }) => [
+        {
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+          borderRadius: 16,
+          paddingVertical: 10,
+          paddingHorizontal: 8,
+        },
+        pressed && { opacity: 0.9, transform: [{ scale: 0.995 }] },
+      ]}
+    >
       <View
         style={{
           width: 42,
@@ -474,16 +839,44 @@ function MealRow({
         />
       </View>
 
-      <View style={{ flex: 1, gap: 2 }}>
-        <Text
-          style={{
-            fontFamily: typography.subtitle?.fontFamily,
-            fontSize: 15,
-            color: colors.textPrimary,
-          }}
-        >
-          {title}
-        </Text>
+      <View style={{ flex: 1, gap: 6 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Text
+            style={{
+              flex: 1,
+              fontFamily: typography.subtitle?.fontFamily,
+              fontSize: 15,
+              color: colors.textPrimary,
+            }}
+            numberOfLines={1}
+          >
+            {title}
+          </Text>
+
+          <View
+            style={{
+              height: 26,
+              paddingHorizontal: 10,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: loading ? 0.6 : 1,
+            }}
+          >
+            <Text
+              style={{
+                fontFamily: typography.body?.fontFamily,
+                fontSize: 12,
+                color: colors.textSecondary,
+              }}
+            >
+              {loading ? "—" : `${kcal} kcal`}
+            </Text>
+          </View>
+        </View>
+
         <Text
           style={{
             fontFamily: typography.body?.fontFamily,
@@ -493,10 +886,32 @@ function MealRow({
         >
           {subtitle}
         </Text>
+
+        <View
+          style={{
+            height: 6,
+            borderRadius: 999,
+            backgroundColor: colors.border,
+            overflow: "hidden",
+            opacity: loading ? 0.6 : 1,
+          }}
+        >
+          <View
+            style={{
+              height: "100%",
+              width: `${pct * 100}%`,
+              backgroundColor: colors.brand,
+            }}
+          />
+        </View>
       </View>
 
+      {/* ✅ Evita que el tap del botón dispare onOpen */}
       <Pressable
-        onPress={onAdd}
+        onPress={(e) => {
+          e.stopPropagation();
+          onAdd();
+        }}
         style={({ pressed }) => [
           {
             flexDirection: "row",
@@ -522,9 +937,51 @@ function MealRow({
           Añadir
         </Text>
       </Pressable>
-    </View>
+    </Pressable>
   );
 }
+
+
+const sheet = StyleSheet.create({
+  wrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    justifyContent: "flex-end",
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  panel: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    padding: 16,
+    paddingBottom: 18,
+  },
+  handle: {
+    alignSelf: "center",
+    width: 44,
+    height: 5,
+    borderRadius: 999,
+    marginBottom: 12,
+  },
+  headRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});
 
 function makeStyles(colors: any, typography: any) {
   return StyleSheet.create({
@@ -567,6 +1024,54 @@ function makeStyles(colors: any, typography: any) {
       borderColor: colors.border,
       padding: 16,
       gap: 12,
+    },
+
+    noticeCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      borderRadius: 22,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      padding: 14,
+    },
+    noticeIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.cta,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    noticeTitle: {
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 14,
+      color: colors.textPrimary,
+    },
+    noticeBody: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    noticeCta: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: 10,
+      height: 36,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: "transparent",
+    },
+    noticeCtaPressed: { opacity: 0.85, transform: [{ scale: 0.99 }] },
+    noticeCtaText: {
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 13,
+      color: colors.brand,
     },
 
     cardHeaderRow: {
