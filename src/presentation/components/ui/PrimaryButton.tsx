@@ -1,5 +1,13 @@
+// src/presentation/components/ui/PrimaryButton.tsx
+import { useTheme } from "@/presentation/theme/ThemeProvider";
 import React from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 type Props = {
   title: string;
@@ -7,6 +15,9 @@ type Props = {
   disabled?: boolean;
   loading?: boolean;
   testID?: string;
+
+  /** Icono opcional (ej: <Feather name="log-in" size={18} />) */
+  icon?: React.ReactNode;
 };
 
 export default function PrimaryButton({
@@ -15,7 +26,11 @@ export default function PrimaryButton({
   disabled,
   loading,
   testID,
+  icon,
 }: Props) {
+  const { theme } = useTheme();
+  const { colors, typography } = theme;
+
   const isDisabled = Boolean(disabled || loading);
 
   return (
@@ -25,14 +40,31 @@ export default function PrimaryButton({
       disabled={isDisabled}
       style={({ pressed }) => [
         styles.btn,
+        {
+          backgroundColor: colors.cta,
+          borderColor: colors.border,
+        },
         isDisabled && styles.btnDisabled,
         pressed && !isDisabled && styles.btnPressed,
       ]}
     >
       {loading ? (
-        <ActivityIndicator />
+        <ActivityIndicator color={colors.onCta} />
       ) : (
-        <Text style={styles.text}>{title}</Text>
+        <View style={styles.content}>
+          {icon && <View style={styles.iconWrap}>{icon}</View>}
+          <Text
+            style={[
+              styles.text,
+              {
+                color: colors.onCta,
+                fontFamily: typography.subtitle?.fontFamily,
+              },
+            ]}
+          >
+            {title}
+          </Text>
+        </View>
       )}
     </Pressable>
   );
@@ -40,13 +72,32 @@ export default function PrimaryButton({
 
 const styles = StyleSheet.create({
   btn: {
-    height: 52,
-    borderRadius: 14,
+    height: 48,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#111827", // negro suave
+    borderWidth: 1,
   },
-  btnPressed: { transform: [{ scale: 0.985 }], opacity: 0.95 },
-  btnDisabled: { opacity: 0.55 },
-  text: { color: "white", fontSize: 16, fontWeight: "600" },
+  btnPressed: {
+    transform: [{ scale: 0.985 }],
+    opacity: 0.96,
+  },
+  btnDisabled: {
+    opacity: 0.55,
+  },
+
+  content: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  iconWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  text: {
+    fontSize: 16,
+    lineHeight: 20,
+  },
 });
