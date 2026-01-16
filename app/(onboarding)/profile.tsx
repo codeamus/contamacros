@@ -1,14 +1,17 @@
+// app/(onboarding)/profile.tsx
+import { computeMacroTargets } from "@/domain/services/macroTargets";
 import AuthTextField from "@/presentation/components/auth/AuthTextField";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
+import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-
 
 function toIntSafe(s: string) {
   const n = parseInt(s.replace(/[^\d]/g, ""), 10);
   return Number.isFinite(n) ? n : NaN;
 }
+
 function toFloatSafe(s: string) {
   const normalized = s.replace(",", ".").replace(/[^\d.]/g, "");
   const n = parseFloat(normalized);
@@ -16,7 +19,7 @@ function toFloatSafe(s: string) {
 }
 
 export default function ProfileScreen() {
-  const { profile, updateProfile } = useAuth();
+  const { profile, updateProfile, refreshProfile } = useAuth();
 
   const [height, setHeight] = useState(
     profile?.height_cm ? String(profile.height_cm) : ""
@@ -54,19 +57,42 @@ export default function ProfileScreen() {
 
     setLoading(true);
     try {
-      const res = await updateProfile({
+      // 1) Guarda peso/altura + completa onboarding
+      const res1 = await updateProfile({
         height_cm: heightNum,
         weight_kg: weightNum,
         onboarding_completed: true,
       });
 
-      if (!res.ok) {
-        setErr(res.message ?? "No pudimos guardar tu perfil.");
+      if (!res1.ok) {
+        setErr(res1.message ?? "No pudimos guardar tu perfil.");
         return;
       }
 
-      // ✅ No hacemos replace.
-      // El AuthGate detecta onboarding_completed y te manda a (tabs).
+      const p = await refreshProfile();
+
+      if (!p?.daily_calorie_target) {
+        setErr("No encontramos tu meta calórica. Intenta nuevamente.");
+        return;
+      }
+
+      const macros = computeMacroTargets({
+        calories: p.daily_calorie_target,
+        weightKg: weightNum,
+      });
+
+      const res2 = await updateProfile({
+        protein_g: macros.proteinG,
+        carbs_g: macros.carbsG,
+        fat_g: macros.fatG,
+      });
+
+      if (!res2.ok) {
+        setErr(res2.message ?? "No pudimos guardar tus macros.");
+        return;
+      }
+
+      router.replace("/(tabs)");
     } catch {
       setErr("No pudimos guardar tu perfil.");
     } finally {

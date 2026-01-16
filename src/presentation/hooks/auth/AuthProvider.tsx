@@ -25,7 +25,7 @@ type AuthState = {
   ) => Promise<{ ok: boolean; message?: string }>;
   signOut: () => Promise<void>;
 
-  refreshProfile: () => Promise<void>;
+  refreshProfile: () => Promise<ProfileDb | null>;
   updateProfile: (
     input: Partial<
       Pick<
@@ -35,6 +35,9 @@ type AuthState = {
         | "weight_kg"
         | "goal"
         | "onboarding_completed"
+        | "protein_g"
+        | "carbs_g"
+        | "fat_g"
       >
     >
   ) => Promise<{ ok: boolean; message?: string }>;
@@ -47,19 +50,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<ProfileDb | null>(null);
 
-  async function refreshProfile() {
-    for (let i = 0; i < 8; i++) {
-      const res = await AuthService.getMyProfile();
-      if (res.ok && res.data) {
-        setProfile(res.data);
-        return;
-      }
-      await new Promise((r) => setTimeout(r, 250));
-    }
+ async function refreshProfile(): Promise<ProfileDb | null> {
+   for (let i = 0; i < 8; i++) {
+     const res = await AuthService.getMyProfile();
+     if (res.ok && res.data) {
+       setProfile(res.data);
+       return res.data;
+     }
+     await new Promise((r) => setTimeout(r, 250));
+   }
 
-    const last = await AuthService.getMyProfile();
-    if (last.ok) setProfile(last.data);
-  }
+   const last = await AuthService.getMyProfile();
+   if (last.ok) {
+     setProfile(last.data);
+     return last.data;
+   }
+   return null;
+ }
+
+
 
 
 

@@ -110,6 +110,9 @@ export const AuthService = {
         | "weight_kg"
         | "goal"
         | "onboarding_completed"
+        | "protein_g"
+        | "carbs_g"
+        | "fat_g"
       >
     >
   ): Promise<AuthResult<ProfileDb>> {
