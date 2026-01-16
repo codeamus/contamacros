@@ -95,23 +95,32 @@ export const openFoodFactsService = {
   },
 
   // Buscar por código de barras (API v2)
+  // Buscar por código de barras (API v2)
   async getByBarcode(barcode: string): Promise<Result<OffProduct>> {
     const code = barcode.trim();
     if (!code) return { ok: false, message: "Barcode vacío." };
 
     try {
-      // API docs: “Get a product by barcode” (hay endpoints v0 y v2; preferimos v2). :contentReference[oaicite:4]{index=4}
       const url =
         `${BASE}/api/v2/product/${encodeURIComponent(code)}` +
         `?fields=code,product_name,product_name_es,product_name_en,generic_name,brands,image_front_url,image_url,nutriments`;
 
       const r = await fetch(url);
-      if (!r.ok)
+      if (!r.ok) {
         return { ok: false, message: `OFF product error (${r.status})` };
+      }
 
       const json = await r.json();
-      const product = json?.product ?? json; // según respuesta
 
+      // v2 suele venir como { product, status, status_verbose }
+      if (json?.status === 0) {
+        return {
+          ok: false,
+          message: json?.status_verbose ?? "Producto no encontrado.",
+        };
+      }
+
+      const product = json?.product ?? json;
       if (!product) return { ok: false, message: "Producto no encontrado." };
 
       return { ok: true, data: mapOffProduct(product) };

@@ -82,7 +82,7 @@ function isMealType(x: unknown): x is MealType {
 }
 
 export default function AddFoodScreen() {
-  const params = useLocalSearchParams<{ meal?: string }>();
+  const params = useLocalSearchParams<{ meal?: string; barcode?: string }>();
   const { theme } = useTheme();
   const { colors, typography } = theme;
   const s = makeStyles(colors, typography);
@@ -107,6 +107,30 @@ export default function AddFoodScreen() {
       setMeal(params.meal);
     }
   }, [params.meal]);
+
+  useEffect(() => {
+    const barcode =
+      typeof params.barcode === "string" ? params.barcode.trim() : "";
+    if (!barcode) return;
+
+    (async () => {
+      setErr(null);
+      setIsSearching(true);
+
+      const res = await openFoodFactsService.getByBarcode(barcode);
+
+      setIsSearching(false);
+
+      if (!res.ok) {
+        setErr(res.message);
+        return;
+      }
+
+      setSelected(res.data);
+      setQuery(res.data.name);
+    })();
+  }, [params.barcode]);
+
 
   // Debounce search
   useEffect(() => {
@@ -223,6 +247,21 @@ export default function AddFoodScreen() {
             <Text style={s.subtitle}>
               Busca en OpenFoodFacts y registra los gramos.
             </Text>
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: "/(tabs)/scan",
+                  params: { meal },
+                })
+              }
+              style={({ pressed }) => [
+                s.scanBtn,
+                pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] },
+              ]}
+            >
+              <Feather name="camera" size={18} color="#111827" />
+              <Text style={s.scanBtnText}>Escanear código</Text>
+            </Pressable>
 
             {/* Search */}
             <View style={s.searchBox}>
@@ -860,5 +899,18 @@ function makeStyles(colors: any, typography: any) {
       textAlign: "center",
       fontFamily: typography.subtitle?.fontFamily,
     },
+    scanBtn: {
+      marginTop: 10,
+      height: 48,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: "#E5E7EB",
+      backgroundColor: "white",
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 10,
+    },
+    scanBtnText: { fontWeight: "800", color: "#111827" },
   });
 }

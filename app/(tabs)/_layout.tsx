@@ -60,7 +60,6 @@ export default function TabsLayout() {
           ),
         }}
       />
-
       <Tabs.Screen
         name="diary"
         options={{
@@ -74,7 +73,6 @@ export default function TabsLayout() {
           ),
         }}
       />
-
       <Tabs.Screen
         name="settings"
         options={{
@@ -84,6 +82,7 @@ export default function TabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen name="scan" options={{ href: null }} />
     </Tabs>
   );
 }
