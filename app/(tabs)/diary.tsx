@@ -1,24 +1,209 @@
-// app/(tabs)/diary.tsx
-import { useTheme } from "@/presentation/theme/ThemeProvider";
-import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+
+import { foodLogRepository } from "@/data/food/foodLogRepository";
+import type { FoodLogDb, MealType } from "@/domain/models/foodLogDb";
+import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
+import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
+import { todayStrLocal } from "@/presentation/utils/date";
+
+function sumLogs(logs: FoodLogDb[]) {
+  return logs.reduce(
+    (acc, it) => {
+      acc.calories += it.calories || 0;
+      acc.protein += it.protein_g || 0;
+      acc.carbs += it.carbs_g || 0;
+      acc.fat += it.fat_g || 0;
+      return acc;
+    },
+    { calories: 0, protein: 0, carbs: 0, fat: 0 }
+  );
+}
 
 export default function DiaryScreen() {
-  const { theme } = useTheme();
-  const s = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-      padding: 20,
-    },
-    title: theme.typography.title,
-    body: theme.typography.body,
-  });
+  const { profile } = useAuth();
+  const day = todayStrLocal();
+
+  const [logs, setLogs] = useState<FoodLogDb[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const totals = useMemo(() => sumLogs(logs), [logs]);
+
+  async function load() {
+    setLoading(true);
+    setErr(null);
+    const res = await foodLogRepository.listByDay(day);
+    if (!res.ok) {
+      setErr(res.message);
+      setLoading(false);
+      return;
+    }
+    setLogs(res.data);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [day]);
+
+  async function addQuickItem() {
+    setErr(null);
+    setLoading(true);
+
+    // MVP: item dummy. Luego esto será un modal "Agregar alimento"
+    const input = {
+      day,
+      meal: "snack" as MealType,
+      name: "Item manual",
+      calories: 250,
+      protein_g: 15,
+      carbs_g: 25,
+      fat_g: 8,
+    };
+
+    const res = await foodLogRepository.create(input);
+    if (!res.ok) {
+      setErr(res.message ?? "No pudimos agregar el item.");
+      setLoading(false);
+      return;
+    }
+
+    setLogs((prev) => [...prev, res.data]);
+    setLoading(false);
+  }
+
+  async function onDelete(id: string) {
+    Alert.alert("Eliminar", "¿Eliminar este item del diario?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Eliminar",
+        style: "destructive",
+        onPress: async () => {
+          const res = await foodLogRepository.remove(id);
+          if (!res.ok) {
+            setErr(res.message);
+            return;
+          }
+          setLogs((prev) => prev.filter((x) => x.id !== id));
+        },
+      },
+    ]);
+  }
+
+  const targetKcal = profile?.daily_calorie_target ?? null;
+  const targetP = profile?.protein_g ?? null;
+  const targetC = profile?.carbs_g ?? null;
+  const targetF = profile?.fat_g ?? null;
 
   return (
-    <View style={s.container}>
-      <Text style={s.title}>Diario</Text>
-      <Text style={s.body}>Aquí irá el registro manual de comidas.</Text>
+    <View style={styles.screen}>
+      <Text style={styles.title}>Diario</Text>
+      <Text style={styles.subtitle}>{day}</Text>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Resumen de hoy</Text>
+
+        <Text style={styles.row}>
+          Calorías:{" "}
+          <Text style={styles.strong}>
+            {totals.calories}
+            {targetKcal ? ` / ${targetKcal}` : ""}
+          </Text>
+        </Text>
+
+        <Text style={styles.row}>
+          Proteína:{" "}
+          <Text style={styles.strong}>
+            {totals.protein}g{targetP ? ` / ${targetP}g` : ""}
+          </Text>
+        </Text>
+
+        <Text style={styles.row}>
+          Carbs:{" "}
+          <Text style={styles.strong}>
+            {totals.carbs}g{targetC ? ` / ${targetC}g` : ""}
+          </Text>
+        </Text>
+
+        <Text style={styles.row}>
+          Grasas:{" "}
+          <Text style={styles.strong}>
+            {totals.fat}g{targetF ? ` / ${targetF}g` : ""}
+          </Text>
+        </Text>
+      </View>
+
+      {!!err && <Text style={styles.error}>{err}</Text>}
+
+      <PrimaryButton
+        title={loading ? "Cargando..." : "+ Añadir"}
+        onPress={addQuickItem}
+        loading={loading}
+        disabled={loading}
+      />
+
+      <View style={{ marginTop: 14, gap: 10 }}>
+        {logs.map((it) => (
+          <Pressable
+            key={it.id}
+            style={styles.item}
+            onLongPress={() => onDelete(it.id)}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.itemName}>{it.name}</Text>
+              <Text style={styles.itemMeta}>
+                {it.meal} · {it.calories} kcal · P {it.protein_g} / C{" "}
+                {it.carbs_g} / F {it.fat_g}
+              </Text>
+            </View>
+            <Text style={styles.itemChevron}>⋯</Text>
+          </Pressable>
+        ))}
+
+        {!loading && logs.length === 0 && (
+          <Text
+            style={{ color: "#6B7280", textAlign: "center", marginTop: 12 }}
+          >
+            Aún no has registrado comidas hoy.
+          </Text>
+        )}
+      </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, padding: 18, backgroundColor: "#F9FAFB" },
+  title: { fontSize: 28, fontWeight: "800", color: "#111827", marginTop: 12 },
+  subtitle: { marginTop: 6, color: "#6B7280" },
+
+  card: {
+    marginTop: 14,
+    padding: 14,
+    backgroundColor: "white",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 16,
+  },
+  cardTitle: { fontWeight: "800", color: "#111827", marginBottom: 8 },
+  row: { color: "#374151", marginTop: 6 },
+  strong: { fontWeight: "800", color: "#111827" },
+
+  error: { color: "#EF4444", marginTop: 10 },
+
+  item: {
+    backgroundColor: "white",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 14,
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  itemName: { fontWeight: "800", color: "#111827" },
+  itemMeta: { color: "#6B7280", marginTop: 4, fontSize: 12 },
+  itemChevron: { color: "#9CA3AF", fontSize: 22, paddingHorizontal: 6 },
+});

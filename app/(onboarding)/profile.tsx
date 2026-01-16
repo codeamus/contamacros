@@ -1,4 +1,6 @@
 // app/(onboarding)/profile.tsx
+import { StorageKeys } from "@/core/storage/keys";
+import { storage } from "@/core/storage/storage";
 import { computeMacroTargets } from "@/domain/services/macroTargets";
 import AuthTextField from "@/presentation/components/auth/AuthTextField";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
@@ -89,6 +91,11 @@ export default function ProfileScreen() {
 
       if (!res2.ok) {
         setErr(res2.message ?? "No pudimos guardar tus macros.");
+        await storage.setJson(StorageKeys.PENDING_PROFILE_SYNC, {
+          protein_g: macros.proteinG,
+          carbs_g: macros.carbsG,
+          fat_g: macros.fatG,
+        });
         return;
       }
 

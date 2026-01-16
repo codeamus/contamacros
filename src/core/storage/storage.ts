@@ -22,4 +22,22 @@ export const storage = {
   async clearAll(): Promise<void> {
     await AsyncStorage.clear();
   },
+
+  // =========================
+  // JSON helpers (NEW)
+  // =========================
+
+  async getJson<T>(key: StorageKey): Promise<T | null> {
+    try {
+      const raw = await AsyncStorage.getItem(key);
+      if (!raw) return null;
+      return JSON.parse(raw) as T;
+    } catch {
+      return null;
+    }
+  },
+
+  async setJson(key: StorageKey, value: unknown): Promise<void> {
+    await AsyncStorage.setItem(key, JSON.stringify(value));
+  },
 };

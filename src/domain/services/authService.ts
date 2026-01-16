@@ -2,6 +2,7 @@
 import { supabase } from "@/data/supabase/supabaseClient";
 import type { ProfileDb } from "@/domain/models/profileDb";
 import type { Session, User } from "@supabase/supabase-js";
+import { mapProfileDb } from "../mappers/profileMapper";
 
 type AuthResult<T> =
   | { ok: true; data: T }
@@ -95,7 +96,12 @@ export const AuthService = {
         .maybeSingle();
 
       if (error) return { ok: false, message: error.message, code: error.code };
-      return { ok: true, data: (data as ProfileDb) ?? null };
+      if (!data) return { ok: true, data: null };
+
+      // ✅ Normaliza (weight_kg numeric -> number)
+      const normalized = mapProfileDb(data as ProfileDb);
+
+      return { ok: true, data: normalized };
     } catch (e) {
       return { ok: false, ...mapSupabaseError(e) };
     }
