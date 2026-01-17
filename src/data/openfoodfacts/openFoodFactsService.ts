@@ -80,9 +80,6 @@ export const openFoodFactsService = {
         `&cc=${encodeURIComponent(cc)}` +
         `&fields=code,product_name,product_name_es,product_name_en,generic_name,brands,image_front_url,image_url,nutriments`;
 
-      console.log("[OFF V1 SEARCH] query =", q);
-      console.log("[OFF V1 SEARCH URL]", url);
-
       const r = await fetch(url);
       if (!r.ok) {
         return { ok: false, message: `OFF v1 search error (${r.status})` };
@@ -91,12 +88,6 @@ export const openFoodFactsService = {
       const json = await r.json();
       const products = Array.isArray(json?.products) ? json.products : [];
       const items = products.map(mapOffProduct);
-
-      console.log("[OFF V1 SEARCH OK] items:", items.length);
-      console.log(
-        "[OFF V1 SAMPLE]",
-        items.slice(0, 3).map((x) => `${x.name} (${x.brand ?? "Sin marca"})`),
-      );
 
       return { ok: true, data: { items, page, pageSize } };
     } catch (e: any) {
