@@ -48,6 +48,9 @@ export const foodLogRepository = {
     day: string;
     meal: MealType;
     name: string;
+    grams?: number | null;
+    source?: string | null;
+    off_id?: string | null;
     calories: number;
     protein_g: number;
     carbs_g: number;
@@ -58,7 +61,13 @@ export const foodLogRepository = {
       if (!uidRes.ok) return uidRes;
       const uid = uidRes.data;
 
-      const payload = { ...input, user_id: uid };
+      const payload = {
+        ...input,
+        user_id: uid,
+        grams: input.grams ?? null,
+        source: input.source ?? null,
+        off_id: input.off_id ?? null,
+      };
 
       const { data, error } = await supabase
         .from("food_logs")

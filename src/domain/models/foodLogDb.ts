@@ -9,6 +9,10 @@ export type FoodLogDb = {
 
   name: string;
 
+  grams: number | null;
+  source: string | null;
+  off_id: string | null;
+
   calories: number;
   protein_g: number;
   carbs_g: number;

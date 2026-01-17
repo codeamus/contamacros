@@ -1,3 +1,4 @@
+// app/(tabs)/add-food.tsx
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -83,6 +84,7 @@ function isMealType(x: unknown): x is MealType {
 
 type EditDraft = {
   name: string;
+  gramsStr: string; // ✅ ahora sí editable/persistible
   caloriesStr: string;
   proteinStr: string;
   carbsStr: string;
@@ -94,6 +96,14 @@ function numFromStrNonNeg(s: string) {
   if (!Number.isFinite(n)) return NaN;
   if (n < 0) return 0;
   return n;
+}
+
+async function getAuthedUserId() {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) return { ok: false as const, message: error.message };
+  const uid = data.session?.user?.id;
+  if (!uid) return { ok: false as const, message: "No hay sesión activa." };
+  return { ok: true as const, uid };
 }
 
 export default function AddFoodScreen() {
@@ -122,7 +132,6 @@ export default function AddFoodScreen() {
   const [err, setErr] = useState<string | null>(null);
 
   const [meal, setMeal] = useState<MealType>("snack");
-
   useEffect(() => {
     if (isMealType(params.meal)) setMeal(params.meal);
   }, [params.meal]);
@@ -144,6 +153,7 @@ export default function AddFoodScreen() {
   const [editingLog, setEditingLog] = useState<FoodLogDb | null>(null);
   const [editDraft, setEditDraft] = useState<EditDraft>({
     name: "",
+    gramsStr: "100",
     caloriesStr: "",
     proteinStr: "",
     carbsStr: "",
@@ -159,15 +169,9 @@ export default function AddFoodScreen() {
       setErr(null);
       setIsLoadingEdit(true);
 
-      const { data: sdata, error: serr } = await supabase.auth.getSession();
-      if (serr) {
-        setErr(serr.message);
-        setIsLoadingEdit(false);
-        return;
-      }
-      const uid = sdata.session?.user?.id;
-      if (!uid) {
-        setErr("No hay sesión activa.");
+      const auth = await getAuthedUserId();
+      if (!auth.ok) {
+        setErr(auth.message);
         setIsLoadingEdit(false);
         return;
       }
@@ -176,7 +180,7 @@ export default function AddFoodScreen() {
         .from("food_logs")
         .select("*")
         .eq("id", logId)
-        .eq("user_id", uid)
+        .eq("user_id", auth.uid)
         .maybeSingle();
 
       setIsLoadingEdit(false);
@@ -196,6 +200,10 @@ export default function AddFoodScreen() {
 
       setEditDraft({
         name: log.name ?? "",
+        gramsStr:
+          typeof (log as any).grams === "number"
+            ? String((log as any).grams)
+            : "100",
         caloriesStr: String(log.calories ?? 0),
         proteinStr: String(log.protein_g ?? 0),
         carbsStr: String(log.carbs_g ?? 0),
@@ -227,6 +235,7 @@ export default function AddFoodScreen() {
 
       setSelected(res.data);
       setQuery(res.data.name);
+      setGramsStr("100");
     })();
   }, [params.barcode, isEditMode]);
 
@@ -291,6 +300,11 @@ export default function AddFoodScreen() {
     const name = editDraft.name.trim();
     if (!name) return "Ingresa el nombre del alimento.";
 
+    const g = numFromStrNonNeg(editDraft.gramsStr);
+    if (!Number.isFinite(g)) return "Gramos inválidos.";
+    if (g <= 0) return "Los gramos deben ser > 0.";
+    if (g > 2000) return "Gramos demasiado altos (máx 2000g).";
+
     const kcal = numFromStrNonNeg(editDraft.caloriesStr);
     const p = numFromStrNonNeg(editDraft.proteinStr);
     const c = numFromStrNonNeg(editDraft.carbsStr);
@@ -321,11 +335,16 @@ export default function AddFoodScreen() {
     }
     if (!preview) return;
 
+    const g = Number.isFinite(gramsNum) ? clamp(gramsNum, 1, 2000) : 100;
+
     setLoading(true);
     const res = await foodLogRepository.create({
       day,
       meal,
       name: selected.name,
+      grams: g, // ✅
+      source: "off", // ✅
+      off_id: selected.id, // ✅
       calories: preview.kcal,
       protein_g: preview.protein,
       carbs_g: preview.carbs,
@@ -355,6 +374,7 @@ export default function AddFoodScreen() {
     const payload = {
       meal,
       name: editDraft.name.trim(),
+      grams: clamp(numFromStrNonNeg(editDraft.gramsStr), 1, 2000),
       calories: Math.round(numFromStrNonNeg(editDraft.caloriesStr)),
       protein_g: Math.round(numFromStrNonNeg(editDraft.proteinStr)),
       carbs_g: Math.round(numFromStrNonNeg(editDraft.carbsStr)),
@@ -362,11 +382,25 @@ export default function AddFoodScreen() {
     };
 
     setLoading(true);
-    const res = await foodLogRepository.update(editingLog.id, payload);
+
+    const auth = await getAuthedUserId();
+    if (!auth.ok) {
+      setLoading(false);
+      setErr(auth.message);
+      return;
+    }
+
+    // ✅ Update directo (no dependemos de que exista foodLogRepository.update aún)
+    const { error } = await supabase
+      .from("food_logs")
+      .update(payload as any)
+      .eq("id", editingLog.id)
+      .eq("user_id", auth.uid);
+
     setLoading(false);
 
-    if (!res.ok) {
-      setErr(res.message ?? "No pudimos guardar los cambios.");
+    if (error) {
+      setErr(error.message ?? "No pudimos guardar los cambios.");
       return;
     }
 
@@ -417,10 +451,6 @@ export default function AddFoodScreen() {
             ------------------------- */}
         {isEditMode && (
           <>
-            <Text style={s.subtitle}>
-              Edita el nombre y macros. (Los gramos no se guardan por ahora.)
-            </Text>
-
             {(isLoadingEdit || !editingLog) && !err ? (
               <View style={s.loadingBox}>
                 <ActivityIndicator />
@@ -496,6 +526,29 @@ export default function AddFoodScreen() {
                   </View>
                 </View>
 
+                {/* Grams */}
+                <View style={{ marginTop: 12 }}>
+                  <Text style={s.label}>Gramos consumidos</Text>
+                  <View style={s.gramsRow}>
+                    <MaterialCommunityIcons
+                      name="scale"
+                      size={18}
+                      color={colors.textSecondary}
+                    />
+                    <TextInput
+                      value={editDraft.gramsStr}
+                      onChangeText={(t) =>
+                        setEditDraft((d) => ({ ...d, gramsStr: t }))
+                      }
+                      keyboardType="numeric"
+                      style={s.gramsInput}
+                      placeholder="100"
+                      placeholderTextColor={colors.textSecondary}
+                    />
+                    <Text style={s.gramsUnit}>g</Text>
+                  </View>
+                </View>
+
                 {/* Macros grid */}
                 <View style={s.editGrid}>
                   <EditNumberField
@@ -562,7 +615,7 @@ export default function AddFoodScreen() {
         )}
 
         {/* -------------------------
-            CREATE MODE UI (your original flow)
+            CREATE MODE UI
             ------------------------- */}
         {!isEditMode && !selected && (
           <>
@@ -674,7 +727,10 @@ export default function AddFoodScreen() {
                     s.result,
                     pressed && { opacity: 0.95, transform: [{ scale: 0.997 }] },
                   ]}
-                  onPress={() => setSelected(it)}
+                  onPress={() => {
+                    setSelected(it);
+                    setGramsStr("100");
+                  }}
                 >
                   <View style={s.resultIcon}>
                     <MaterialCommunityIcons
