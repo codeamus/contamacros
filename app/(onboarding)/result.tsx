@@ -8,15 +8,17 @@ import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { activityLabel, goalLabel } from "@/presentation/utils/goalLabel";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Image } from "expo-image";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-     Animated,
-     Easing,
-     Platform,
-     StyleSheet,
-     Text,
-     View,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 /**
  * Helpers
@@ -51,8 +53,6 @@ export default function ResultScreen() {
   const draft = useMemo(() => {
     if (!profile) return null;
 
-    // ⚠️ Requiere que tu ProfileDb ya tenga estos campos:
-    // gender, birth_date, activity_level
     const gender = (profile as any).gender as "male" | "female" | null;
     const birthDate = (profile as any).birth_date as string | null;
     const activityLevel = (profile as any).activity_level as
@@ -91,8 +91,6 @@ export default function ResultScreen() {
   const computed = useMemo(() => {
     if (!draft) return null;
     try {
-      // Aquí podrías bloquear ajustes premium:
-      // free: deficit [-0.1, -0.15] (sin -0.2)
       const res = calculateCalorieGoal(draft, {
         roundTo: 10,
         allowedDeficitAdjustments: [-0.1, -0.15],
@@ -103,6 +101,10 @@ export default function ResultScreen() {
       return { error: e?.message ?? "No pudimos calcular tu objetivo." } as any;
     }
   }, [draft]);
+
+  useEffect(() => {
+    if ((computed as any)?.error) setErr((computed as any).error);
+  }, [computed]);
 
   const canConfirm =
     !!draft && !!computed && !(computed as any).error && !loading;
@@ -164,8 +166,7 @@ export default function ResultScreen() {
         return;
       }
 
-      // ✅ NO navegamos a tabs aquí.
-      // AuthGate detecta onboarding_completed y hace el redirect.
+      // ✅ AuthGate detecta onboarding_completed y hace el redirect.
     } catch {
       setErr("No pudimos completar el onboarding.");
     } finally {
@@ -173,134 +174,135 @@ export default function ResultScreen() {
     }
   }
 
-  // Animación de entrada
-  const enter = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.timing(enter, {
-      toValue: 1,
-      duration: 260,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-  }, [enter]);
-
-  useEffect(() => {
-    if ((computed as any)?.error) setErr((computed as any).error);
-  }, [computed]);
-
   const styles = makeStyles(colors, typography);
 
   return (
-    <View style={styles.screen}>
-      <Animated.View
-        style={[
-          styles.card,
-          {
-            opacity: enter,
-            transform: [
-              {
-                translateY: enter.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [10, 0],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.logoBadge}>
-            <MaterialCommunityIcons
-              name="calculator"
-              size={22}
-              color={colors.onCta}
-            />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.brand}>Onboarding</Text>
-            <Text style={styles.title}>Tu objetivo diario</Text>
-          </View>
-        </View>
-
-        <Text style={styles.subtitle}>
-          Este valor se calcula con tu cuerpo y tu nivel de actividad. No cambia
-          automáticamente.
-        </Text>
-
-        {!draft ? (
-          <View style={[styles.alert, { marginTop: 16 }]}>
-            <Feather name="alert-triangle" size={16} color={colors.onCta} />
-            <Text style={styles.alertText}>
-              Nos faltan datos para calcular tu objetivo. Vuelve atrás y
-              completa los pasos del onboarding.
-            </Text>
-          </View>
-        ) : (
-          <>
-            {/* Big number */}
-            <View style={styles.kpiBox}>
-              <Text style={styles.kpiLabel}>Meta calórica</Text>
-              <Text style={styles.kpiValue}>
-                {computed && !(computed as any).error
-                  ? `${fmt(computed.dailyCalorieTarget)} kcal`
-                  : "—"}
-              </Text>
-              <Text style={styles.kpiHint}>
-                Basado en TDEE{" "}
-                {computed && !(computed as any).error
-                  ? `${fmt(computed.tdee)} kcal`
-                  : "—"}
-              </Text>
+    <SafeAreaView style={styles.safe}>
+      <ScrollView>
+        <View style={styles.screen}>
+          {/* HERO (idéntico a las otras pantallas) */}
+          <View style={styles.heroFrame}>
+            <View style={styles.heroHalo} />
+            <View style={styles.heroCard}>
+              <Image
+                source={require("../../assets/images/onboarding/onboarding-5.png")}
+                style={styles.heroImage}
+                contentFit="contain"
+              />
             </View>
+          </View>
 
-            {/* Explanation pills */}
-            {computed && !(computed as any).error && (
-              <View style={{ gap: 10, marginTop: 14 }}>
-                <Pill
-                  icon="user"
-                  label={`Edad estimada: ${computed.ageYears} años`}
-                  colors={colors}
-                  typography={typography}
-                />
-                <Pill
-                  icon="activity"
-                  label={`Actividad: ${activityLabel((profile as any)?.activity_level ?? "")}`}
-                  colors={colors}
-                  typography={typography}
-                />
-                <Pill
-                  icon="target"
-                  label={`Objetivo: ${goalLabel(profile?.goal ?? "")}`}
-                  colors={colors}
-                  typography={typography}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.sheetWrap}
+          >
+            <View style={styles.sheet}>
+              {/* Header */}
+              <View style={styles.header}>
+                <View style={styles.logoBadge}>
+                  <MaterialCommunityIcons
+                    name="calculator"
+                    size={22}
+                    color={colors.onCta}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.kicker}>Onboarding</Text>
+                  <Text style={styles.title}>Tu objetivo diario</Text>
+                </View>
+              </View>
+
+              <Text style={styles.subtitle}>
+                Este valor se calcula con tu cuerpo y tu nivel de actividad. No
+                cambia automáticamente.
+              </Text>
+
+              {!draft ? (
+                <View style={[styles.alert, { marginTop: 16 }]}>
+                  <Feather
+                    name="alert-triangle"
+                    size={16}
+                    color={colors.onCta}
+                  />
+                  <Text style={styles.alertText}>
+                    Nos faltan datos para calcular tu objetivo. Vuelve atrás y
+                    completa los pasos del onboarding.
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  {/* KPI */}
+                  <View style={styles.kpiBox}>
+                    <Text style={styles.kpiLabel}>Meta calórica</Text>
+                    <Text style={styles.kpiValue}>
+                      {computed && !(computed as any).error
+                        ? `${fmt(computed.dailyCalorieTarget)} kcal`
+                        : "—"}
+                    </Text>
+                    <Text style={styles.kpiHint}>
+                      Basado en TDEE{" "}
+                      {computed && !(computed as any).error
+                        ? `${fmt(computed.tdee)} kcal`
+                        : "—"}
+                    </Text>
+                  </View>
+
+                  {/* Pills */}
+                  {computed && !(computed as any).error && (
+                    <View style={{ gap: 10, marginTop: 14 }}>
+                      <Pill
+                        icon="user"
+                        label={`Edad estimada: ${computed.ageYears} años`}
+                        colors={colors}
+                        typography={typography}
+                      />
+                      <Pill
+                        icon="activity"
+                        label={`Actividad: ${activityLabel(
+                          (profile as any)?.activity_level ?? "",
+                        )}`}
+                        colors={colors}
+                        typography={typography}
+                      />
+                      <Pill
+                        icon="target"
+                        label={`Objetivo: ${goalLabel(profile?.goal ?? "")}`}
+                        colors={colors}
+                        typography={typography}
+                      />
+                    </View>
+                  )}
+                </>
+              )}
+
+              {!!err && (
+                <View style={[styles.alert, { marginTop: 14 }]}>
+                  <Feather
+                    name="alert-triangle"
+                    size={16}
+                    color={colors.onCta}
+                  />
+                  <Text style={styles.alertText}>{err}</Text>
+                </View>
+              )}
+
+              <View style={{ marginTop: 18 }}>
+                <PrimaryButton
+                  title="Confirmar objetivo"
+                  onPress={onConfirm}
+                  loading={loading}
+                  disabled={!canConfirm}
                 />
               </View>
-            )}
-          </>
-        )}
 
-        {!!err && (
-          <View style={[styles.alert, { marginTop: 14 }]}>
-            <Feather name="alert-triangle" size={16} color={colors.onCta} />
-            <Text style={styles.alertText}>{err}</Text>
-          </View>
-        )}
-
-        <View style={{ marginTop: 18 }}>
-          <PrimaryButton
-            title="Confirmar objetivo"
-            onPress={onConfirm}
-            loading={loading}
-            disabled={!canConfirm}
-          />
+              <Text style={styles.footerNote}>
+                Podrás recalcular tu objetivo cuando cambien tus datos.
+              </Text>
+            </View>
+          </KeyboardAvoidingView>
         </View>
-
-        <Text style={styles.footerNote}>
-          Podrás recalcular tu objetivo cuando cambien tus datos.
-        </Text>
-      </Animated.View>
-    </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -337,6 +339,8 @@ function Pill({
           alignItems: "center",
           justifyContent: "center",
           backgroundColor: colors.cta,
+          borderWidth: 1,
+          borderColor: colors.border,
         }}
       >
         <Feather name={icon} size={16} color={colors.onCta} />
@@ -357,19 +361,55 @@ function Pill({
 
 function makeStyles(colors: any, typography: any) {
   return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
     screen: {
       flex: 1,
-      padding: 18,
-      justifyContent: "center",
       backgroundColor:
         colors.background === "#22C55E"
           ? "rgba(34,197,94,0.95)"
           : colors.background,
     },
 
-    card: {
+    // ✅ EXACTAMENTE igual a goal/about/activity/profile
+    heroFrame: {
+      alignItems: "center",
+      marginTop: 28,
+      marginBottom: 8,
+    },
+    heroHalo: {
+      position: "absolute",
+      width: 320,
+      height: 320,
+      borderRadius: 160,
+      backgroundColor: "rgba(34,197,94,0.18)",
+    },
+    heroCard: {
+      width: "86%",
+      aspectRatio: 1,
+      borderRadius: 28,
+      backgroundColor: "rgba(255,255,255,0.06)",
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.08)",
+      alignItems: "center",
+      justifyContent: "center",
       padding: 18,
-      borderRadius: 24,
+    },
+    heroImage: {
+      width: "100%",
+      height: "100%",
+      borderRadius: 20,
+    },
+
+    // ✅ EXACTAMENTE igual a goal/about/activity/profile
+    sheetWrap: {
+      flex: 1,
+      justifyContent: "flex-end",
+    },
+    sheet: {
+      marginHorizontal: 18,
+      marginBottom: 18,
+      padding: 18,
+      borderRadius: 28,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
@@ -380,17 +420,16 @@ function makeStyles(colors: any, typography: any) {
           shadowRadius: 22,
           shadowOffset: { width: 0, height: 12 },
         },
-        android: { elevation: 7 },
-        default: {},
+        android: { elevation: 8 },
       }),
     },
 
     header: { flexDirection: "row", alignItems: "center", gap: 12 },
 
     logoBadge: {
-      width: 44,
-      height: 44,
-      borderRadius: 16,
+      width: 46,
+      height: 46,
+      borderRadius: 18,
       backgroundColor: colors.cta,
       alignItems: "center",
       justifyContent: "center",
@@ -398,7 +437,7 @@ function makeStyles(colors: any, typography: any) {
       borderColor: colors.border,
     },
 
-    brand: {
+    kicker: {
       color: colors.textSecondary,
       fontFamily: typography.body?.fontFamily,
       fontSize: 12,
@@ -443,6 +482,8 @@ function makeStyles(colors: any, typography: any) {
       paddingVertical: 10,
       borderRadius: 14,
       backgroundColor: colors.cta,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
 
     alertText: {

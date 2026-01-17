@@ -4,17 +4,18 @@ import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { router } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
-  Animated,
-  Easing,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 function toIntSafe(s: string) {
   const n = parseInt(s.replace(/[^\d]/g, ""), 10);
@@ -27,7 +28,7 @@ function toFloatSafe(s: string) {
 }
 
 export default function ProfileScreen() {
-  const { profile, updateProfile, refreshProfile } = useAuth();
+  const { profile, updateProfile } = useAuth();
   const { theme } = useTheme();
   const { colors, typography } = theme;
 
@@ -67,13 +68,13 @@ export default function ProfileScreen() {
 
     setLoading(true);
     try {
-      const res1 = await updateProfile({
+      const res = await updateProfile({
         height_cm: heightNum,
         weight_kg: weightNum,
       });
 
-      if (!res1.ok) {
-        setErr(res1.message ?? "No pudimos guardar tu perfil.");
+      if (!res.ok) {
+        setErr(res.message ?? "No pudimos guardar tu perfil.");
         return;
       }
 
@@ -85,126 +86,157 @@ export default function ProfileScreen() {
     }
   }
 
-  // Animación de entrada
-  const enter = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.timing(enter, {
-      toValue: 1,
-      duration: 260,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-  }, [enter]);
-
   const styles = makeStyles(colors, typography);
 
   return (
-    <View style={styles.screen}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <Animated.View
-          style={[
-            styles.card,
-            {
-              opacity: enter,
-              transform: [
-                {
-                  translateY: enter.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [10, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <View style={styles.header}>
-            <View style={styles.logoBadge}>
-              <MaterialCommunityIcons
-                name="account"
-                size={22}
-                color={colors.onCta}
+    <SafeAreaView style={styles.safe}>
+      <ScrollView>
+        <View style={styles.screen}>
+          {/* HERO (idéntico a goal/about/activity) */}
+          <View style={styles.heroFrame}>
+            <View style={styles.heroHalo} />
+            <View style={styles.heroCard}>
+              <Image
+                source={require("../../assets/images/onboarding/onboarding-4.png")}
+                style={styles.heroImage}
+                contentFit="contain"
               />
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.brand}>Onboarding</Text>
-              <Text style={styles.title}>Tu perfil</Text>
-            </View>
           </View>
 
-          <Text style={styles.subtitle}>
-            Solo necesitamos esto para estimar tus metas diarias.
-          </Text>
-
-          <View style={{ gap: 14, marginTop: 18 }}>
-            <AuthTextField
-              label="Altura (cm)"
-              value={height}
-              onChangeText={setHeight}
-              placeholder="Ej: 175"
-              keyboardType="numeric"
-              error={heightError}
-              leftIcon={
-                <Feather
-                  name="arrow-up"
-                  size={18}
-                  color={colors.textSecondary}
-                />
-              }
-            />
-
-            <AuthTextField
-              label="Peso (kg)"
-              value={weight}
-              onChangeText={setWeight}
-              placeholder="Ej: 80"
-              keyboardType="numeric"
-              error={weightError}
-              leftIcon={
-                <Feather
-                  name="activity"
-                  size={18}
-                  color={colors.textSecondary}
-                />
-              }
-            />
-
-            {!!err && (
-              <View style={styles.alert}>
-                <Feather name="alert-triangle" size={16} color={colors.onCta} />
-                <Text style={styles.alertText}>{err}</Text>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.sheetWrap}
+          >
+            <View style={styles.sheet}>
+              <View style={styles.header}>
+                <View style={styles.logoBadge}>
+                  <MaterialCommunityIcons
+                    name="account"
+                    size={22}
+                    color={colors.onCta}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.kicker}>Onboarding</Text>
+                  <Text style={styles.title}>Tu perfil</Text>
+                </View>
               </View>
-            )}
 
-            <PrimaryButton
-              title="Finalizar"
-              onPress={onFinish}
-              loading={loading}
-              disabled={!canFinish}
-            />
-          </View>
-        </Animated.View>
-      </KeyboardAvoidingView>
-    </View>
+              <Text style={styles.subtitle}>
+                Solo necesitamos esto para estimar tus metas diarias.
+              </Text>
+
+              <View style={{ gap: 14, marginTop: 16 }}>
+                <AuthTextField
+                  label="Altura (cm)"
+                  value={height}
+                  onChangeText={setHeight}
+                  placeholder="Ej: 175"
+                  keyboardType="numeric"
+                  error={heightError}
+                  leftIcon={
+                    <Feather
+                      name="arrow-up"
+                      size={18}
+                      color={colors.textSecondary}
+                    />
+                  }
+                />
+
+                <AuthTextField
+                  label="Peso (kg)"
+                  value={weight}
+                  onChangeText={setWeight}
+                  placeholder="Ej: 80"
+                  keyboardType="numeric"
+                  error={weightError}
+                  leftIcon={
+                    <Feather
+                      name="activity"
+                      size={18}
+                      color={colors.textSecondary}
+                    />
+                  }
+                />
+
+                {!!err && (
+                  <View style={styles.alert}>
+                    <Feather
+                      name="alert-triangle"
+                      size={16}
+                      color={colors.onCta}
+                    />
+                    <Text style={styles.alertText}>{err}</Text>
+                  </View>
+                )}
+
+                <PrimaryButton
+                  title="Continuar"
+                  onPress={onFinish}
+                  loading={loading}
+                  disabled={!canFinish}
+                />
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 function makeStyles(colors: any, typography: any) {
   return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
     screen: {
       flex: 1,
-      padding: 18,
-      justifyContent: "center",
       backgroundColor:
         colors.background === "#22C55E"
           ? "rgba(34,197,94,0.95)"
           : colors.background,
     },
 
-    card: {
+    // ✅ EXACTAMENTE igual a goal/about/activity
+    heroFrame: {
+      alignItems: "center",
+      marginTop: 28,
+      marginBottom: 8,
+    },
+    heroHalo: {
+      position: "absolute",
+      width: 320,
+      height: 320,
+      borderRadius: 160,
+      backgroundColor: "rgba(34,197,94,0.18)",
+    },
+    heroCard: {
+      width: "86%",
+      aspectRatio: 1,
+      borderRadius: 28,
+      backgroundColor: "rgba(255,255,255,0.06)",
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.08)",
+      alignItems: "center",
+      justifyContent: "center",
       padding: 18,
-      borderRadius: 24,
+    },
+    heroImage: {
+      width: "100%",
+      height: "100%",
+      borderRadius: 20,
+    },
+
+    // ✅ EXACTAMENTE igual a goal/about/activity
+    sheetWrap: {
+      flex: 1,
+      justifyContent: "flex-end",
+    },
+    sheet: {
+      marginHorizontal: 18,
+      marginBottom: 18,
+      padding: 18,
+      borderRadius: 28,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
@@ -215,17 +247,16 @@ function makeStyles(colors: any, typography: any) {
           shadowRadius: 22,
           shadowOffset: { width: 0, height: 12 },
         },
-        android: { elevation: 7 },
-        default: {},
+        android: { elevation: 8 },
       }),
     },
 
     header: { flexDirection: "row", alignItems: "center", gap: 12 },
 
     logoBadge: {
-      width: 44,
-      height: 44,
-      borderRadius: 16,
+      width: 46,
+      height: 46,
+      borderRadius: 18,
       backgroundColor: colors.cta,
       alignItems: "center",
       justifyContent: "center",
@@ -233,7 +264,7 @@ function makeStyles(colors: any, typography: any) {
       borderColor: colors.border,
     },
 
-    brand: {
+    kicker: {
       color: colors.textSecondary,
       fontFamily: typography.body?.fontFamily,
       fontSize: 12,
@@ -245,6 +276,7 @@ function makeStyles(colors: any, typography: any) {
     subtitle: { marginTop: 8, color: colors.textSecondary, ...typography.body },
 
     alert: {
+      marginTop: 10,
       flexDirection: "row",
       alignItems: "center",
       gap: 10,
@@ -252,6 +284,8 @@ function makeStyles(colors: any, typography: any) {
       paddingVertical: 10,
       borderRadius: 14,
       backgroundColor: colors.cta,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
 
     alertText: {

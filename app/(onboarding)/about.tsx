@@ -5,18 +5,22 @@ import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import DateTimePicker, {
-     DateTimePickerEvent,
+  DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
-     Modal,
-     Platform,
-     Pressable,
-     StyleSheet,
-     Text,
-     View,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -29,6 +33,27 @@ function clampDate(d: Date, min: Date, max: Date) {
   return new Date(Math.min(Math.max(t, min.getTime()), max.getTime()));
 }
 
+function formatYmdToSpanishLong(ymd: string) {
+  const [y, m, d] = ymd.split("-").map((x) => parseInt(x, 10));
+  if (!y || !m || !d) return ymd;
+
+  const months = [
+    "enero",
+    "febrero",
+    "marzo",
+    "abril",
+    "mayo",
+    "junio",
+    "julio",
+    "agosto",
+    "septiembre",
+    "octubre",
+    "noviembre",
+    "diciembre",
+  ];
+  return `${d} de ${months[m - 1]} de ${y}`;
+}
+
 export default function AboutScreen() {
   const { updateProfile } = useAuth();
   const { theme } = useTheme();
@@ -36,7 +61,6 @@ export default function AboutScreen() {
 
   const [gender, setGender] = useState<Gender | null>(null);
 
-  // Por defecto: 25 años atrás (solo UX)
   const defaultDate = useMemo(() => {
     const now = new Date();
     return new Date(now.getFullYear() - 25, now.getMonth(), now.getDate());
@@ -48,7 +72,6 @@ export default function AboutScreen() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // Guardrails de edad: 13..90 (coherente con el servicio)
   const minBirthDate = useMemo(() => {
     const now = new Date();
     return new Date(now.getFullYear() - 90, now.getMonth(), now.getDate());
@@ -59,21 +82,22 @@ export default function AboutScreen() {
   }, []);
 
   const birthDateYmd = useMemo(() => toYmd(birthDate), [birthDate]);
+  const birthDateLabel = useMemo(
+    () => formatYmdToSpanishLong(birthDateYmd),
+    [birthDateYmd],
+  );
 
-  const canContinue = !!gender && !loading;
+  const canContinue = useMemo(() => !!gender && !loading, [gender, loading]);
 
   function openPicker() {
     setPickerOpen(true);
   }
-
   function closePicker() {
     setPickerOpen(false);
   }
 
   function onPickerChange(e: DateTimePickerEvent, selected?: Date) {
-    if (Platform.OS === "android") {
-      setPickerOpen(false);
-    }
+    if (Platform.OS === "android") setPickerOpen(false);
     if (e.type === "dismissed") return;
     const d = selected ?? birthDate;
     setBirthDate(clampDate(d, minBirthDate, maxBirthDate));
@@ -85,9 +109,6 @@ export default function AboutScreen() {
     setErr(null);
     setLoading(true);
 
-    // ⚠️ Requiere que ProfileDb / tabla tenga:
-    // gender: "male" | "female"
-    // birth_date: "YYYY-MM-DD"
     const res = await updateProfile({
       gender,
       birth_date: birthDateYmd,
@@ -106,121 +127,147 @@ export default function AboutScreen() {
   const styles = makeStyles(colors, typography);
 
   return (
-    <View style={styles.screen}>
-      <View style={styles.card}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.logoBadge}>
-            <MaterialCommunityIcons
-              name="account"
-              size={22}
-              color={colors.onCta}
-            />
+    <SafeAreaView style={styles.safe}>
+      <ScrollView>
+        <View style={styles.screen}>
+          {/* HERO (idéntico a goal.tsx) */}
+          <View style={styles.heroFrame}>
+            <View style={styles.heroHalo} />
+            <View style={styles.heroCard}>
+              <Image
+                source={require("../../assets/images/onboarding/onboarding-2.png")}
+                style={styles.heroImage}
+                contentFit="contain"
+              />
+            </View>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.brand}>Onboarding</Text>
-            <Text style={styles.title}>Sobre ti</Text>
-          </View>
-        </View>
 
-        <Text style={styles.subtitle}>
-          Usamos estos datos solo para calcular tu metabolismo basal.
-        </Text>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.sheetWrap}
+          >
+            {/* SHEET (idéntico a goal.tsx) */}
+            <View style={styles.sheet}>
+              <View style={styles.header}>
+                <View style={styles.logoBadge}>
+                  <MaterialCommunityIcons
+                    name="account"
+                    size={22}
+                    color={colors.onCta}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.kicker}>Onboarding</Text>
+                  <Text style={styles.title}>Sobre ti</Text>
+                </View>
+              </View>
 
-        <View style={{ gap: 12, marginTop: 18 }}>
-          <OptionRow
-            title="Hombre"
-            desc="Fórmula Mifflin–St Jeor"
-            selected={gender === "male"}
-            onPress={() => setGender("male")}
-            colors={colors}
-            typography={typography}
-            icon="user"
-          />
-          <OptionRow
-            title="Mujer"
-            desc="Fórmula Mifflin–St Jeor"
-            selected={gender === "female"}
-            onPress={() => setGender("female")}
-            colors={colors}
-            typography={typography}
-            icon="user"
-          />
+              <Text style={styles.subtitle}>
+                Usamos estos datos solo para estimar tu metabolismo basal.
+              </Text>
 
-          {/* Birthdate picker */}
-          <Pressable onPress={openPicker} style={styles.birthRow}>
-            <View style={styles.birthIcon}>
-              <Feather name="calendar" size={18} color={colors.onCta} />
+              <View style={{ gap: 12, marginTop: 16 }}>
+                <OptionRow
+                  title="Hombre"
+                  desc="Usaremos la fórmula correspondiente"
+                  selected={gender === "male"}
+                  onPress={() => setGender("male")}
+                  colors={colors}
+                  typography={typography}
+                  icon="user"
+                />
+                <OptionRow
+                  title="Mujer"
+                  desc="Usaremos la fórmula correspondiente"
+                  selected={gender === "female"}
+                  onPress={() => setGender("female")}
+                  colors={colors}
+                  typography={typography}
+                  icon="user"
+                />
+
+                {/* Fecha */}
+                <Pressable onPress={openPicker} style={styles.birthRow}>
+                  <View style={styles.birthIcon}>
+                    <Feather name="calendar" size={18} color={colors.onCta} />
+                  </View>
+
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={styles.birthLabel}>Fecha de nacimiento</Text>
+                    <Text style={styles.birthValue}>{birthDateLabel}</Text>
+                  </View>
+
+                  <Feather
+                    name="chevron-right"
+                    size={18}
+                    color={colors.textSecondary}
+                  />
+                </Pressable>
+
+                {!!err && (
+                  <View style={styles.alert}>
+                    <Feather
+                      name="alert-triangle"
+                      size={16}
+                      color={colors.onCta}
+                    />
+                    <Text style={styles.alertText}>{err}</Text>
+                  </View>
+                )}
+
+                <View style={{ marginTop: 4 }}>
+                  <PrimaryButton
+                    title="Continuar"
+                    onPress={onContinue}
+                    loading={loading}
+                    disabled={!canContinue}
+                  />
+                </View>
+              </View>
             </View>
+          </KeyboardAvoidingView>
 
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={styles.birthLabel}>Fecha de nacimiento</Text>
-              <Text style={styles.birthValue}>{birthDateYmd}</Text>
-            </View>
-
-            <Feather
-              name="chevron-right"
-              size={18}
-              color={colors.textSecondary}
-            />
-          </Pressable>
-
-          {!!err && (
-            <View style={styles.alert}>
-              <Feather name="alert-triangle" size={16} color={colors.onCta} />
-              <Text style={styles.alertText}>{err}</Text>
-            </View>
-          )}
-
-          <View style={{ marginTop: 8 }}>
-            <PrimaryButton
-              title="Continuar"
-              onPress={onContinue}
-              loading={loading}
-              disabled={!canContinue}
-            />
-          </View>
-        </View>
-      </View>
-
-      {/* Picker UI */}
-      {Platform.OS === "android" && pickerOpen && (
-        <DateTimePicker
-          value={birthDate}
-          mode="date"
-          display="default"
-          locale="es-ES"
-          maximumDate={maxBirthDate}
-          minimumDate={minBirthDate}
-          onChange={onPickerChange}
-        />
-      )}
-
-      {Platform.OS === "ios" && (
-        <Modal visible={pickerOpen} transparent animationType="fade">
-          <Pressable style={styles.modalBackdrop} onPress={closePicker} />
-
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Selecciona tu fecha</Text>
-              <Pressable onPress={closePicker} style={styles.modalDone}>
-                <Text style={styles.modalDoneText}>Listo</Text>
-              </Pressable>
-            </View>
-
+          {/* ANDROID picker inline */}
+          {Platform.OS === "android" && pickerOpen && (
             <DateTimePicker
               value={birthDate}
               mode="date"
-              display="spinner"
+              display="default"
+              locale="es-ES"
               maximumDate={maxBirthDate}
               minimumDate={minBirthDate}
               onChange={onPickerChange}
-              style={{ alignSelf: "stretch" }}
             />
-          </View>
-        </Modal>
-      )}
-    </View>
+          )}
+
+          {/* iOS modal */}
+          {Platform.OS === "ios" && (
+            <Modal visible={pickerOpen} transparent animationType="fade">
+              <Pressable style={styles.modalBackdrop} onPress={closePicker} />
+              <View style={styles.modalSheet}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Selecciona tu fecha</Text>
+                  <Pressable onPress={closePicker} style={styles.modalDone}>
+                    <Text style={styles.modalDoneText}>Listo</Text>
+                  </Pressable>
+                </View>
+
+                <DateTimePicker
+                  value={birthDate}
+                  mode="date"
+                  display="spinner"
+                  locale="es-ES"
+                  maximumDate={maxBirthDate}
+                  minimumDate={minBirthDate}
+                  onChange={onPickerChange}
+                  style={{ alignSelf: "stretch" }}
+                />
+              </View>
+            </Modal>
+          )}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -249,24 +296,26 @@ function OptionRow({
           borderWidth: 1,
           borderColor: selected ? colors.brand : colors.border,
           backgroundColor: selected ? "rgba(34,197,94,0.12)" : colors.surface,
-          borderRadius: 16,
+          borderRadius: 20,
           padding: 14,
           flexDirection: "row",
           alignItems: "center",
           gap: 12,
-          opacity: pressed ? 0.95 : 1,
+          opacity: pressed ? 0.96 : 1,
           transform: pressed ? [{ scale: 0.995 }] : [],
         },
       ]}
     >
       <View
         style={{
-          width: 40,
-          height: 40,
-          borderRadius: 14,
+          width: 44,
+          height: 44,
+          borderRadius: 16,
           alignItems: "center",
           justifyContent: "center",
           backgroundColor: selected ? colors.brand : colors.cta,
+          borderWidth: 1,
+          borderColor: colors.border,
         }}
       >
         <Feather name={icon} size={18} color={colors.onCta} />
@@ -300,19 +349,55 @@ function OptionRow({
 
 function makeStyles(colors: any, typography: any) {
   return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
     screen: {
       flex: 1,
-      padding: 18,
-      justifyContent: "center",
       backgroundColor:
         colors.background === "#22C55E"
           ? "rgba(34,197,94,0.95)"
           : colors.background,
     },
 
-    card: {
+    // ✅ EXACTAMENTE igual a goal.tsx
+    heroFrame: {
+      alignItems: "center",
+      marginTop: 28,
+      marginBottom: 8,
+    },
+    heroHalo: {
+      position: "absolute",
+      width: 320,
+      height: 320,
+      borderRadius: 160,
+      backgroundColor: "rgba(34,197,94,0.18)",
+    },
+    heroCard: {
+      width: "86%",
+      aspectRatio: 1,
+      borderRadius: 28,
+      backgroundColor: "rgba(255,255,255,0.06)",
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.08)",
+      alignItems: "center",
+      justifyContent: "center",
       padding: 18,
-      borderRadius: 24,
+    },
+    heroImage: {
+      width: "100%",
+      height: "100%",
+      borderRadius: 20,
+    },
+
+    // ✅ EXACTAMENTE igual a goal.tsx
+    sheetWrap: {
+      flex: 1,
+      justifyContent: "flex-end",
+    },
+    sheet: {
+      marginHorizontal: 18,
+      marginBottom: 18,
+      padding: 18,
+      borderRadius: 28,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
@@ -323,16 +408,16 @@ function makeStyles(colors: any, typography: any) {
           shadowRadius: 22,
           shadowOffset: { width: 0, height: 12 },
         },
-        android: { elevation: 7 },
+        android: { elevation: 8 },
       }),
     },
 
     header: { flexDirection: "row", alignItems: "center", gap: 12 },
 
     logoBadge: {
-      width: 44,
-      height: 44,
-      borderRadius: 16,
+      width: 46,
+      height: 46,
+      borderRadius: 18,
       backgroundColor: colors.cta,
       alignItems: "center",
       justifyContent: "center",
@@ -340,7 +425,7 @@ function makeStyles(colors: any, typography: any) {
       borderColor: colors.border,
     },
 
-    brand: {
+    kicker: {
       color: colors.textSecondary,
       fontFamily: typography.body?.fontFamily,
       fontSize: 12,
@@ -352,23 +437,24 @@ function makeStyles(colors: any, typography: any) {
     subtitle: { marginTop: 8, color: colors.textSecondary, ...typography.body },
 
     birthRow: {
-      marginTop: 4,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surface,
-      borderRadius: 16,
+      borderRadius: 20,
       padding: 14,
       flexDirection: "row",
       alignItems: "center",
       gap: 12,
     },
     birthIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 14,
+      width: 44,
+      height: 44,
+      borderRadius: 16,
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: colors.cta,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
     birthLabel: {
       fontFamily: typography.body?.fontFamily,
@@ -382,7 +468,7 @@ function makeStyles(colors: any, typography: any) {
     },
 
     alert: {
-      marginTop: 8,
+      marginTop: 6,
       flexDirection: "row",
       alignItems: "center",
       gap: 10,
@@ -390,8 +476,9 @@ function makeStyles(colors: any, typography: any) {
       paddingVertical: 10,
       borderRadius: 14,
       backgroundColor: colors.cta,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
-
     alertText: {
       flex: 1,
       color: colors.onCta,
@@ -400,10 +487,7 @@ function makeStyles(colors: any, typography: any) {
       lineHeight: 16,
     },
 
-    modalBackdrop: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.35)",
-    },
+    modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)" },
     modalSheet: {
       position: "absolute",
       left: 0,

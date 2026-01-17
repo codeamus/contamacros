@@ -3,18 +3,19 @@ import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { router } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
-  Animated,
-  Easing,
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 type Goal = "deficit" | "maintain" | "surplus";
 
@@ -71,92 +72,90 @@ export default function GoalScreen() {
     router.push("/(onboarding)/about");
   }
 
-  // Animación de entrada
-  const enter = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.timing(enter, {
-      toValue: 1,
-      duration: 260,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-  }, [enter]);
-
   const styles = makeStyles(colors, typography);
 
   return (
-    <View style={styles.screen}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <Animated.View
-          style={[
-            styles.card,
-            {
-              opacity: enter,
-              transform: [
-                {
-                  translateY: enter.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [10, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.logoBadge}>
-              <MaterialCommunityIcons
-                name="target"
-                size={22}
-                color={colors.onCta}
+    <SafeAreaView style={styles.safe}>
+      <ScrollView>
+        <View style={styles.screen}>
+          {/* HERO ILUSTRACIÓN */}
+          <View style={styles.heroFrame}>
+            <View style={styles.heroHalo} />
+            <View style={styles.heroCard}>
+              <Image
+                source={require("../../assets/images/onboarding/onboarding-1.png")}
+                style={styles.heroImage}
+                contentFit="contain"
               />
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.brand}>Onboarding</Text>
-              <Text style={styles.title}>Tu objetivo</Text>
+          </View>
+
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.sheetWrap}
+          >
+            {/* SHEET CONTENIDO */}
+            <View style={styles.sheet}>
+              {/* Header */}
+              <View style={styles.header}>
+                <View style={styles.logoBadge}>
+                  <MaterialCommunityIcons
+                    name="target"
+                    size={22}
+                    color={colors.onCta}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.kicker}>Onboarding</Text>
+                  <Text style={styles.title}>Elige tu objetivo</Text>
+                </View>
+              </View>
+
+              <Text style={styles.subtitle}>
+                Lo usaremos para calcular tu meta diaria. Podrás cambiarlo
+                después.
+              </Text>
+
+              {/* Opciones */}
+              <View style={{ gap: 12, marginTop: 16 }}>
+                {(Object.keys(goalMeta) as Goal[]).map((k) => (
+                  <GoalOption
+                    key={k}
+                    title={goalMeta[k].title}
+                    desc={goalMeta[k].desc}
+                    icon={goalMeta[k].icon}
+                    selected={goal === k}
+                    onPress={() => setGoal(k)}
+                    colors={colors}
+                    typography={typography}
+                  />
+                ))}
+              </View>
+
+              {!!error && (
+                <View style={styles.alert}>
+                  <Feather
+                    name="alert-triangle"
+                    size={16}
+                    color={colors.onCta}
+                  />
+                  <Text style={styles.alertText}>{error}</Text>
+                </View>
+              )}
+
+              <View style={{ marginTop: 18 }}>
+                <PrimaryButton
+                  title="Continuar"
+                  onPress={onContinue}
+                  loading={loading}
+                  disabled={!canContinue}
+                />
+              </View>
             </View>
-          </View>
-
-          <Text style={styles.subtitle}>
-            Esto nos ayuda a estimar tus calorías diarias.
-          </Text>
-
-          <View style={{ gap: 12, marginTop: 18 }}>
-            {(Object.keys(goalMeta) as Goal[]).map((k) => (
-              <GoalOption
-                key={k}
-                title={goalMeta[k].title}
-                desc={goalMeta[k].desc}
-                icon={goalMeta[k].icon}
-                selected={goal === k}
-                onPress={() => setGoal(k)}
-                colors={colors}
-                typography={typography}
-              />
-            ))}
-          </View>
-
-          {!!error && (
-            <View style={styles.alert}>
-              <Feather name="alert-triangle" size={16} color={colors.onCta} />
-              <Text style={styles.alertText}>{error}</Text>
-            </View>
-          )}
-
-          <View style={{ marginTop: 18 }}>
-            <PrimaryButton
-              title="Continuar"
-              onPress={onContinue}
-              loading={loading}
-              disabled={!canContinue}
-            />
-          </View>
-        </Animated.View>
-      </KeyboardAvoidingView>
-    </View>
+          </KeyboardAvoidingView>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -185,24 +184,26 @@ function GoalOption({
           borderWidth: 1,
           borderColor: selected ? colors.brand : colors.border,
           backgroundColor: selected ? "rgba(34,197,94,0.12)" : colors.surface,
-          borderRadius: 16,
+          borderRadius: 20,
           padding: 14,
           flexDirection: "row",
           alignItems: "center",
           gap: 12,
-          opacity: pressed ? 0.95 : 1,
+          opacity: pressed ? 0.96 : 1,
           transform: pressed ? [{ scale: 0.995 }] : [],
         },
       ]}
     >
       <View
         style={{
-          width: 40,
-          height: 40,
-          borderRadius: 14,
+          width: 44,
+          height: 44,
+          borderRadius: 16,
           alignItems: "center",
           justifyContent: "center",
           backgroundColor: selected ? colors.brand : colors.cta,
+          borderWidth: 1,
+          borderColor: colors.border,
         }}
       >
         <Feather name={icon} size={18} color={colors.onCta} />
@@ -236,19 +237,55 @@ function GoalOption({
 
 function makeStyles(colors: any, typography: any) {
   return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
     screen: {
       flex: 1,
-      padding: 18,
-      justifyContent: "center",
       backgroundColor:
         colors.background === "#22C55E"
           ? "rgba(34,197,94,0.95)"
           : colors.background,
     },
 
-    card: {
+    /* HERO */
+    heroFrame: {
+      alignItems: "center",
+      marginTop: 28,
+      marginBottom: 8,
+    },
+    heroHalo: {
+      position: "absolute",
+      width: 320,
+      height: 320,
+      borderRadius: 160,
+      backgroundColor: "rgba(34,197,94,0.18)",
+    },
+    heroCard: {
+      width: "86%",
+      aspectRatio: 1,
+      borderRadius: 28,
+      backgroundColor: "rgba(255,255,255,0.06)",
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.08)",
+      alignItems: "center",
+      justifyContent: "center",
       padding: 18,
-      borderRadius: 24,
+    },
+    heroImage: {
+      width: "100%",
+      height: "100%",
+      borderRadius: 20,
+    },
+
+    /* SHEET */
+    sheetWrap: {
+      flex: 1,
+      justifyContent: "flex-end",
+    },
+    sheet: {
+      marginHorizontal: 18,
+      marginBottom: 18,
+      padding: 18,
+      borderRadius: 28,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
@@ -259,17 +296,20 @@ function makeStyles(colors: any, typography: any) {
           shadowRadius: 22,
           shadowOffset: { width: 0, height: 12 },
         },
-        android: { elevation: 7 },
-        default: {},
+        android: { elevation: 8 },
       }),
     },
 
-    header: { flexDirection: "row", alignItems: "center", gap: 12 },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
 
     logoBadge: {
-      width: 44,
-      height: 44,
-      borderRadius: 16,
+      width: 46,
+      height: 46,
+      borderRadius: 18,
       backgroundColor: colors.cta,
       alignItems: "center",
       justifyContent: "center",
@@ -277,16 +317,23 @@ function makeStyles(colors: any, typography: any) {
       borderColor: colors.border,
     },
 
-    brand: {
+    kicker: {
       color: colors.textSecondary,
       fontFamily: typography.body?.fontFamily,
       fontSize: 12,
       marginBottom: 2,
     },
 
-    title: { ...typography.title, color: colors.textPrimary },
+    title: {
+      ...typography.title,
+      color: colors.textPrimary,
+    },
 
-    subtitle: { marginTop: 8, color: colors.textSecondary, ...typography.body },
+    subtitle: {
+      marginTop: 8,
+      color: colors.textSecondary,
+      ...typography.body,
+    },
 
     alert: {
       marginTop: 14,
@@ -297,6 +344,8 @@ function makeStyles(colors: any, typography: any) {
       paddingVertical: 10,
       borderRadius: 14,
       backgroundColor: colors.cta,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
 
     alertText: {
