@@ -2,9 +2,15 @@
 import { AuthProvider, useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { ThemeProvider } from "@/presentation/theme/ThemeProvider";
 import { Stack, useRouter, useSegments } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+
+// ✅ Evita autohide globalmente (así NO aparece el warning del splash)
+SplashScreen.preventAutoHideAsync().catch(() => {
+  // ignore: puede ejecutarse 2 veces en dev / fast refresh
+});
 
 function AuthGate() {
   const { initializing, session, profile } = useAuth();
@@ -16,6 +22,17 @@ function AuthGate() {
   const inOnboarding = group === "(onboarding)";
   const inTabs = group === "(tabs)";
 
+  // Loader SOLO fuera de onboarding (para no tapar el flujo)
+  const showLoader = initializing || (session && !profile && !inOnboarding);
+
+  // ✅ Cuando la app está lista para renderizar UI real, escondemos el splash
+  useEffect(() => {
+    if (!showLoader) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [showLoader]);
+
+  // ✅ Routing gate
   useEffect(() => {
     if (initializing) return;
 
@@ -25,7 +42,7 @@ function AuthGate() {
     }
 
     // Si hay sesión y estás en auth, sácalo al onboarding (aunque profile aún no llegue)
-    if (session && inAuth) {
+    if (inAuth) {
       router.replace("/(onboarding)/goal");
       return;
     }
@@ -40,9 +57,6 @@ function AuthGate() {
 
     if (!inTabs) router.replace("/(tabs)");
   }, [initializing, session, profile, inAuth, inOnboarding, inTabs, router]);
-
-  // Loader SOLO fuera de onboarding (para no tapar el flujo)
-  const showLoader = initializing || (session && !profile && !inOnboarding);
 
   if (showLoader) {
     return (
