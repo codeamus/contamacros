@@ -1,8 +1,11 @@
+// app/(tabs)/diary.tsx
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -35,7 +38,7 @@ function sumLogs(logs: FoodLogDb[]) {
       acc.fat += it.fat_g || 0;
       return acc;
     },
-    { calories: 0, protein: 0, carbs: 0, fat: 0 }
+    { calories: 0, protein: 0, carbs: 0, fat: 0 },
   );
 }
 
@@ -58,7 +61,7 @@ function clamp01(n: number) {
 }
 
 function mealIcon(
-  meal: MealType
+  meal: MealType,
 ): React.ComponentProps<typeof MaterialCommunityIcons>["name"] {
   switch (meal) {
     case "breakfast":
@@ -77,6 +80,25 @@ function mealIcon(
 function filterLabel(k: MealFilter) {
   if (k === "all") return "Todas";
   return MEAL_LABELS[k];
+}
+
+function getParam(url: string, key: string): string | null {
+  try {
+    const u = new URL(url);
+    return u.searchParams.get(key);
+  } catch {
+    // por si viene con hash
+    const qIndex = url.indexOf("?");
+    const hIndex = url.indexOf("#");
+    const raw =
+      qIndex >= 0
+        ? url.slice(qIndex + 1)
+        : hIndex >= 0
+          ? url.slice(hIndex + 1)
+          : "";
+    const params = new URLSearchParams(raw);
+    return params.get(key);
+  }
 }
 
 function MacroProgress({
@@ -166,11 +188,11 @@ export default function DiaryScreen() {
 
   const [logs, setLogs] = useState<FoodLogDb[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const [filterMeal, setFilterMeal] = useState<MealFilter>("all");
 
-  // ✅ Sync param -> state siempre (aunque el tab quede montado)
   useEffect(() => {
     const m = params.meal;
     if (isMealType(m)) setFilterMeal(m);
@@ -180,26 +202,33 @@ export default function DiaryScreen() {
   const totals = useMemo(() => sumLogs(logs), [logs]);
   const grouped = useMemo(() => groupByMeal(logs), [logs]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setErr(null);
+  const load = useCallback(
+    async (mode: "normal" | "refresh" = "normal") => {
+      if (mode === "refresh") setRefreshing(true);
+      else setLoading(true);
 
-    const res = await foodLogRepository.listByDay(day);
-    if (!res.ok) {
-      setErr(res.message);
-      setLogs([]);
+      setErr(null);
+
+      const res = await foodLogRepository.listByDay(day);
+      if (!res.ok) {
+        setErr(res.message);
+        setLogs([]);
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+
+      setLogs(res.data);
       setLoading(false);
-      return;
-    }
-
-    setLogs(res.data);
-    setLoading(false);
-  }, [day]);
+      setRefreshing(false);
+    },
+    [day],
+  );
 
   useFocusEffect(
     useCallback(() => {
-      load();
-    }, [load])
+      load("normal");
+    }, [load]),
   );
 
   async function onDelete(id: string) {
@@ -216,6 +245,26 @@ export default function DiaryScreen() {
           }
           setLogs((prev) => prev.filter((x) => x.id !== id));
         },
+      },
+    ]);
+  }
+
+  function onOpenItemActions(it: FoodLogDb) {
+    Alert.alert(it.name, "¿Qué deseas hacer?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Editar",
+        onPress: () => {
+          router.push({
+            pathname: "/(tabs)/add-food",
+            params: { logId: it.id }, // 👈 siguiente PR: add-food soporta edición
+          });
+        },
+      },
+      {
+        text: "Eliminar",
+        style: "destructive",
+        onPress: () => onDelete(it.id),
       },
     ]);
   }
@@ -243,6 +292,13 @@ export default function DiaryScreen() {
       <ScrollView
         contentContainerStyle={s.container}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => load("refresh")}
+            tintColor={colors.textSecondary}
+          />
+        }
       >
         {/* Header */}
         <View style={s.header}>
@@ -251,8 +307,16 @@ export default function DiaryScreen() {
             <Text style={s.title}>{day}</Text>
           </View>
 
-          <Pressable style={s.iconBtn} onPress={load} disabled={loading}>
-            <Feather name="refresh-cw" size={18} color={colors.textPrimary} />
+          <Pressable
+            style={s.iconBtn}
+            onPress={() => load("normal")}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator />
+            ) : (
+              <Feather name="refresh-cw" size={18} color={colors.textPrimary} />
+            )}
           </Pressable>
 
           <Pressable
@@ -310,11 +374,10 @@ export default function DiaryScreen() {
                   </Text>
                 </Pressable>
               );
-            }
+            },
           )}
         </View>
 
-        {/* Error */}
         {!!err && (
           <View style={s.alert}>
             <Feather name="alert-triangle" size={16} color={colors.onCta} />
@@ -419,13 +482,10 @@ export default function DiaryScreen() {
           </Pressable>
         </View>
 
-        {/* Meal sections */}
         <View style={{ gap: 12 }}>
           {visibleMeals.map((m) => {
             const items = grouped[m];
             const isEmpty = !items.length;
-
-            // Si estás en ALL, ocultamos secciones vacías (más limpio).
             if (filterMeal === "all" && isEmpty) return null;
 
             const mealTotals = isEmpty
@@ -438,7 +498,7 @@ export default function DiaryScreen() {
                     acc.f += it.fat_g || 0;
                     return acc;
                   },
-                  { kcal: 0, p: 0, c: 0, f: 0 }
+                  { kcal: 0, p: 0, c: 0, f: 0 },
                 );
 
             return (
@@ -458,12 +518,10 @@ export default function DiaryScreen() {
                       <Text style={s.mealSub} numberOfLines={1}>
                         {isEmpty
                           ? "Sin registros"
-                          : `${Math.round(
-                              mealTotals.kcal
-                            )} kcal · P ${Math.round(
-                              mealTotals.p
+                          : `${Math.round(mealTotals.kcal)} kcal · P ${Math.round(
+                              mealTotals.p,
                             )} · C ${Math.round(mealTotals.c)} · F ${Math.round(
-                              mealTotals.f
+                              mealTotals.f,
                             )}`}
                       </Text>
                     </View>
@@ -528,7 +586,8 @@ export default function DiaryScreen() {
                             transform: [{ scale: 0.997 }],
                           },
                         ]}
-                        onLongPress={() => onDelete(it.id)}
+                        onPress={() => onOpenItemActions(it)} // ✅ menú editar/eliminar
+                        onLongPress={() => onDelete(it.id)} // fallback rápido
                       >
                         <View style={{ flex: 1, gap: 6 }}>
                           <Text style={s.itemName} numberOfLines={1}>
@@ -595,7 +654,6 @@ export default function DiaryScreen() {
             );
           })}
 
-          {/* Empty global solo si ALL y no hay logs */}
           {filterMeal === "all" && !loading && logs.length === 0 && (
             <View style={s.emptyCard}>
               <View style={s.emptyIcon}>
@@ -676,9 +734,7 @@ function makeStyles(colors: any, typography: any) {
       borderRadius: 999,
       borderWidth: 1,
     },
-    chipPillText: {
-      fontSize: 13,
-    },
+    chipPillText: { fontSize: 13 },
 
     alert: {
       flexDirection: "row",
