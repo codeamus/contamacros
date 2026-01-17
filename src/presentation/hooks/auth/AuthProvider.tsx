@@ -172,7 +172,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInWithGoogle: async () => {
         try {
           const redirectTo = getRedirectUri();
-          console.log("REDIRECT_TO:", redirectTo);
 
           // 1) Pedimos a Supabase la URL OAuth
           const { data, error } = await supabase.auth.signInWithOAuth({
@@ -190,17 +189,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!data?.url) {
             return { ok: false, message: "No se generó URL OAuth." };
           }
-
-          console.log("OAUTH_URL:", data.url);
-
           // 2) Abrimos el browser de autenticación
           const result = await WebBrowser.openAuthSessionAsync(
             data.url,
             redirectTo,
           );
-
-          console.log("AUTH_RESULT_TYPE:", result.type);
-          console.log("AUTH_RESULT_URL:", result.url);
 
           if (result.type !== "success" || !result.url) {
             // usuario canceló o cerró
