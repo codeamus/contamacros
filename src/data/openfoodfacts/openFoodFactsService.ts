@@ -1,3 +1,4 @@
+// src/data/openfoodfacts/openFoodFactsService.ts
 import type { OffProduct } from "@/domain/models/offProduct";
 
 type Result<T> =

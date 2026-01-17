@@ -1,4 +1,4 @@
-// app/(tabs)/add-food.tsx  (o donde lo tengas)
+// app/(tabs)/add-food.tsx
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -14,7 +14,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { foodLogRepository } from "@/data/food/foodLogRepository";
+import { genericFoodsRepository } from "@/data/food/genericFoodsRepository";
 import { openFoodFactsService } from "@/data/openfoodfacts/openFoodFactsService";
+import { supabase } from "@/data/supabase/supabaseClient";
 import type { MealType } from "@/domain/models/foodLogDb";
 import type { OffProduct } from "@/domain/models/offProduct";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
@@ -22,6 +24,28 @@ import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { todayStrLocal } from "@/presentation/utils/date";
 import { MEAL_LABELS } from "@/presentation/utils/mealLabels";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+
+type FoodSource = "user_food" | "food" | "off";
+
+type FoodSearchItem = {
+  key: string;
+  source: FoodSource;
+
+  name: string;
+  meta?: string;
+
+  kcal_100g?: number | null;
+  protein_100g?: number | null;
+  carbs_100g?: number | null;
+  fat_100g?: number | null;
+
+  food_id?: string | null;
+  user_food_id?: string | null;
+
+  off?: OffProduct | null;
+
+  verified?: boolean;
+};
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -33,14 +57,20 @@ function toFloatSafe(s: string) {
   return Number.isFinite(n) ? n : NaN;
 }
 
-function computeFrom100g(p: OffProduct, grams: number) {
+function computeFrom100gMacros(
+  macros: {
+    kcal_100g?: number | null;
+    protein_100g?: number | null;
+    carbs_100g?: number | null;
+    fat_100g?: number | null;
+  },
+  grams: number,
+) {
   const factor = grams / 100;
-
-  const kcal = Math.round((p.kcal_100g ?? 0) * factor);
-  const protein = Math.round((p.protein_100g ?? 0) * factor);
-  const carbs = Math.round((p.carbs_100g ?? 0) * factor);
-  const fat = Math.round((p.fat_100g ?? 0) * factor);
-
+  const kcal = Math.round((macros.kcal_100g ?? 0) * factor);
+  const protein = Math.round((macros.protein_100g ?? 0) * factor);
+  const carbs = Math.round((macros.carbs_100g ?? 0) * factor);
+  const fat = Math.round((macros.fat_100g ?? 0) * factor);
   return { kcal, protein, carbs, fat };
 }
 
@@ -81,6 +111,95 @@ function isMealType(x: unknown): x is MealType {
   return typeof x === "string" && (MEALS as string[]).includes(x);
 }
 
+async function getUid(): Promise<string | null> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.user?.id ?? null;
+}
+
+async function searchLocalFoods(q: string): Promise<FoodSearchItem[]> {
+  const uid = await getUid();
+
+  const userFoodsPromise = uid
+    ? supabase
+        .from("user_foods")
+        .select("id, name, calories, protein, carbs, fat")
+        .eq("user_id", uid)
+        .ilike("name", `%${q}%`)
+        .order("created_at", { ascending: false })
+        .limit(25)
+    : Promise.resolve({ data: [], error: null } as any);
+
+  const foodsPromise = supabase
+    .from("foods")
+    .select("id, name, calories, protein, carbs, fat, verified, source, brand")
+    .ilike("name", `%${q}%`)
+    .order("verified", { ascending: false })
+    .limit(50);
+
+  const genericPromise = genericFoodsRepository.search(q);
+
+  const [ufRes, fRes, gRes] = await Promise.all([
+    userFoodsPromise as any,
+    foodsPromise,
+    genericPromise,
+  ]);
+
+  // ✅ si hay error, explota (para no ocultar RLS)
+  if (ufRes?.error) throw new Error(ufRes.error.message);
+  if (fRes.error) throw new Error(fRes.error.message);
+  if (!gRes.ok) throw new Error(gRes.message);
+
+  const userFoods: FoodSearchItem[] = (ufRes.data ?? []).map((x: any) => ({
+    key: `uf:${x.id}`,
+    source: "user_food",
+    name: x.name,
+    meta: "Personalizado",
+    kcal_100g: Number(x.calories ?? 0),
+    protein_100g: Number(x.protein ?? 0),
+    carbs_100g: Number(x.carbs ?? 0),
+    fat_100g: Number(x.fat ?? 0),
+    user_food_id: x.id,
+    verified: true,
+  }));
+
+  const foods: FoodSearchItem[] = (fRes.data ?? []).map((x: any) => ({
+    key: `f:${x.id}`,
+    source: "food",
+    name: x.name,
+    meta: x.verified
+      ? "Verificado"
+      : x.source === "openfoodfacts"
+        ? x.brand
+          ? x.brand
+          : "Estimado"
+        : "Estimado",
+    kcal_100g: Number(x.calories ?? 0),
+    protein_100g: Number(x.protein ?? 0),
+    carbs_100g: Number(x.carbs ?? 0),
+    fat_100g: Number(x.fat ?? 0),
+    food_id: x.id,
+    verified: Boolean(x.verified),
+  }));
+
+  // generic_foods → lo mostramos como “Genérico” pero sin decir tabla
+  const generics: FoodSearchItem[] = (gRes.data ?? []).map((x) => ({
+    key: `g:${x.id}`,
+    source: "food", // 👈 lo tratamos como “food” para UX simple
+    name: x.name_es,
+    meta: "Genérico",
+    kcal_100g: x.kcal_100g ?? 0,
+    protein_100g: x.protein_100g ?? 0,
+    carbs_100g: x.carbs_100g ?? 0,
+    fat_100g: x.fat_100g ?? 0,
+    food_id: null, // no existe en foods
+    verified: true,
+    // marcamos internamente que viene de generic
+    // (si quieres, agrega source: "generic_seed" al FoodSearchItem)
+  }));
+
+  return [...userFoods, ...foods, ...generics];
+}
+
 export default function AddFoodScreen() {
   const params = useLocalSearchParams<{ meal?: string; barcode?: string }>();
 
@@ -91,26 +210,27 @@ export default function AddFoodScreen() {
   const day = todayStrLocal();
 
   const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(false); // save button loading
+  const [saveLoading, setSaveLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const [results, setResults] = useState<OffProduct[]>([]);
-  const [selected, setSelected] = useState<OffProduct | null>(null);
+  const [meal, setMeal] = useState<MealType>("snack");
+
+  const [isSearchingLocal, setIsSearchingLocal] = useState(false);
+  const [isSearchingMore, setIsSearchingMore] = useState(false);
+
+  const [results, setResults] = useState<FoodSearchItem[]>([]);
+  const [selected, setSelected] = useState<FoodSearchItem | null>(null);
 
   const [gramsStr, setGramsStr] = useState("100");
   const gramsNum = useMemo(() => toFloatSafe(gramsStr), [gramsStr]);
 
-  const [meal, setMeal] = useState<MealType>("snack");
-  const [isSearching, setIsSearching] = useState(false);
-
-  // ✅ para evitar “pisoteo” de resultados viejos
   const reqIdRef = useRef(0);
 
   useEffect(() => {
     if (isMealType(params.meal)) setMeal(params.meal);
   }, [params.meal]);
 
-  // Barcode -> select
+  // Barcode -> OpenFoodFacts directo
   useEffect(() => {
     const barcode =
       typeof params.barcode === "string" ? params.barcode.trim() : "";
@@ -118,74 +238,63 @@ export default function AddFoodScreen() {
 
     (async () => {
       setErr(null);
-      setIsSearching(true);
+      setIsSearchingMore(true);
 
       const res = await openFoodFactsService.getByBarcode(barcode);
 
-      setIsSearching(false);
+      setIsSearchingMore(false);
 
       if (!res.ok) {
         setErr(res.message);
         return;
       }
 
-      setSelected(res.data);
+      const it: FoodSearchItem = {
+        key: `off:${res.data.id}`,
+        source: "off",
+        name: res.data.name,
+        meta: res.data.brand ? res.data.brand : "Sin marca",
+        kcal_100g: res.data.kcal_100g ?? null,
+        protein_100g: res.data.protein_100g ?? null,
+        carbs_100g: res.data.carbs_100g ?? null,
+        fat_100g: res.data.fat_100g ?? null,
+        off: res.data,
+        verified: false,
+      };
+
+      setSelected(it);
       setQuery(res.data.name);
-      setResults([]); // ✅ limpia lista cuando vienes por barcode
+      setResults([]);
     })();
   }, [params.barcode]);
 
-  // Debounce search (con anti-race)
+  // Local-first debounce search
   useEffect(() => {
     setErr(null);
-
     const q = query.trim();
-
-    // log útil
-    console.log("[SEARCH EFFECT] query =", q);
 
     if (q.length < 2) {
       setResults([]);
-      setIsSearching(false);
+      setIsSearchingLocal(false);
       return;
     }
 
-    setIsSearching(true);
-
+    setIsSearchingLocal(true);
     const myReqId = ++reqIdRef.current;
-    console.log("[SEARCH REQUEST]", JSON.stringify({ q, reqId: myReqId }));
 
     const t = setTimeout(async () => {
-      const res = await openFoodFactsService.search({
-        query: q,
-        page: 1,
-        pageSize: 20,
-        cc: "cl",
-        lc: "es",
-      });
-
-      // ✅ si ya hay una búsqueda más nueva, ignora esta respuesta
-      if (myReqId !== reqIdRef.current) {
-        console.log("[SEARCH STALE] ignored", {
-          q,
-          myReqId,
-          current: reqIdRef.current,
-        });
-        return;
-      }
-
-      if (!res.ok) {
-        setErr(res.message);
+      try {
+        const merged = await searchLocalFoods(q);
+        if (myReqId !== reqIdRef.current) return;
+        setResults(merged);
+        setIsSearchingLocal(false);
+      } catch {
+        if (myReqId !== reqIdRef.current) return;
         setResults([]);
-        setIsSearching(false);
-        return;
+        setIsSearchingLocal(false);
+        setErr("No pudimos buscar. Intenta de nuevo.");
       }
-
-      console.log("[SEARCH OK]", q, "items:", res.data.items.length);
-
-      setResults(res.data.items);
-      setIsSearching(false);
-    }, 450);
+    }, 320);
 
     return () => clearTimeout(t);
   }, [query]);
@@ -201,8 +310,88 @@ export default function AddFoodScreen() {
   const preview = useMemo(() => {
     if (!selected) return null;
     const g = Number.isFinite(gramsNum) ? clamp(gramsNum, 1, 2000) : 100;
-    return computeFrom100g(selected, g);
+    return computeFrom100gMacros(
+      {
+        kcal_100g: selected.kcal_100g,
+        protein_100g: selected.protein_100g,
+        carbs_100g: selected.carbs_100g,
+        fat_100g: selected.fat_100g,
+      },
+      g,
+    );
   }, [selected, gramsNum]);
+
+  const canShowSearchMore =
+    !selected &&
+    query.trim().length >= 2 &&
+    !isSearchingLocal &&
+    !isSearchingMore &&
+    results.length < 6;
+
+  async function onSearchMore() {
+    const q = query.trim();
+    if (q.length < 2) return;
+
+    setErr(null);
+    setIsSearchingMore(true);
+
+    const myReqId = ++reqIdRef.current;
+
+    const res = await openFoodFactsService.search({
+      query: q,
+      page: 1,
+      pageSize: 15,
+      cc: "cl",
+      lc: "es",
+    });
+
+    if (myReqId !== reqIdRef.current) {
+      setIsSearchingMore(false);
+      return;
+    }
+
+    if (!res.ok) {
+      setIsSearchingMore(false);
+      setErr(res.message);
+      return;
+    }
+
+    const offItems: FoodSearchItem[] = res.data.items.map((p) => ({
+      key: `off:${p.id}`,
+      source: "off",
+      name: p.name,
+      meta: p.brand ? p.brand : "Sin marca",
+      kcal_100g: p.kcal_100g ?? null,
+      protein_100g: p.protein_100g ?? null,
+      carbs_100g: p.carbs_100g ?? null,
+      fat_100g: p.fat_100g ?? null,
+      off: p,
+      verified: false,
+    }));
+
+    const existing = new Set(results.map((r) => r.key));
+    const merged = [
+      ...results,
+      ...offItems.filter((x) => !existing.has(x.key)),
+    ];
+
+    setResults(merged);
+    setIsSearchingMore(false);
+  }
+
+  function badgeText(it: FoodSearchItem) {
+    if (it.source === "user_food") return "Personalizado";
+    if (it.source === "food") return it.verified ? "Verificado" : "Estimado";
+    return "Estimado";
+  }
+
+  function iconFor(
+    it: FoodSearchItem,
+  ): React.ComponentProps<typeof MaterialCommunityIcons>["name"] {
+    if (it.source === "user_food") return "account-edit";
+    if (it.source === "food") return "database";
+    return "barcode-scan";
+  }
 
   async function onAdd() {
     if (!selected) return;
@@ -216,18 +405,47 @@ export default function AddFoodScreen() {
 
     const g = Number.isFinite(gramsNum) ? clamp(gramsNum, 1, 2000) : 100;
 
-    setLoading(true);
+    setSaveLoading(true);
+
     const res = await foodLogRepository.create({
       day,
       meal,
       name: selected.name,
+      grams: Math.round(g),
+
       calories: preview.kcal,
       protein_g: preview.protein,
       carbs_g: preview.carbs,
       fat_g: preview.fat,
-      // Si luego agregas grams en DB: grams: Math.round(g)
+
+      source:
+        selected.source === "off"
+          ? "openfoodfacts"
+          : selected.source === "food"
+            ? "foods"
+            : "user_foods",
+
+      off_id: selected.source === "off" ? (selected.off?.id ?? null) : null,
+
+      source_type:
+        selected.source === "food" && selected.food_id
+          ? "food"
+          : selected.source === "user_food"
+            ? "user_food"
+            : "manual",
+
+      food_id:
+        selected.source === "food" && selected.food_id
+          ? selected.food_id
+          : null,
+
+      user_food_id:
+        selected.source === "user_food"
+          ? (selected.user_food_id ?? null)
+          : null,
     });
-    setLoading(false);
+
+    setSaveLoading(false);
 
     if (!res.ok) {
       setErr(res.message ?? "No pudimos guardar el alimento.");
@@ -272,7 +490,7 @@ export default function AddFoodScreen() {
         {!selected && (
           <>
             <Text style={s.subtitle}>
-              Busca en OpenFoodFacts y registra los gramos.
+              Busca alimentos y registra los gramos.
             </Text>
 
             <Pressable
@@ -298,9 +516,9 @@ export default function AddFoodScreen() {
                 value={query}
                 onChangeText={(t) => {
                   setQuery(t);
-                  if (selected) setSelected(null);
+                  setErr(null);
                 }}
-                placeholder="Ej: yogurt, arroz, leche..."
+                placeholder="Ej: arroz, yogurt, pollo..."
                 placeholderTextColor={colors.textSecondary}
                 autoCapitalize="none"
                 style={s.searchInput}
@@ -309,6 +527,7 @@ export default function AddFoodScreen() {
                 <Pressable
                   onPress={() => {
                     setQuery("");
+                    setErr(null);
                     setResults([]);
                   }}
                   style={({ pressed }) => [
@@ -355,11 +574,14 @@ export default function AddFoodScreen() {
               )}
             </View>
 
-            {/* State */}
-            {isSearching && (
+            {(isSearchingLocal || isSearchingMore) && (
               <View style={s.loadingBox}>
                 <ActivityIndicator />
-                <Text style={s.loadingText}>Buscando...</Text>
+                <Text style={s.loadingText}>
+                  {isSearchingMore
+                    ? "Buscando más resultados..."
+                    : "Buscando..."}
+                </Text>
               </View>
             )}
 
@@ -370,11 +592,28 @@ export default function AddFoodScreen() {
               </View>
             )}
 
+            {canShowSearchMore && (
+              <Pressable
+                onPress={onSearchMore}
+                style={({ pressed }) => [
+                  s.moreBtn,
+                  pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="magnify-plus"
+                  size={18}
+                  color={colors.textPrimary}
+                />
+                <Text style={s.moreBtnText}>Buscar más resultados</Text>
+              </Pressable>
+            )}
+
             {/* Results */}
             <View style={{ marginTop: 10, gap: 10 }}>
-              {results.map((it, idx) => (
+              {results.map((it) => (
                 <Pressable
-                  key={`${it.id}-${idx}`} // ✅ robusto
+                  key={it.key}
                   style={({ pressed }) => [
                     s.result,
                     pressed && { opacity: 0.95, transform: [{ scale: 0.997 }] },
@@ -383,7 +622,7 @@ export default function AddFoodScreen() {
                 >
                   <View style={s.resultIcon}>
                     <MaterialCommunityIcons
-                      name="barcode-scan"
+                      name={iconFor(it)}
                       size={18}
                       color={colors.textSecondary}
                     />
@@ -393,8 +632,9 @@ export default function AddFoodScreen() {
                     <Text style={s.resultName} numberOfLines={1}>
                       {it.name}
                     </Text>
+
                     <Text style={s.resultMeta} numberOfLines={1}>
-                      {it.brand ? it.brand : "Sin marca"}
+                      {it.meta ?? badgeText(it)}
                     </Text>
 
                     <View style={s.kcalBadge}>
@@ -404,7 +644,7 @@ export default function AddFoodScreen() {
                         color={colors.textSecondary}
                       />
                       <Text style={s.kcalBadgeText}>
-                        {it.kcal_100g ?? "?"} kcal / 100g
+                        {it.kcal_100g ?? "?"} kcal / 100g · {badgeText(it)}
                       </Text>
                     </View>
                   </View>
@@ -417,7 +657,8 @@ export default function AddFoodScreen() {
                 </Pressable>
               ))}
 
-              {!isSearching &&
+              {!isSearchingLocal &&
+                !isSearchingMore &&
                 query.trim().length >= 2 &&
                 results.length === 0 && (
                   <View style={s.emptyCard}>
@@ -430,7 +671,7 @@ export default function AddFoodScreen() {
                     </View>
                     <Text style={s.emptyTitle}>Sin resultados</Text>
                     <Text style={s.emptyText}>
-                      Prueba con otra palabra, marca o nombre más simple.
+                      Prueba con otra palabra o busca más resultados.
                     </Text>
                   </View>
                 )}
@@ -438,7 +679,6 @@ export default function AddFoodScreen() {
           </>
         )}
 
-        {/* Selected detail */}
         {selected && (
           <View style={s.card}>
             <View style={s.detailHeader}>
@@ -454,12 +694,15 @@ export default function AddFoodScreen() {
                   {selected.name}
                 </Text>
                 <Text style={s.cardMeta} numberOfLines={1}>
-                  {selected.brand ? selected.brand : "Sin marca"} · Base 100g
+                  {selected.meta ?? badgeText(selected)} · Base 100g
                 </Text>
+              </View>
+
+              <View style={s.badgePill}>
+                <Text style={s.badgePillText}>{badgeText(selected)}</Text>
               </View>
             </View>
 
-            {/* Grams */}
             <View style={{ marginTop: 12 }}>
               <Text style={s.label}>Gramos consumidos</Text>
               <View style={s.gramsRow}>
@@ -481,7 +724,6 @@ export default function AddFoodScreen() {
               {!!gramsError && <Text style={s.errorSmall}>{gramsError}</Text>}
             </View>
 
-            {/* Preview chips */}
             <View style={s.previewBox}>
               <View style={s.previewHeader}>
                 <MaterialCommunityIcons
@@ -535,10 +777,10 @@ export default function AddFoodScreen() {
             )}
 
             <PrimaryButton
-              title={loading ? "Agregando..." : "Agregar al diario"}
+              title={saveLoading ? "Agregando..." : "Agregar al diario"}
               onPress={onAdd}
-              loading={loading}
-              disabled={loading}
+              loading={saveLoading}
+              disabled={saveLoading}
               icon={<Feather name="plus" size={18} color={colors.onCta} />}
             />
 
@@ -730,6 +972,24 @@ function makeStyles(colors: any, typography: any) {
       lineHeight: 16,
     },
 
+    moreBtn: {
+      marginTop: 10,
+      height: 46,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 10,
+    },
+    moreBtnText: {
+      fontFamily: typography.subtitle?.fontFamily,
+      color: colors.textPrimary,
+      fontSize: 13,
+    },
+
     mealRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12 },
     mealChip: {
       flexDirection: "row",
@@ -853,6 +1113,21 @@ function makeStyles(colors: any, typography: any) {
       borderColor: colors.border,
       alignItems: "center",
       justifyContent: "center",
+    },
+
+    badgePill: {
+      paddingHorizontal: 10,
+      height: 28,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    badgePillText: {
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 12,
+      color: colors.textSecondary,
     },
 
     cardTitle: {

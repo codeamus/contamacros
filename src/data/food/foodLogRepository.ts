@@ -47,27 +47,60 @@ export const foodLogRepository = {
   async create(input: {
     day: string;
     meal: MealType;
+
     name: string;
     grams?: number | null;
-    source?: string | null;
-    off_id?: string | null;
+
     calories: number;
     protein_g: number;
     carbs_g: number;
     fat_g: number;
+
+    source?: string | null;
+    off_id?: string | null;
+
+    source_type?: "food" | "user_food" | "manual" | null;
+    food_id?: string | null;
+    user_food_id?: string | null;
   }): Promise<RepoResult<FoodLogDb>> {
     try {
       const uidRes = await getUid();
       if (!uidRes.ok) return uidRes;
       const uid = uidRes.data;
 
+      const inferredSourceType =
+        input.source_type ??
+        (input.user_food_id ? "user_food" : input.food_id ? "food" : "manual");
+
       const payload = {
-        ...input,
-        user_id: uid,
+        day: input.day,
+        meal: input.meal,
+
+        name: input.name,
         grams: input.grams ?? null,
+
+        calories: input.calories,
+        protein_g: input.protein_g,
+        carbs_g: input.carbs_g,
+        fat_g: input.fat_g,
+
         source: input.source ?? null,
         off_id: input.off_id ?? null,
+
+        source_type: inferredSourceType,
+        food_id: input.food_id ?? null,
+        user_food_id: input.user_food_id ?? null,
+
+        user_id: uid,
       };
+
+      if (payload.food_id && payload.user_food_id) {
+        return {
+          ok: false,
+          message:
+            "Registro inválido: no puede tener food_id y user_food_id a la vez.",
+        };
+      }
 
       const { data, error } = await supabase
         .from("food_logs")
@@ -101,7 +134,7 @@ export const foodLogRepository = {
         .from("food_logs")
         .update(input)
         .eq("id", id)
-        .eq("user_id", uid) // ✅ evita que edites cosas de otro usuario (aunque RLS lo bloquee)
+        .eq("user_id", uid)
         .select("*")
         .maybeSingle();
 
@@ -124,7 +157,7 @@ export const foodLogRepository = {
         .from("food_logs")
         .delete()
         .eq("id", id)
-        .eq("user_id", uid); // ✅ igual que arriba
+        .eq("user_id", uid);
 
       if (error) return { ok: false, message: error.message, code: error.code };
       return { ok: true, data: true };
