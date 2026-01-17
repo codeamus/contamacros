@@ -3,6 +3,7 @@ import AuthTextField from "@/presentation/components/auth/AuthTextField";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
+import { translateAuthError } from "@/presentation/utils/authErrorTranslator";
 import {
   isStrongEnoughPassword,
   isValidEmail,
@@ -83,7 +84,7 @@ export default function RegisterScreen() {
     try {
       const res = await signUp(email.trim(), password);
       if (!res.ok) {
-        setFormError(res.message ?? "No pudimos crear tu cuenta.");
+        setFormError(translateAuthError(res.message));
         return;
       }
       // ✅ No redirigimos aquí.
