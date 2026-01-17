@@ -28,17 +28,11 @@ function mapOffProduct(raw: any): OffProduct {
   const nutr = raw?.nutriments ?? {};
 
   const kcal100 =
-    toNumber(nutr["energy-kcal_100g"]) ??
-    // fallback (a veces energy_100g viene en kJ; si te pasa, luego lo mejoramos)
-    toNumber(nutr["energy_100g"]);
+    toNumber(nutr["energy-kcal_100g"]) ?? toNumber(nutr["energy_100g"]); // ojo: a veces viene en kJ
 
   return {
-    id: String(raw?.code ?? raw?._id ?? raw?.id ?? raw?.barcode ?? "unknown"),
-    barcode: raw?.code
-      ? String(raw.code)
-      : raw?.barcode
-      ? String(raw.barcode)
-      : undefined,
+    id: String(raw?.code ?? raw?._id ?? raw?.id ?? "unknown"),
+    barcode: raw?.code ? String(raw.code) : undefined,
     name: pickName(raw),
     brand: raw?.brands ? String(raw.brands) : undefined,
     imageUrl:
@@ -46,7 +40,6 @@ function mapOffProduct(raw: any): OffProduct {
       raw?.image_url ||
       raw?.selected_images?.front?.display?.en ||
       undefined,
-
     kcal_100g: kcal100,
     protein_100g: toNumber(nutr["proteins_100g"]),
     carbs_100g: toNumber(nutr["carbohydrates_100g"]),
@@ -55,14 +48,16 @@ function mapOffProduct(raw: any): OffProduct {
   };
 }
 
-const BASE = "https://world.openfoodfacts.org"; // dominio “world” habitual :contentReference[oaicite:2]{index=2}
+const BASE = "https://world.openfoodfacts.org";
 
 export const openFoodFactsService = {
-  // Buscar por texto (Search API v2)
+  // ✅ Búsqueda por texto: usa v1 (mejor para nombre/marca)
   async search(params: {
     query: string;
     page?: number;
     pageSize?: number;
+    cc?: string; // país (opcional)
+    lc?: string; // idioma (opcional)
   }): Promise<Result<{ items: OffProduct[]; page: number; pageSize: number }>> {
     const q = params.query.trim();
     if (!q) return { ok: true, data: { items: [], page: 1, pageSize: 20 } };
@@ -70,23 +65,37 @@ export const openFoodFactsService = {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
 
+    // Si quieres CL por ahora:
+    const cc = (params.cc ?? "cl").toLowerCase();
+    const lc = (params.lc ?? "es").toLowerCase();
+
     try {
-      // Search API v2 (wiki) :contentReference[oaicite:3]{index=3}
-      // Nota: OpenFoodFacts cambia detalles con el tiempo; si algo no responde,
-      // te ajusto el endpoint exacto con tu error real.
+      // v1 Search API
       const url =
-        `${BASE}/api/v2/search?search_terms=${encodeURIComponent(q)}` +
+        `${BASE}/cgi/search.pl?search_terms=${encodeURIComponent(q)}` +
+        `&search_simple=1&action=process&json=1` +
         `&page=${page}&page_size=${pageSize}` +
+        `&lc=${encodeURIComponent(lc)}` +
+        `&cc=${encodeURIComponent(cc)}` +
         `&fields=code,product_name,product_name_es,product_name_en,generic_name,brands,image_front_url,image_url,nutriments`;
+
+      console.log("[OFF V1 SEARCH] query =", q);
+      console.log("[OFF V1 SEARCH URL]", url);
 
       const r = await fetch(url);
       if (!r.ok) {
-        return { ok: false, message: `OFF search error (${r.status})` };
+        return { ok: false, message: `OFF v1 search error (${r.status})` };
       }
-      const json = await r.json();
 
+      const json = await r.json();
       const products = Array.isArray(json?.products) ? json.products : [];
       const items = products.map(mapOffProduct);
+
+      console.log("[OFF V1 SEARCH OK] items:", items.length);
+      console.log(
+        "[OFF V1 SAMPLE]",
+        items.slice(0, 3).map((x) => `${x.name} (${x.brand ?? "Sin marca"})`),
+      );
 
       return { ok: true, data: { items, page, pageSize } };
     } catch (e: any) {
@@ -94,8 +103,7 @@ export const openFoodFactsService = {
     }
   },
 
-  // Buscar por código de barras (API v2)
-  // Buscar por código de barras (API v2)
+  // Tu getByBarcode v2 puede quedarse tal cual
   async getByBarcode(barcode: string): Promise<Result<OffProduct>> {
     const code = barcode.trim();
     if (!code) return { ok: false, message: "Barcode vacío." };
@@ -106,13 +114,10 @@ export const openFoodFactsService = {
         `?fields=code,product_name,product_name_es,product_name_en,generic_name,brands,image_front_url,image_url,nutriments`;
 
       const r = await fetch(url);
-      if (!r.ok) {
+      if (!r.ok)
         return { ok: false, message: `OFF product error (${r.status})` };
-      }
 
       const json = await r.json();
-
-      // v2 suele venir como { product, status, status_verbose }
       if (json?.status === 0) {
         return {
           ok: false,
