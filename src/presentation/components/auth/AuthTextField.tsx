@@ -2,6 +2,7 @@
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import React, { useState } from "react";
 import {
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -16,10 +17,7 @@ type Props = {
   onChangeText: (t: string) => void;
   error?: string | null;
 
-  /** Icono opcional a la izquierda */
   leftIcon?: React.ReactNode;
-
-  /** Icono opcional a la derecha (ej: ojo password) */
   rightIcon?: React.ReactNode;
   onPressRightIcon?: () => void;
 
@@ -44,6 +42,12 @@ export default function AuthTextField({
 
   const [focused, setFocused] = useState(false);
 
+  const borderColor = error
+    ? colors.cta
+    : focused
+      ? colors.brand
+      : colors.border;
+
   return (
     <View style={[styles.wrap, containerStyle]}>
       <Text
@@ -63,11 +67,7 @@ export default function AuthTextField({
           styles.inputWrap,
           {
             backgroundColor: colors.surface,
-            borderColor: error
-              ? colors.cta
-              : focused
-              ? colors.brand
-              : colors.border,
+            borderColor,
           },
         ]}
       >
@@ -78,15 +78,26 @@ export default function AuthTextField({
           onChangeText={onChangeText}
           autoCorrect={false}
           placeholderTextColor={colors.textSecondary}
+          selectionColor={colors.brand}
+          autoCapitalize={inputProps.autoCapitalize ?? "none"}
+          underlineColorAndroid="transparent"
+          importantForAutofill="yes"
           {...inputProps}
           style={[
             styles.input,
             {
               color: colors.textPrimary,
               fontFamily: typography.body?.fontFamily,
+              backgroundColor: "transparent", // ✅ crítico
+              // ✅ crítico: asegura que el texto se vea incluso con overlay iOS
+              lineHeight: 18,
+              paddingVertical: 0,
             },
             inputStyle,
           ]}
+          // ✅ reduce glitches de iOS autofill
+          textContentType={inputProps.textContentType}
+          autoComplete={inputProps.autoComplete as any}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
         />
@@ -120,13 +131,9 @@ export default function AuthTextField({
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    gap: 6,
-  },
+  wrap: { gap: 6 },
 
-  label: {
-    fontSize: 13,
-  },
+  label: { fontSize: 13 },
 
   inputWrap: {
     height: 52,
@@ -141,19 +148,14 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 14,
+    includeFontPadding: false, // Android
+    ...(Platform.OS === "android"
+      ? { textAlignVertical: "center" as const }
+      : null),
   },
 
-  iconLeft: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  iconLeft: { alignItems: "center", justifyContent: "center" },
+  iconRight: { alignItems: "center", justifyContent: "center" },
 
-  iconRight: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  error: {
-    fontSize: 12,
-  },
+  error: { fontSize: 12 },
 });

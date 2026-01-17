@@ -171,20 +171,9 @@ export default function RegisterScreen() {
                 if (!touched.password)
                   setTouched((s) => ({ ...s, password: true }));
               }}
-              placeholder="Mínimo 6 caracteres"
               secureTextEntry={!showPassword}
-              error={passwordError}
-              leftIcon={
-                <Feather name="lock" size={18} color={colors.textSecondary} />
-              }
-              rightIcon={
-                <Feather
-                  name={showPassword ? "eye-off" : "eye"}
-                  size={18}
-                  color={colors.textSecondary}
-                />
-              }
-              onPressRightIcon={() => setShowPassword((s) => !s)}
+              textContentType="newPassword"
+              autoComplete="new-password"
             />
 
             <AuthTextField
@@ -195,24 +184,9 @@ export default function RegisterScreen() {
                 if (!touched.confirm)
                   setTouched((s) => ({ ...s, confirm: true }));
               }}
-              placeholder="Repite tu contraseña"
               secureTextEntry={!showConfirm}
-              error={confirmError}
-              leftIcon={
-                <Feather
-                  name="check-circle"
-                  size={18}
-                  color={colors.textSecondary}
-                />
-              }
-              rightIcon={
-                <Feather
-                  name={showConfirm ? "eye-off" : "eye"}
-                  size={18}
-                  color={colors.textSecondary}
-                />
-              }
-              onPressRightIcon={() => setShowConfirm((s) => !s)}
+              textContentType="newPassword"
+              autoComplete="new-password"
             />
 
             {!!formError && (
