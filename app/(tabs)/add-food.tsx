@@ -1,6 +1,12 @@
 // app/(tabs)/add-food.tsx
-import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -225,6 +231,25 @@ export default function AddFoodScreen() {
   const gramsNum = useMemo(() => toFloatSafe(gramsStr), [gramsStr]);
 
   const reqIdRef = useRef(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      // ✅ cada vez que entras a AddFood, parte limpio
+      setSelected(null);
+      setQuery("");
+      setResults([]);
+      setErr(null);
+      setGramsStr("100");
+      setIsSearchingLocal(false);
+      setIsSearchingMore(false);
+      reqIdRef.current += 1; // ✅ invalida requests anteriores
+
+      return () => {
+        // (opcional) al salir también
+        reqIdRef.current += 1;
+      };
+    }, []),
+  );
 
   useEffect(() => {
     if (isMealType(params.meal)) setMeal(params.meal);
