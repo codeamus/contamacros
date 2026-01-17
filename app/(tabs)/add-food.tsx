@@ -14,7 +14,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { foodLogRepository } from "@/data/food/foodLogRepository";
 import { openFoodFactsService } from "@/data/openfoodfacts/openFoodFactsService";
-import type { MealType } from "@/domain/models/foodLogDb";
+import { supabase } from "@/data/supabase/supabaseClient";
+import type { FoodLogDb, MealType } from "@/domain/models/foodLogDb";
 import type { OffProduct } from "@/domain/models/offProduct";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
@@ -44,7 +45,7 @@ function computeFrom100g(p: OffProduct, grams: number) {
 }
 
 function mealIcon(
-  meal: MealType
+  meal: MealType,
 ): React.ComponentProps<typeof MaterialCommunityIcons>["name"] {
   switch (meal) {
     case "breakfast":
@@ -61,7 +62,7 @@ function mealIcon(
 }
 
 function macroChipIcon(
-  kind: "kcal" | "p" | "c" | "f"
+  kind: "kcal" | "p" | "c" | "f",
 ): React.ComponentProps<typeof MaterialCommunityIcons>["name"] {
   switch (kind) {
     case "kcal":
@@ -76,39 +77,137 @@ function macroChipIcon(
 }
 
 const MEALS: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
-
 function isMealType(x: unknown): x is MealType {
   return typeof x === "string" && (MEALS as string[]).includes(x);
 }
 
+type EditDraft = {
+  name: string;
+  caloriesStr: string;
+  proteinStr: string;
+  carbsStr: string;
+  fatStr: string;
+};
+
+function numFromStrNonNeg(s: string) {
+  const n = toFloatSafe(s);
+  if (!Number.isFinite(n)) return NaN;
+  if (n < 0) return 0;
+  return n;
+}
+
 export default function AddFoodScreen() {
-  const params = useLocalSearchParams<{ meal?: string; barcode?: string }>();
+  const params = useLocalSearchParams<{
+    meal?: string;
+    barcode?: string;
+    logId?: string;
+  }>();
+
   const { theme } = useTheme();
   const { colors, typography } = theme;
   const s = makeStyles(colors, typography);
 
   const day = todayStrLocal();
 
-  const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(false); // add button loading
+  // -------------------------
+  // Mode detection
+  // -------------------------
+  const logId = typeof params.logId === "string" ? params.logId.trim() : "";
+  const isEditMode = !!logId;
+
+  // -------------------------
+  // Common state
+  // -------------------------
+  const [loading, setLoading] = useState(false); // save button loading
   const [err, setErr] = useState<string | null>(null);
 
+  const [meal, setMeal] = useState<MealType>("snack");
+
+  useEffect(() => {
+    if (isMealType(params.meal)) setMeal(params.meal);
+  }, [params.meal]);
+
+  // -------------------------
+  // Create mode: OFF flow
+  // -------------------------
+  const [query, setQuery] = useState("");
   const [results, setResults] = useState<OffProduct[]>([]);
   const [selected, setSelected] = useState<OffProduct | null>(null);
 
   const [gramsStr, setGramsStr] = useState("100");
   const gramsNum = useMemo(() => toFloatSafe(gramsStr), [gramsStr]);
-
-  const [meal, setMeal] = useState<MealType>("snack");
   const [isSearching, setIsSearching] = useState(false);
 
-  useEffect(() => {
-    if (isMealType(params.meal)) {
-      setMeal(params.meal);
-    }
-  }, [params.meal]);
+  // -------------------------
+  // Edit mode: load + draft
+  // -------------------------
+  const [editingLog, setEditingLog] = useState<FoodLogDb | null>(null);
+  const [editDraft, setEditDraft] = useState<EditDraft>({
+    name: "",
+    caloriesStr: "",
+    proteinStr: "",
+    carbsStr: "",
+    fatStr: "",
+  });
+  const [isLoadingEdit, setIsLoadingEdit] = useState(false);
 
+  // Load existing log (edit mode)
   useEffect(() => {
+    if (!isEditMode) return;
+
+    (async () => {
+      setErr(null);
+      setIsLoadingEdit(true);
+
+      const { data: sdata, error: serr } = await supabase.auth.getSession();
+      if (serr) {
+        setErr(serr.message);
+        setIsLoadingEdit(false);
+        return;
+      }
+      const uid = sdata.session?.user?.id;
+      if (!uid) {
+        setErr("No hay sesión activa.");
+        setIsLoadingEdit(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("food_logs")
+        .select("*")
+        .eq("id", logId)
+        .eq("user_id", uid)
+        .maybeSingle();
+
+      setIsLoadingEdit(false);
+
+      if (error) {
+        setErr(error.message);
+        return;
+      }
+      if (!data) {
+        setErr("No encontramos este registro.");
+        return;
+      }
+
+      const log = data as FoodLogDb;
+      setEditingLog(log);
+      setMeal(log.meal);
+
+      setEditDraft({
+        name: log.name ?? "",
+        caloriesStr: String(log.calories ?? 0),
+        proteinStr: String(log.protein_g ?? 0),
+        carbsStr: String(log.carbs_g ?? 0),
+        fatStr: String(log.fat_g ?? 0),
+      });
+    })();
+  }, [isEditMode, logId]);
+
+  // Barcode -> select (create mode only)
+  useEffect(() => {
+    if (isEditMode) return;
+
     const barcode =
       typeof params.barcode === "string" ? params.barcode.trim() : "";
     if (!barcode) return;
@@ -129,11 +228,12 @@ export default function AddFoodScreen() {
       setSelected(res.data);
       setQuery(res.data.name);
     })();
-  }, [params.barcode]);
+  }, [params.barcode, isEditMode]);
 
-
-  // Debounce search
+  // Debounce search (create mode only)
   useEffect(() => {
+    if (isEditMode) return;
+
     setErr(null);
 
     const q = query.trim();
@@ -164,22 +264,53 @@ export default function AddFoodScreen() {
     }, 450);
 
     return () => clearTimeout(t);
-  }, [query]);
+  }, [query, isEditMode]);
 
+  // -------------------------
+  // Validations
+  // -------------------------
   const gramsError = useMemo(() => {
+    if (isEditMode) return null;
     if (!gramsStr.trim()) return "Ingresa gramos";
     if (!Number.isFinite(gramsNum)) return "Valor inválido";
     if (gramsNum <= 0) return "Debe ser > 0";
     if (gramsNum > 2000) return "Demasiado alto (máx 2000g)";
     return null;
-  }, [gramsStr, gramsNum]);
+  }, [gramsStr, gramsNum, isEditMode]);
 
   const preview = useMemo(() => {
+    if (isEditMode) return null;
     if (!selected) return null;
     const g = Number.isFinite(gramsNum) ? clamp(gramsNum, 1, 2000) : 100;
     return computeFrom100g(selected, g);
-  }, [selected, gramsNum]);
+  }, [selected, gramsNum, isEditMode]);
 
+  const editErrors = useMemo(() => {
+    if (!isEditMode) return null;
+
+    const name = editDraft.name.trim();
+    if (!name) return "Ingresa el nombre del alimento.";
+
+    const kcal = numFromStrNonNeg(editDraft.caloriesStr);
+    const p = numFromStrNonNeg(editDraft.proteinStr);
+    const c = numFromStrNonNeg(editDraft.carbsStr);
+    const f = numFromStrNonNeg(editDraft.fatStr);
+
+    if (!Number.isFinite(kcal)) return "Calorías inválidas.";
+    if (!Number.isFinite(p)) return "Proteína inválida.";
+    if (!Number.isFinite(c)) return "Carbs inválidos.";
+    if (!Number.isFinite(f)) return "Grasas inválidas.";
+
+    if (kcal > 10000) return "Calorías demasiado altas (máx 10.000).";
+    if (p > 2000 || c > 2000 || f > 2000)
+      return "Macros demasiado altos (máx 2000g).";
+
+    return null;
+  }, [isEditMode, editDraft]);
+
+  // -------------------------
+  // Actions
+  // -------------------------
   async function onAdd() {
     if (!selected) return;
     setErr(null);
@@ -212,6 +343,44 @@ export default function AddFoodScreen() {
     ]);
   }
 
+  async function onSaveEdit() {
+    if (!editingLog) return;
+    setErr(null);
+
+    if (editErrors) {
+      setErr(editErrors);
+      return;
+    }
+
+    const payload = {
+      meal,
+      name: editDraft.name.trim(),
+      calories: Math.round(numFromStrNonNeg(editDraft.caloriesStr)),
+      protein_g: Math.round(numFromStrNonNeg(editDraft.proteinStr)),
+      carbs_g: Math.round(numFromStrNonNeg(editDraft.carbsStr)),
+      fat_g: Math.round(numFromStrNonNeg(editDraft.fatStr)),
+    };
+
+    setLoading(true);
+    const res = await foodLogRepository.update(editingLog.id, payload);
+    setLoading(false);
+
+    if (!res.ok) {
+      setErr(res.message ?? "No pudimos guardar los cambios.");
+      return;
+    }
+
+    Alert.alert("Listo", "Se actualizaron los datos.", [
+      { text: "OK", onPress: () => router.replace("/(tabs)/diary") },
+    ]);
+  }
+
+  const headerTitle = isEditMode
+    ? "Editar alimento"
+    : selected
+      ? "Detalle"
+      : "Agregar alimento";
+
   return (
     <SafeAreaView style={s.safe}>
       <ScrollView
@@ -222,16 +391,17 @@ export default function AddFoodScreen() {
         <View style={s.header}>
           <Pressable
             style={s.iconBtn}
-            onPress={() => (selected ? setSelected(null) : router.back())}
+            onPress={() => {
+              if (isEditMode) return router.back();
+              return selected ? setSelected(null) : router.back();
+            }}
           >
             <Feather name="arrow-left" size={18} color={colors.textPrimary} />
           </Pressable>
 
           <View style={{ flex: 1 }}>
             <Text style={s.kicker}>Diario</Text>
-            <Text style={s.title}>
-              {selected ? "Detalle" : "Agregar alimento"}
-            </Text>
+            <Text style={s.title}>{headerTitle}</Text>
           </View>
 
           <Pressable
@@ -242,11 +412,164 @@ export default function AddFoodScreen() {
           </Pressable>
         </View>
 
-        {!selected && (
+        {/* -------------------------
+            EDIT MODE UI
+            ------------------------- */}
+        {isEditMode && (
+          <>
+            <Text style={s.subtitle}>
+              Edita el nombre y macros. (Los gramos no se guardan por ahora.)
+            </Text>
+
+            {(isLoadingEdit || !editingLog) && !err ? (
+              <View style={s.loadingBox}>
+                <ActivityIndicator />
+                <Text style={s.loadingText}>Cargando registro...</Text>
+              </View>
+            ) : null}
+
+            {!!err && (
+              <View style={s.alert}>
+                <Feather name="alert-triangle" size={16} color={colors.onCta} />
+                <Text style={s.alertText}>{err}</Text>
+              </View>
+            )}
+
+            {!!editingLog && (
+              <View style={s.card}>
+                {/* Meal chips */}
+                <View style={s.mealRow}>
+                  {(
+                    ["breakfast", "lunch", "dinner", "snack"] as MealType[]
+                  ).map((m) => {
+                    const active = meal === m;
+                    return (
+                      <Pressable
+                        key={m}
+                        onPress={() => setMeal(m)}
+                        style={({ pressed }) => [
+                          s.mealChip,
+                          active && s.mealChipActive,
+                          pressed && {
+                            opacity: 0.92,
+                            transform: [{ scale: 0.99 }],
+                          },
+                        ]}
+                      >
+                        <MaterialCommunityIcons
+                          name={mealIcon(m)}
+                          size={18}
+                          color={active ? colors.brand : colors.textSecondary}
+                        />
+                        <Text
+                          style={[
+                            s.mealChipText,
+                            active && s.mealChipTextActive,
+                          ]}
+                        >
+                          {MEAL_LABELS[m]}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                {/* Name */}
+                <View style={{ marginTop: 12 }}>
+                  <Text style={s.label}>Nombre</Text>
+                  <View style={s.searchBox}>
+                    <MaterialCommunityIcons
+                      name="food-apple"
+                      size={18}
+                      color={colors.textSecondary}
+                    />
+                    <TextInput
+                      value={editDraft.name}
+                      onChangeText={(t) =>
+                        setEditDraft((d) => ({ ...d, name: t }))
+                      }
+                      placeholder="Ej: Arroz cocido"
+                      placeholderTextColor={colors.textSecondary}
+                      autoCapitalize="sentences"
+                      style={s.searchInput}
+                    />
+                  </View>
+                </View>
+
+                {/* Macros grid */}
+                <View style={s.editGrid}>
+                  <EditNumberField
+                    label="Calorías"
+                    icon="fire"
+                    value={editDraft.caloriesStr}
+                    onChange={(t) =>
+                      setEditDraft((d) => ({ ...d, caloriesStr: t }))
+                    }
+                    colors={colors}
+                    typography={typography}
+                  />
+                  <EditNumberField
+                    label="Proteína (g)"
+                    icon="food-steak"
+                    value={editDraft.proteinStr}
+                    onChange={(t) =>
+                      setEditDraft((d) => ({ ...d, proteinStr: t }))
+                    }
+                    colors={colors}
+                    typography={typography}
+                  />
+                  <EditNumberField
+                    label="Carbs (g)"
+                    icon="bread-slice"
+                    value={editDraft.carbsStr}
+                    onChange={(t) =>
+                      setEditDraft((d) => ({ ...d, carbsStr: t }))
+                    }
+                    colors={colors}
+                    typography={typography}
+                  />
+                  <EditNumberField
+                    label="Grasas (g)"
+                    icon="peanut"
+                    value={editDraft.fatStr}
+                    onChange={(t) => setEditDraft((d) => ({ ...d, fatStr: t }))}
+                    colors={colors}
+                    typography={typography}
+                  />
+                </View>
+
+                {!!editErrors && (
+                  <View style={s.alert}>
+                    <Feather
+                      name="alert-triangle"
+                      size={16}
+                      color={colors.onCta}
+                    />
+                    <Text style={s.alertText}>{editErrors}</Text>
+                  </View>
+                )}
+
+                <PrimaryButton
+                  title={loading ? "Guardando..." : "Guardar cambios"}
+                  onPress={onSaveEdit}
+                  loading={loading}
+                  disabled={loading}
+                  icon={<Feather name="save" size={18} color={colors.onCta} />}
+                />
+              </View>
+            )}
+          </>
+        )}
+
+        {/* -------------------------
+            CREATE MODE UI (your original flow)
+            ------------------------- */}
+        {!isEditMode && !selected && (
           <>
             <Text style={s.subtitle}>
               Busca en OpenFoodFacts y registra los gramos.
             </Text>
+
             <Pressable
               onPress={() =>
                 router.push({
@@ -323,7 +646,7 @@ export default function AddFoodScreen() {
                       </Text>
                     </Pressable>
                   );
-                }
+                },
               )}
             </View>
 
@@ -410,8 +733,8 @@ export default function AddFoodScreen() {
           </>
         )}
 
-        {/* Selected detail */}
-        {selected && (
+        {/* Selected detail (create mode) */}
+        {!isEditMode && selected && (
           <View style={s.card}>
             <View style={s.detailHeader}>
               <View style={s.detailIcon}>
@@ -533,6 +856,71 @@ export default function AddFoodScreen() {
   );
 }
 
+function EditNumberField({
+  label,
+  icon,
+  value,
+  onChange,
+  colors,
+  typography,
+}: {
+  label: string;
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+  value: string;
+  onChange: (t: string) => void;
+  colors: any;
+  typography: any;
+}) {
+  return (
+    <View style={{ flex: 1, minWidth: 150 }}>
+      <Text
+        style={{
+          fontFamily: typography.body?.fontFamily,
+          fontSize: 12,
+          color: colors.textSecondary,
+          marginBottom: 8,
+        }}
+      >
+        {label}
+      </Text>
+
+      <View
+        style={{
+          borderWidth: 1,
+          borderColor: colors.border,
+          borderRadius: 16,
+          backgroundColor: colors.surface,
+          paddingHorizontal: 12,
+          height: 50,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 10,
+        }}
+      >
+        <MaterialCommunityIcons
+          name={icon}
+          size={18}
+          color={colors.textSecondary}
+        />
+        <TextInput
+          value={value}
+          onChangeText={onChange}
+          keyboardType="numeric"
+          placeholder="0"
+          placeholderTextColor={colors.textSecondary}
+          style={{
+            flex: 1,
+            color: colors.textPrimary,
+            fontFamily: typography.subtitle?.fontFamily,
+            fontSize: 16,
+            paddingVertical: 0,
+          }}
+        />
+      </View>
+    </View>
+  );
+}
+
 function MacroChip({
   kind,
   value,
@@ -552,8 +940,8 @@ function MacroChip({
   const title =
     kind === "kcal"
       ? "Calorías"
-      : label ??
-        (kind === "p" ? "Proteína" : kind === "c" ? "Carbs" : "Grasas");
+      : (label ??
+        (kind === "p" ? "Proteína" : kind === "c" ? "Carbs" : "Grasas"));
 
   return (
     <View
@@ -724,6 +1112,13 @@ function makeStyles(colors: any, typography: any) {
       fontSize: 12,
     },
     mealChipTextActive: { color: colors.textPrimary },
+
+    editGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 10,
+      marginTop: 14,
+    },
 
     result: {
       backgroundColor: colors.surface,
@@ -899,6 +1294,7 @@ function makeStyles(colors: any, typography: any) {
       textAlign: "center",
       fontFamily: typography.subtitle?.fontFamily,
     },
+
     scanBtn: {
       marginTop: 10,
       height: 48,
