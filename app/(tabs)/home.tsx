@@ -1,6 +1,8 @@
 // app/(tabs)/home.tsx
 import type { MealType } from "@/domain/models/foodLogDb";
+import DonutRing from "@/presentation/components/ui/DonutRing";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
+import Skeleton from "@/presentation/components/ui/Skeleton";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useTodayMeals } from "@/presentation/hooks/diary/useTodayMeals";
 import { useTodaySummary } from "@/presentation/hooks/diary/useTodaySummary";
@@ -18,6 +20,13 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+function clamp01(n: number) {
+  if (!Number.isFinite(n)) return 0;
+  if (n < 0) return 0;
+  if (n > 1) return 1;
+  return n;
+}
 
 export default function HomeScreen() {
   const { theme } = useTheme();
@@ -47,6 +56,11 @@ export default function HomeScreen() {
     return Math.min((caloriesConsumed / caloriesTarget) * 100, 100);
   }, [caloriesConsumed, caloriesTarget]);
 
+  const caloriesProgress = useMemo(() => {
+    if (!caloriesTarget || caloriesTarget <= 0) return 0;
+    return clamp01(caloriesConsumed / caloriesTarget);
+  }, [caloriesConsumed, caloriesTarget]);
+
   const protein = { value: totals.protein, target: proteinTarget };
   const carbs = { value: totals.carbs, target: carbsTarget };
   const fat = { value: totals.fat, target: fatTarget };
@@ -69,7 +83,13 @@ export default function HomeScreen() {
             </Text>
           </View>
 
-          <Pressable style={s.headerIconBtn} onPress={() => {}}>
+          <Pressable
+            style={s.headerIconBtn}
+            onPress={() => {
+              // luego calendario
+            }}
+            disabled={loading}
+          >
             <Feather name="calendar" size={18} color={colors.textPrimary} />
           </Pressable>
 
@@ -122,7 +142,7 @@ export default function HomeScreen() {
         <View style={s.summaryRow}>
           <MiniStat
             title="Restantes"
-            value={loading ? "—" : `${remaining}`}
+            value={loading ? null : `${remaining}`}
             unit="kcal"
             icon={
               <MaterialCommunityIcons
@@ -136,7 +156,7 @@ export default function HomeScreen() {
           />
           <MiniStat
             title="Consumidas"
-            value={loading ? "—" : `${caloriesConsumed}`}
+            value={loading ? null : `${caloriesConsumed}`}
             unit="kcal"
             icon={
               <MaterialCommunityIcons
@@ -150,7 +170,7 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* Main Calories Card */}
+        {/* Main Calories Card (Donut + skeleton) */}
         <View style={s.card}>
           <View style={s.cardHeaderRow}>
             <View style={s.cardHeaderLeft}>
@@ -172,22 +192,61 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          <Text style={s.bigValue}>
-            {loading ? "—" : caloriesConsumed}
-            <Text style={s.bigUnit}> kcal</Text>
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+            <DonutRing
+              progress={loading ? 0 : caloriesProgress}
+              trackColor={colors.border}
+              fillColor={colors.brand}
+              size={92}
+              stroke={12}
+            />
 
-          <View style={s.progressTrack}>
-            <View style={[s.progressFill, { width: `${caloriesPct}%` }]} />
+            <View style={{ flex: 1, gap: 8 }}>
+              {loading ? (
+                <>
+                  <Skeleton
+                    height={28}
+                    width="55%"
+                    radius={12}
+                    baseColor={colors.border}
+                    highlightColor={colors.border}
+                  />
+                  <Skeleton
+                    height={12}
+                    width="85%"
+                    radius={10}
+                    baseColor={colors.border}
+                    highlightColor={colors.border}
+                    style={{ opacity: 0.7 }}
+                  />
+                </>
+              ) : (
+                <>
+                  <Text style={s.bigValue}>
+                    {caloriesConsumed}
+                    <Text style={s.bigUnit}> kcal</Text>
+                  </Text>
+
+                  <View style={s.hintRow}>
+                    <Feather
+                      name="info"
+                      size={14}
+                      color={colors.textSecondary}
+                    />
+                    <Text style={s.hintText}>
+                      {caloriesTarget
+                        ? `${remaining} kcal para llegar a tu objetivo`
+                        : "Define tu objetivo para ver restantes"}
+                    </Text>
+                  </View>
+                </>
+              )}
+            </View>
           </View>
 
-          <View style={s.hintRow}>
-            <Feather name="info" size={14} color={colors.textSecondary} />
-            <Text style={s.hintText}>
-              {caloriesTarget
-                ? `${remaining} kcal para llegar a tu objetivo`
-                : "Define tu objetivo para ver restantes"}
-            </Text>
+          {/* Mantengo tu barra (se ve bien con el donut) */}
+          <View style={s.progressTrack}>
+            <View style={[s.progressFill, { width: `${caloriesPct}%` }]} />
           </View>
         </View>
 
@@ -323,6 +382,7 @@ export default function HomeScreen() {
               })
             }
           />
+
           <View style={s.divider} />
 
           <MealRow
@@ -343,7 +403,7 @@ export default function HomeScreen() {
             onAdd={() =>
               router.push({
                 pathname: "/(tabs)/add-food",
-                params: { meal: "dinner" },
+                params: { meal: "snack" }, // ✅ FIX
               })
             }
           />
@@ -589,7 +649,7 @@ function MiniStat({
   typography,
 }: {
   title: string;
-  value: string;
+  value: string | null; // null => skeleton
   unit: string;
   icon: React.ReactNode;
   colors: any;
@@ -618,26 +678,37 @@ function MiniStat({
           {title}
         </Text>
       </View>
-      <Text
-        style={[
-          mini.value,
-          {
-            color: colors.textPrimary,
-            fontFamily: typography.subtitle?.fontFamily,
-          },
-        ]}
-      >
-        {value}{" "}
+
+      {value === null ? (
+        <Skeleton
+          height={20}
+          width="55%"
+          radius={10}
+          baseColor={colors.border}
+          highlightColor={colors.border}
+        />
+      ) : (
         <Text
-          style={{
-            color: colors.textSecondary,
-            fontFamily: typography.body?.fontFamily,
-            fontSize: 12,
-          }}
+          style={[
+            mini.value,
+            {
+              color: colors.textPrimary,
+              fontFamily: typography.subtitle?.fontFamily,
+            },
+          ]}
         >
-          {unit}
+          {value}{" "}
+          <Text
+            style={{
+              color: colors.textSecondary,
+              fontFamily: typography.body?.fontFamily,
+              fontSize: 12,
+            }}
+          >
+            {unit}
+          </Text>
         </Text>
-      </Text>
+      )}
     </View>
   );
 }
@@ -715,25 +786,35 @@ function MacroCard({
         </Text>
       </View>
 
-      <Text
-        style={{
-          fontFamily: typography.subtitle?.fontFamily,
-          fontSize: 18,
-          color: colors.textPrimary,
-        }}
-      >
-        {loading ? "—" : value}
+      {loading ? (
+        <Skeleton
+          height={20}
+          width="50%"
+          radius={10}
+          baseColor={colors.border}
+          highlightColor={colors.border}
+        />
+      ) : (
         <Text
           style={{
-            fontFamily: typography.body?.fontFamily,
-            fontSize: 12,
-            color: colors.textSecondary,
+            fontFamily: typography.subtitle?.fontFamily,
+            fontSize: 18,
+            color: colors.textPrimary,
           }}
         >
-          {" "}
-          g
+          {value}
+          <Text
+            style={{
+              fontFamily: typography.body?.fontFamily,
+              fontSize: 12,
+              color: colors.textSecondary,
+            }}
+          >
+            {" "}
+            g
+          </Text>
         </Text>
-      </Text>
+      )}
 
       <View
         style={{
@@ -741,6 +822,7 @@ function MacroCard({
           borderRadius: 999,
           backgroundColor: colors.border,
           overflow: "hidden",
+          opacity: loading ? 0.6 : 1,
         }}
       >
         <View
@@ -766,7 +848,7 @@ function MacroCard({
 }
 
 /**
- * ✅ NUEVO MealRow premium:
+ * MealRow premium:
  * - subtitle (items + kcal)
  * - chip kcal
  * - mini progress kcal_meal / kcal_total_dia
@@ -906,7 +988,7 @@ function MealRow({
         </View>
       </View>
 
-      {/* ✅ Evita que el tap del botón dispare onOpen */}
+      {/* Evita que el tap del botón dispare onOpen */}
       <Pressable
         onPress={(e) => {
           e.stopPropagation();
@@ -940,7 +1022,6 @@ function MealRow({
     </Pressable>
   );
 }
-
 
 const sheet = StyleSheet.create({
   wrap: {

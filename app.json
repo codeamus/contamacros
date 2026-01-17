@@ -9,23 +9,22 @@
     "newArchEnabled": true,
     "icon": "./assets/images/adaptive-icon.png",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.codeamusdev2.contamacro"
     },
-
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#E6F4FE"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.codeamusdev2.contamacro"
     },
-
     "web": {
       "output": "static",
       "favicon": "./assets/images/adaptive-icon.png"
     },
-
     "plugins": [
       "expo-router",
       [
@@ -41,7 +40,6 @@
         }
       ]
     ],
-
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
