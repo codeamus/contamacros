@@ -1,12 +1,10 @@
 // app/(onboarding)/profile.tsx
-import { StorageKeys } from "@/core/storage/keys";
-import { storage } from "@/core/storage/storage";
-import { computeMacroTargets } from "@/domain/services/macroTargets";
 import AuthTextField from "@/presentation/components/auth/AuthTextField";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -34,10 +32,10 @@ export default function ProfileScreen() {
   const { colors, typography } = theme;
 
   const [height, setHeight] = useState(
-    profile?.height_cm ? String(profile.height_cm) : ""
+    profile?.height_cm ? String(profile.height_cm) : "",
   );
   const [weight, setWeight] = useState(
-    profile?.weight_kg ? String(profile.weight_kg) : ""
+    profile?.weight_kg ? String(profile.weight_kg) : "",
   );
 
   const [loading, setLoading] = useState(false);
@@ -69,11 +67,9 @@ export default function ProfileScreen() {
 
     setLoading(true);
     try {
-      // 1) guarda altura/peso + marca onboarding completo
       const res1 = await updateProfile({
         height_cm: heightNum,
         weight_kg: weightNum,
-        onboarding_completed: true,
       });
 
       if (!res1.ok) {
@@ -81,36 +77,7 @@ export default function ProfileScreen() {
         return;
       }
 
-      const p = await refreshProfile();
-      if (!p?.daily_calorie_target) {
-        setErr("No encontramos tu meta calórica. Intenta nuevamente.");
-        return;
-      }
-
-      // 2) calcula macros y guarda
-      const macros = computeMacroTargets({
-        calories: p.daily_calorie_target,
-        weightKg: weightNum,
-      });
-
-      const res2 = await updateProfile({
-        protein_g: macros.proteinG,
-        carbs_g: macros.carbsG,
-        fat_g: macros.fatG,
-      });
-
-      if (!res2.ok) {
-        setErr(res2.message ?? "No pudimos guardar tus macros.");
-        await storage.setJson(StorageKeys.PENDING_PROFILE_SYNC, {
-          protein_g: macros.proteinG,
-          carbs_g: macros.carbsG,
-          fat_g: macros.fatG,
-        });
-        return;
-      }
-
-      // ✅ No hacemos router.replace a tabs.
-      // AuthGate detecta onboarding_completed y te manda a (tabs).
+      router.push("/(onboarding)/result");
     } catch {
       setErr("No pudimos guardar tu perfil.");
     } finally {

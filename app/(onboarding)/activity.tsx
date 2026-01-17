@@ -1,4 +1,5 @@
-// app/(onboarding)/goal.tsx
+// app/(onboarding)/activity.tsx
+import { ActivityLevel } from "@/domain/services/calorieGoals";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
@@ -6,69 +7,82 @@ import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Animated,
-  Easing,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
+     Animated,
+     Easing,
+     KeyboardAvoidingView,
+     Platform,
+     Pressable,
+     StyleSheet,
+     Text,
+     View,
 } from "react-native";
 
-type Goal = "deficit" | "maintain" | "surplus";
-
-const goalMeta: Record<
-  Goal,
+const activityMeta: Record<
+  ActivityLevel,
   {
     title: string;
     desc: string;
     icon: React.ComponentProps<typeof Feather>["name"];
   }
 > = {
-  deficit: {
-    title: "Bajar de peso",
-    desc: "Déficit calórico",
-    icon: "trending-down",
+  sedentary: {
+    title: "Sedentario",
+    desc: "Poco o nada de ejercicio",
+    icon: "minus-circle",
   },
-  maintain: {
-    title: "Mantener",
-    desc: "Mantener tu peso actual",
-    icon: "minus",
+  light: {
+    title: "Ligero",
+    desc: "1–3 días por semana",
+    icon: "activity",
   },
-  surplus: {
-    title: "Subir masa muscular",
-    desc: "Superávit calórico",
+  moderate: {
+    title: "Moderado",
+    desc: "3–5 días por semana",
     icon: "trending-up",
+  },
+  high: {
+    title: "Alto",
+    desc: "6–7 días por semana",
+    icon: "zap",
+  },
+  very_high: {
+    title: "Muy alto",
+    desc: "Entrenamiento intenso o físico diario",
+    icon: "award",
   },
 };
 
-export default function GoalScreen() {
+export default function ActivityScreen() {
   const { updateProfile } = useAuth();
   const { theme } = useTheme();
   const { colors, typography } = theme;
 
-  const [goal, setGoal] = useState<Goal | null>(null);
+  const [activity, setActivity] = useState<ActivityLevel | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canContinue = useMemo(() => !!goal && !loading, [goal, loading]);
+  const canContinue = useMemo(
+    () => !!activity && !loading,
+    [activity, loading],
+  );
 
   async function onContinue() {
-    if (!goal) return;
+    if (!activity) return;
 
     setLoading(true);
     setError(null);
 
-    const res = await updateProfile({ goal });
+    // ⚠️ Requiere que ProfileDb / tabla tenga: activity_level
+    const res = await updateProfile({ activity_level: activity } as any);
+
     if (!res.ok) {
-      setError(res.message ?? "No pudimos guardar tu objetivo.");
+      setError(res.message ?? "No pudimos guardar tu nivel de actividad.");
       setLoading(false);
       return;
     }
 
     setLoading(false);
-    router.push("/(onboarding)/about");
+    router.push("/(onboarding)/profile");
   }
 
   // Animación de entrada
@@ -109,30 +123,30 @@ export default function GoalScreen() {
           <View style={styles.header}>
             <View style={styles.logoBadge}>
               <MaterialCommunityIcons
-                name="target"
+                name="run"
                 size={22}
                 color={colors.onCta}
               />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.brand}>Onboarding</Text>
-              <Text style={styles.title}>Tu objetivo</Text>
+              <Text style={styles.title}>Actividad</Text>
             </View>
           </View>
 
           <Text style={styles.subtitle}>
-            Esto nos ayuda a estimar tus calorías diarias.
+            Esto ajusta tu gasto diario estimado (TDEE).
           </Text>
 
           <View style={{ gap: 12, marginTop: 18 }}>
-            {(Object.keys(goalMeta) as Goal[]).map((k) => (
-              <GoalOption
+            {(Object.keys(activityMeta) as ActivityLevel[]).map((k) => (
+              <ActivityOption
                 key={k}
-                title={goalMeta[k].title}
-                desc={goalMeta[k].desc}
-                icon={goalMeta[k].icon}
-                selected={goal === k}
-                onPress={() => setGoal(k)}
+                title={activityMeta[k].title}
+                desc={activityMeta[k].desc}
+                icon={activityMeta[k].icon}
+                selected={activity === k}
+                onPress={() => setActivity(k)}
                 colors={colors}
                 typography={typography}
               />
@@ -160,7 +174,7 @@ export default function GoalScreen() {
   );
 }
 
-function GoalOption({
+function ActivityOption({
   title,
   desc,
   icon,
