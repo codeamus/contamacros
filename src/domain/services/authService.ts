@@ -20,7 +20,7 @@ function mapSupabaseError(e: unknown): { message: string; code?: string } {
 export const AuthService = {
   async signUp(
     email: string,
-    password: string
+    password: string,
   ): Promise<AuthResult<{ user: User; session: Session | null }>> {
     try {
       const { data, error } = await supabase.auth.signUp({ email, password });
@@ -120,7 +120,7 @@ export const AuthService = {
         | "carbs_g"
         | "fat_g"
       >
-    >
+    >,
   ): Promise<AuthResult<ProfileDb>> {
     try {
       const { data: sdata, error: serr } = await supabase.auth.getSession();
@@ -146,5 +146,27 @@ export const AuthService = {
     } catch (e) {
       return { ok: false, ...mapSupabaseError(e) };
     }
+  },
+
+  async exchangeCodeForSession(
+    code: string,
+  ): Promise<{ ok: boolean; message?: string }> {
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) return { ok: false, message: error.message };
+    return { ok: true };
+  },
+
+  async signInWithAppleIdToken(
+    token: string,
+    nonce?: string,
+  ): Promise<{ ok: boolean; message?: string }> {
+    const { error } = await supabase.auth.signInWithIdToken({
+      provider: "apple",
+      token,
+      nonce,
+    });
+
+    if (error) return { ok: false, message: error.message };
+    return { ok: true };
   },
 };

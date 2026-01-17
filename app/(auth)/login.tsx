@@ -24,8 +24,29 @@ import {
 
 const logoLight = require("assets/images/logo-light-removebg.png");
 
+function translateAuthMessage(msg?: string) {
+  if (!msg) return null;
+
+  const m = msg.toLowerCase();
+
+  if (m.includes("user already registered") || m.includes("already registered"))
+    return "Este email ya está registrado. Inicia sesión.";
+
+  if (m.includes("invalid login credentials"))
+    return "Email o contraseña incorrectos.";
+
+  if (m.includes("email address is invalid") || m.includes("invalid email"))
+    return "Email inválido.";
+
+  if (m.includes("password") && m.includes("short"))
+    return "La contraseña es demasiado corta.";
+
+  return msg;
+}
+
 export default function LoginScreen() {
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle, signInWithApple } = useAuth();
+
   const { theme } = useTheme();
   const { colors, typography } = theme;
 
@@ -34,10 +55,13 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
 
   const [touched, setTouched] = useState<{ email: boolean; password: boolean }>(
-    { email: false, password: false }
+    { email: false, password: false },
   );
 
   const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState<"google" | "apple" | null>(
+    null,
+  );
   const [formError, setFormError] = useState<string | null>(null);
 
   const emailError = useMemo(() => {
@@ -65,13 +89,41 @@ export default function LoginScreen() {
     try {
       const res = await signIn(email.trim(), password);
       if (!res.ok) {
-        setFormError(res.message ?? "No pudimos iniciar sesión.");
+        setFormError(
+          translateAuthMessage(res.message) ?? "No pudimos iniciar sesión.",
+        );
         return;
       }
     } catch {
       setFormError("No pudimos iniciar sesión. Intenta nuevamente.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function onGoogle() {
+    setFormError(null);
+    setOauthLoading("google");
+    try {
+      const res = await signInWithGoogle();
+      if (!res.ok && res.message) {
+        setFormError(res.message ?? "No pudimos iniciar con Google.");
+      }
+    } finally {
+      setOauthLoading(null);
+    }
+  }
+
+  async function onApple() {
+    setFormError(null);
+    setOauthLoading("apple");
+    try {
+      const res = await signInWithApple();
+      if (!res.ok && res.message) {
+        setFormError(res.message ?? "No pudimos iniciar con Apple.");
+      }
+    } finally {
+      setOauthLoading(null);
     }
   }
 
@@ -99,6 +151,8 @@ export default function LoginScreen() {
       },
     ],
   } as const;
+
+  const busy = loading || !!oauthLoading;
 
   return (
     <View style={styles.screen}>
@@ -172,14 +226,14 @@ export default function LoginScreen() {
               title="Entrar"
               onPress={onSubmit}
               loading={loading}
-              disabled={!canSubmit}
-              // si tu PrimaryButton soporta icon, perfecto. Si no, ignora.
+              disabled={!canSubmit || busy}
             />
 
             <Pressable
               onPress={() =>
                 setFormError("Recuperación de contraseña: pendiente.")
               }
+              disabled={busy}
             >
               {({ pressed }) => (
                 <Text style={[styles.link, pressed && styles.linkPressed]}>
@@ -195,12 +249,14 @@ export default function LoginScreen() {
               <View style={styles.dividerLine} />
             </View>
 
-            {/* Google button (UI) */}
+            {/* Google */}
             <Pressable
-              onPress={() => setFormError("Login con Google: pendiente.")}
+              onPress={onGoogle}
+              disabled={busy}
               style={({ pressed }) => [
                 styles.oauthButton,
                 pressed && { transform: [{ scale: 0.99 }], opacity: 0.9 },
+                busy && { opacity: 0.6 },
               ]}
             >
               <MaterialCommunityIcons
@@ -208,11 +264,41 @@ export default function LoginScreen() {
                 size={20}
                 color={colors.textPrimary}
               />
-
-              <Text style={styles.oauthText}>Continuar con Google</Text>
+              <Text style={styles.oauthText}>
+                {oauthLoading === "google"
+                  ? "Conectando..."
+                  : "Continuar con Google"}
+              </Text>
             </Pressable>
 
-            <Pressable onPress={() => router.push("/(auth)/register")}>
+            {/* Apple (solo iOS) */}
+            {Platform.OS === "ios" && (
+              <Pressable
+                onPress={onApple}
+                disabled={busy}
+                style={({ pressed }) => [
+                  styles.oauthButton,
+                  pressed && { transform: [{ scale: 0.99 }], opacity: 0.9 },
+                  busy && { opacity: 0.6 },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="apple"
+                  size={22}
+                  color={colors.textPrimary}
+                />
+                <Text style={styles.oauthText}>
+                  {oauthLoading === "apple"
+                    ? "Conectando..."
+                    : "Continuar con Apple"}
+                </Text>
+              </Pressable>
+            )}
+
+            <Pressable
+              onPress={() => router.push("/(auth)/register")}
+              disabled={busy}
+            >
               {({ pressed }) => (
                 <Text style={[styles.link, pressed && styles.linkPressed]}>
                   ¿No tienes cuenta?{" "}
@@ -238,7 +324,6 @@ function makeStyles(colors: any, typography: any) {
           ? "rgba(34,197,94,0.95)"
           : colors.background,
     },
-
     card: {
       padding: 18,
       borderRadius: 24,
@@ -253,49 +338,28 @@ function makeStyles(colors: any, typography: any) {
           shadowOffset: { width: 0, height: 12 },
         },
         android: { elevation: 7 },
-        default: {},
       }),
     },
-
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-    },
-
+    header: { flexDirection: "row", alignItems: "center", gap: 12 },
     logoWrap: {
       width: 56,
       height: 56,
       borderRadius: 18,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: colors.surface, // mantiene contraste en light/dark
+      backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
     },
-
-    logo: {
-      width: 42,
-      height: 42,
-    },
-
+    logo: { width: 42, height: 42 },
     brand: {
       color: colors.textSecondary,
       fontFamily: typography.body?.fontFamily,
       fontSize: 12,
       marginBottom: 2,
     },
-
-    title: {
-      ...typography.title,
-      color: colors.textPrimary,
-    },
-
-    subtitle: {
-      marginTop: 8,
-      color: colors.textSecondary,
-      ...typography.body,
-    },
+    title: { ...typography.title, color: colors.textPrimary },
+    subtitle: { marginTop: 8, color: colors.textSecondary, ...typography.body },
 
     alert: {
       flexDirection: "row",
@@ -304,9 +368,8 @@ function makeStyles(colors: any, typography: any) {
       paddingHorizontal: 12,
       paddingVertical: 10,
       borderRadius: 14,
-      backgroundColor: colors.cta, // coherente (si luego quieres rojo real, lo cambiamos)
+      backgroundColor: colors.cta,
     },
-
     alertText: {
       flex: 1,
       color: colors.onCta,

@@ -137,7 +137,7 @@ export default function RegisterScreen() {
               />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.brand}>ContaMacros</Text>
+              <Text style={styles.brand}>ContaMacro</Text>
               <Text style={styles.title}>Crear cuenta</Text>
             </View>
           </View>
