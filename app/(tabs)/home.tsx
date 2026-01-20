@@ -735,7 +735,7 @@ const mini = StyleSheet.create({
   value: { fontSize: 18 },
 });
 
-function MacroCard({
+const MacroCard = React.memo(function MacroCard({
   label,
   icon,
   value,
@@ -845,7 +845,7 @@ function MacroCard({
       </Text>
     </View>
   );
-}
+});
 
 /**
  * MealRow premium:
@@ -853,7 +853,7 @@ function MacroCard({
  * - chip kcal
  * - mini progress kcal_meal / kcal_total_dia
  */
-function MealRow({
+const MealRow = React.memo(function MealRow({
   title,
   icon,
   count,
@@ -1021,7 +1021,7 @@ function MealRow({
       </Pressable>
     </Pressable>
   );
-}
+});
 
 const sheet = StyleSheet.create({
   wrap: {

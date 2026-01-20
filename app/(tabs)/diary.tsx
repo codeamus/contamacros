@@ -101,7 +101,7 @@ function getParam(url: string, key: string): string | null {
   }
 }
 
-function MacroProgress({
+const MacroProgress = React.memo(function MacroProgress({
   label,
   value,
   target,
@@ -116,8 +116,8 @@ function MacroProgress({
   colors: any;
   typography: any;
 }) {
-  const pct = target ? clamp01(value / target) : 0;
-  const showTarget = target && Number.isFinite(target);
+  const pct = useMemo(() => (target ? clamp01(value / target) : 0), [value, target]);
+  const showTarget = useMemo(() => target && Number.isFinite(target), [target]);
 
   return (
     <View style={{ flex: 1, gap: 10 }}>
@@ -175,7 +175,7 @@ function MacroProgress({
       </View>
     </View>
   );
-}
+});
 
 export default function DiaryScreen() {
   const params = useLocalSearchParams<{ meal?: string }>();

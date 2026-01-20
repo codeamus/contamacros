@@ -25,32 +25,21 @@ import { openFoodFactsService } from "@/data/openfoodfacts/openFoodFactsService"
 import { supabase } from "@/data/supabase/supabaseClient";
 import type { MealType } from "@/domain/models/foodLogDb";
 import type { OffProduct } from "@/domain/models/offProduct";
+import {
+  mapFoodDbArrayToSearchItems,
+  mapGenericFoodDbArrayToSearchItems,
+  mapUserFoodDbArrayToSearchItems,
+  type FoodSearchItem,
+} from "@/domain/mappers/foodMappers";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { todayStrLocal } from "@/presentation/utils/date";
 import { MEAL_LABELS } from "@/presentation/utils/mealLabels";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 
-type FoodSource = "user_food" | "food" | "off";
-
-type FoodSearchItem = {
-  key: string;
-  source: FoodSource;
-
-  name: string;
-  meta?: string;
-
-  kcal_100g?: number | null;
-  protein_100g?: number | null;
-  carbs_100g?: number | null;
-  fat_100g?: number | null;
-
-  food_id?: string | null;
-  user_food_id?: string | null;
-
+// Extender FoodSearchItem para incluir off
+type ExtendedFoodSearchItem = FoodSearchItem & {
   off?: OffProduct | null;
-
-  verified?: boolean;
 };
 
 function clamp(n: number, min: number, max: number) {
@@ -122,7 +111,7 @@ async function getUid(): Promise<string | null> {
   return data.session?.user?.id ?? null;
 }
 
-async function searchLocalFoods(q: string): Promise<FoodSearchItem[]> {
+async function searchLocalFoods(q: string): Promise<ExtendedFoodSearchItem[]> {
   const uid = await getUid();
 
   const userFoodsPromise = uid
@@ -155,53 +144,10 @@ async function searchLocalFoods(q: string): Promise<FoodSearchItem[]> {
   if (fRes.error) throw new Error(fRes.error.message);
   if (!gRes.ok) throw new Error(gRes.message);
 
-  const userFoods: FoodSearchItem[] = (ufRes.data ?? []).map((x: any) => ({
-    key: `uf:${x.id}`,
-    source: "user_food",
-    name: x.name,
-    meta: "Personalizado",
-    kcal_100g: Number(x.calories ?? 0),
-    protein_100g: Number(x.protein ?? 0),
-    carbs_100g: Number(x.carbs ?? 0),
-    fat_100g: Number(x.fat ?? 0),
-    user_food_id: x.id,
-    verified: true,
-  }));
-
-  const foods: FoodSearchItem[] = (fRes.data ?? []).map((x: any) => ({
-    key: `f:${x.id}`,
-    source: "food",
-    name: x.name,
-    meta: x.verified
-      ? "Verificado"
-      : x.source === "openfoodfacts"
-        ? x.brand
-          ? x.brand
-          : "Estimado"
-        : "Estimado",
-    kcal_100g: Number(x.calories ?? 0),
-    protein_100g: Number(x.protein ?? 0),
-    carbs_100g: Number(x.carbs ?? 0),
-    fat_100g: Number(x.fat ?? 0),
-    food_id: x.id,
-    verified: Boolean(x.verified),
-  }));
-
-  // generic_foods → lo mostramos como “Genérico” pero sin decir tabla
-  const generics: FoodSearchItem[] = (gRes.data ?? []).map((x) => ({
-    key: `g:${x.id}`,
-    source: "food", // 👈 lo tratamos como “food” para UX simple
-    name: x.name_es,
-    meta: "Genérico",
-    kcal_100g: x.kcal_100g ?? 0,
-    protein_100g: x.protein_100g ?? 0,
-    carbs_100g: x.carbs_100g ?? 0,
-    fat_100g: x.fat_100g ?? 0,
-    food_id: null, // no existe en foods
-    verified: true,
-    // marcamos internamente que viene de generic
-    // (si quieres, agrega source: "generic_seed" al FoodSearchItem)
-  }));
+  // Usar mappers para transformar datos
+  const userFoods = mapUserFoodDbArrayToSearchItems(ufRes.data ?? []);
+  const foods = mapFoodDbArrayToSearchItems(fRes.data ?? []);
+  const generics = mapGenericFoodDbArrayToSearchItems(gRes.data ?? []);
 
   return [...userFoods, ...foods, ...generics];
 }
@@ -224,13 +170,14 @@ export default function AddFoodScreen() {
   const [isSearchingLocal, setIsSearchingLocal] = useState(false);
   const [isSearchingMore, setIsSearchingMore] = useState(false);
 
-  const [results, setResults] = useState<FoodSearchItem[]>([]);
-  const [selected, setSelected] = useState<FoodSearchItem | null>(null);
+  const [results, setResults] = useState<ExtendedFoodSearchItem[]>([]);
+  const [selected, setSelected] = useState<ExtendedFoodSearchItem | null>(null);
 
   const [gramsStr, setGramsStr] = useState("100");
   const gramsNum = useMemo(() => toFloatSafe(gramsStr), [gramsStr]);
 
   const reqIdRef = useRef(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -244,9 +191,19 @@ export default function AddFoodScreen() {
       setIsSearchingMore(false);
       reqIdRef.current += 1; // ✅ invalida requests anteriores
 
+      // Cancelar cualquier búsqueda pendiente
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+
       return () => {
         // (opcional) al salir también
         reqIdRef.current += 1;
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+          abortControllerRef.current = null;
+        }
       };
     }, []),
   );
@@ -261,20 +218,40 @@ export default function AddFoodScreen() {
       typeof params.barcode === "string" ? params.barcode.trim() : "";
     if (!barcode) return;
 
+    // Cancelar búsqueda anterior si existe
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    const myReqId = ++reqIdRef.current;
+
     (async () => {
       setErr(null);
       setIsSearchingMore(true);
 
-      const res = await openFoodFactsService.getByBarcode(barcode);
+      const res = await openFoodFactsService.getByBarcode(
+        barcode,
+        abortController.signal,
+      );
+
+      // Verificar si la request fue cancelada
+      if (myReqId !== reqIdRef.current || abortController.signal.aborted) {
+        return;
+      }
 
       setIsSearchingMore(false);
 
       if (!res.ok) {
-        setErr(res.message);
+        // No mostrar error si fue cancelado
+        if (res.message !== "Búsqueda cancelada.") {
+          setErr(res.message);
+        }
         return;
       }
 
-      const it: FoodSearchItem = {
+      const it: ExtendedFoodSearchItem = {
         key: `off:${res.data.id}`,
         source: "off",
         name: res.data.name,
@@ -291,6 +268,10 @@ export default function AddFoodScreen() {
       setQuery(res.data.name);
       setResults([]);
     })();
+
+    return () => {
+      abortController.abort();
+    };
   }, [params.barcode]);
 
   // Local-first debounce search
@@ -302,6 +283,11 @@ export default function AddFoodScreen() {
       setResults([]);
       setIsSearchingLocal(false);
       return;
+    }
+
+    // Cancelar búsqueda anterior si existe
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
 
     setIsSearchingLocal(true);
@@ -321,7 +307,13 @@ export default function AddFoodScreen() {
       }
     }, 320);
 
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      // Cancelar si el componente se desmonta o cambia la query
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [query]);
 
   const gramsError = useMemo(() => {
@@ -346,21 +338,31 @@ export default function AddFoodScreen() {
     );
   }, [selected, gramsNum]);
 
-  const canShowSearchMore =
-    !selected &&
-    query.trim().length >= 2 &&
-    !isSearchingLocal &&
-    !isSearchingMore &&
-    results.length < 6;
+  const canShowSearchMore = useMemo(
+    () =>
+      !selected &&
+      query.trim().length >= 2 &&
+      !isSearchingLocal &&
+      !isSearchingMore &&
+      results.length < 6,
+    [selected, query, isSearchingLocal, isSearchingMore, results.length],
+  );
 
-  async function onSearchMore() {
+  const onSearchMore = useCallback(async () => {
     const q = query.trim();
     if (q.length < 2) return;
 
+    // Cancelar búsqueda anterior si existe
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    const myReqId = ++reqIdRef.current;
+
     setErr(null);
     setIsSearchingMore(true);
-
-    const myReqId = ++reqIdRef.current;
 
     const res = await openFoodFactsService.search({
       query: q,
@@ -368,20 +370,25 @@ export default function AddFoodScreen() {
       pageSize: 15,
       cc: "cl",
       lc: "es",
+      signal: abortController.signal,
     });
 
-    if (myReqId !== reqIdRef.current) {
+    // Verificar si la request fue cancelada
+    if (myReqId !== reqIdRef.current || abortController.signal.aborted) {
       setIsSearchingMore(false);
       return;
     }
 
     if (!res.ok) {
       setIsSearchingMore(false);
-      setErr(res.message);
+      // No mostrar error si fue cancelado
+      if (res.message !== "Búsqueda cancelada.") {
+        setErr(res.message);
+      }
       return;
     }
 
-    const offItems: FoodSearchItem[] = res.data.items.map((p) => ({
+    const offItems: ExtendedFoodSearchItem[] = res.data.items.map((p) => ({
       key: `off:${p.id}`,
       source: "off",
       name: p.name,
@@ -402,23 +409,23 @@ export default function AddFoodScreen() {
 
     setResults(merged);
     setIsSearchingMore(false);
-  }
+  }, [query, results]);
 
-  function badgeText(it: FoodSearchItem) {
+  const badgeText = useCallback((it: ExtendedFoodSearchItem) => {
     if (it.source === "user_food") return "Personalizado";
     if (it.source === "food") return it.verified ? "Verificado" : "Estimado";
     return "Estimado";
-  }
+  }, []);
 
-  function iconFor(
-    it: FoodSearchItem,
-  ): React.ComponentProps<typeof MaterialCommunityIcons>["name"] {
+  const iconFor = useCallback((
+    it: ExtendedFoodSearchItem,
+  ): React.ComponentProps<typeof MaterialCommunityIcons>["name"] => {
     if (it.source === "user_food") return "account-edit";
     if (it.source === "food") return "database";
     return "barcode-scan";
-  }
+  }, []);
 
-  async function onAdd() {
+  const onAdd = useCallback(async () => {
     if (!selected) return;
     setErr(null);
 
@@ -487,7 +494,7 @@ export default function AddFoodScreen() {
     Alert.alert("Listo", "Se agregó al diario de hoy.", [
       { text: "OK", onPress: () => router.replace("/(tabs)/diary") },
     ]);
-  }
+  }, [selected, gramsError, preview, gramsNum, day, meal]);
 
   return (
     <SafeAreaView style={s.safe}>
@@ -835,7 +842,7 @@ export default function AddFoodScreen() {
   );
 }
 
-function MacroChip({
+const MacroChip = React.memo(function MacroChip({
   kind,
   value,
   suffix,
@@ -908,7 +915,7 @@ function MacroChip({
       </Text>
     </View>
   );
-}
+});
 
 function makeStyles(colors: any, typography: any) {
   return StyleSheet.create({
