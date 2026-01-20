@@ -24,6 +24,7 @@ type Theme = {
 
 type ThemeContextValue = {
   theme: Theme;
+  themeMode: ThemeMode; // Modo preferido (light/dark/system)
   setThemeMode: (mode: ThemeMode) => Promise<void>;
 };
 
@@ -75,7 +76,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     await storage.setString(StorageKeys.THEME_MODE, next);
   };
 
-  const value = useMemo(() => ({ theme, setThemeMode }), [theme]);
+  const value = useMemo(
+    () => ({ theme, themeMode: modePref, setThemeMode }),
+    [theme, modePref],
+  );
 
   return (
     <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
