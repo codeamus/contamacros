@@ -1,3 +1,4 @@
+// src/domain/services/macroTargets.ts
 export type MacroTargets = {
   calories: number;
   proteinG: number;
