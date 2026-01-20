@@ -1,15 +1,15 @@
 // app/(tabs)/diary.tsx
-import { router, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -208,7 +208,14 @@ export default function DiaryScreen() {
     [day],
   );
 
-  const routerInstance = useRouter();
+  // Función para volver al día de hoy
+  const goToToday = useCallback(() => {
+    // Limpiar el parámetro day navegando sin parámetros
+    router.replace({
+      pathname: "/(tabs)/diary",
+      params: {},
+    });
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -288,7 +295,11 @@ export default function DiaryScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => load("refresh")}
+            onRefresh={() => {
+              // Al hacer pull-to-refresh, volver al día de hoy
+              goToToday();
+              // El load se ejecutará automáticamente cuando cambie el día
+            }}
             tintColor={colors.textSecondary}
           />
         }
@@ -302,7 +313,10 @@ export default function DiaryScreen() {
 
           <Pressable
             style={s.iconBtn}
-            onPress={() => load("normal")}
+            onPress={() => {
+              // Al presionar refresh, volver al día de hoy
+              goToToday();
+            }}
             disabled={loading}
           >
             {loading ? (
