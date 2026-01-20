@@ -477,6 +477,13 @@ export default function AddFoodScreen() {
       return;
     }
 
+    setSelected(null);
+    setQuery("");
+    setResults([]);
+    setErr(null);
+    setGramsStr("100");
+    reqIdRef.current += 1;
+
     Alert.alert("Listo", "Se agregó al diario de hoy.", [
       { text: "OK", onPress: () => router.replace("/(tabs)/diary") },
     ]);
