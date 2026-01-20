@@ -6,13 +6,16 @@ import Skeleton from "@/presentation/components/ui/Skeleton";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useTodayMeals } from "@/presentation/hooks/diary/useTodayMeals";
 import { useTodaySummary } from "@/presentation/hooks/diary/useTodaySummary";
+import { useStaggerAnimation } from "@/presentation/hooks/ui/useStaggerAnimation";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { todayStrLocal } from "@/presentation/utils/date";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
+  Easing,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -26,6 +29,54 @@ function clamp01(n: number) {
   if (n < 0) return 0;
   if (n > 1) return 1;
   return n;
+}
+
+/**
+ * Componente de barra de progreso animada
+ */
+function AnimatedProgressBar({
+  percentage,
+  colors,
+  loading,
+}: {
+  percentage: number;
+  colors: any;
+  loading: boolean;
+}) {
+  const widthAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!loading) {
+      Animated.timing(widthAnim, {
+        toValue: percentage,
+        duration: 600,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }).start();
+    }
+  }, [percentage, loading, widthAnim]);
+
+  return (
+    <View
+      style={{
+        height: 10,
+        borderRadius: 999,
+        backgroundColor: colors.border,
+        overflow: "hidden",
+      }}
+    >
+      <Animated.View
+        style={{
+          height: "100%",
+          width: widthAnim.interpolate({
+            inputRange: [0, 100],
+            outputRange: ["0%", "100%"],
+          }),
+          backgroundColor: colors.brand,
+        }}
+      />
+    </View>
+  );
 }
 
 export default function HomeScreen() {
@@ -67,6 +118,32 @@ export default function HomeScreen() {
 
   // Bottom sheet "Agregar comida"
   const [sheetOpen, setSheetOpen] = useState(false);
+
+  // Animaciones de entrada escalonadas para las cards
+  const cardAnimations = useStaggerAnimation(5, 80, 100);
+
+  // Animación del FAB
+  const fabScale = useRef(new Animated.Value(0)).current;
+  const fabOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Animar FAB cuando la pantalla está lista
+    if (!loading) {
+      Animated.parallel([
+        Animated.spring(fabScale, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 50,
+          friction: 7,
+        }),
+        Animated.timing(fabOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [loading, fabScale, fabOpacity]);
 
   return (
     <SafeAreaView style={s.safe}>
@@ -140,38 +217,93 @@ export default function HomeScreen() {
 
         {/* Summary Cards */}
         <View style={s.summaryRow}>
-          <MiniStat
-            title="Restantes"
-            value={loading ? null : `${remaining}`}
-            unit="kcal"
-            icon={
-              <MaterialCommunityIcons
-                name="target"
-                size={18}
-                color={colors.brand}
+          {cardAnimations[0] && (
+            <Animated.View
+              style={{
+                flex: 1,
+                opacity: cardAnimations[0],
+                transform: [
+                  {
+                    translateY: cardAnimations[0].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [20, 0],
+                    }),
+                  },
+                  {
+                    scale: cardAnimations[0],
+                  },
+                ],
+              }}
+            >
+              <MiniStat
+                title="Restantes"
+                value={loading ? null : `${remaining}`}
+                unit="kcal"
+                icon={
+                  <MaterialCommunityIcons
+                    name="target"
+                    size={18}
+                    color={colors.brand}
+                  />
+                }
+                colors={colors}
+                typography={typography}
               />
-            }
-            colors={colors}
-            typography={typography}
-          />
-          <MiniStat
-            title="Consumidas"
-            value={loading ? null : `${caloriesConsumed}`}
-            unit="kcal"
-            icon={
-              <MaterialCommunityIcons
-                name="fire"
-                size={18}
-                color={colors.cta}
+            </Animated.View>
+          )}
+          {cardAnimations[1] && (
+            <Animated.View
+              style={{
+                flex: 1,
+                opacity: cardAnimations[1],
+                transform: [
+                  {
+                    translateY: cardAnimations[1].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [20, 0],
+                    }),
+                  },
+                  {
+                    scale: cardAnimations[1],
+                  },
+                ],
+              }}
+            >
+              <MiniStat
+                title="Consumidas"
+                value={loading ? null : `${caloriesConsumed}`}
+                unit="kcal"
+                icon={
+                  <MaterialCommunityIcons
+                    name="fire"
+                    size={18}
+                    color={colors.cta}
+                  />
+                }
+                colors={colors}
+                typography={typography}
               />
-            }
-            colors={colors}
-            typography={typography}
-          />
+            </Animated.View>
+          )}
         </View>
 
         {/* Main Calories Card (Donut + skeleton) */}
-        <View style={s.card}>
+        <Animated.View
+          style={[
+            s.card,
+            cardAnimations[2] && {
+              opacity: cardAnimations[2],
+              transform: [
+                {
+                  translateY: cardAnimations[2].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [30, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
           <View style={s.cardHeaderRow}>
             <View style={s.cardHeaderLeft}>
               <View style={s.badge}>
@@ -244,11 +376,13 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          {/* Mantengo tu barra (se ve bien con el donut) */}
-          <View style={s.progressTrack}>
-            <View style={[s.progressFill, { width: `${caloriesPct}%` }]} />
-          </View>
-        </View>
+          {/* Barra de progreso animada */}
+          <AnimatedProgressBar
+            percentage={caloriesPct}
+            colors={colors}
+            loading={loading}
+          />
+        </Animated.View>
 
         {/* Macros */}
         <View style={s.sectionHeader}>
@@ -266,33 +400,82 @@ export default function HomeScreen() {
         </View>
 
         <View style={s.macrosRow}>
-          <MacroCard
-            label="Proteína"
-            icon="food-steak"
-            value={protein.value}
-            target={protein.target}
-            loading={loading}
-            colors={colors}
-            typography={typography}
-          />
-          <MacroCard
-            label="Carbs"
-            icon="bread-slice"
-            value={carbs.value}
-            target={carbs.target}
-            loading={loading}
-            colors={colors}
-            typography={typography}
-          />
-          <MacroCard
-            label="Grasas"
-            icon="peanut"
-            value={fat.value}
-            target={fat.target}
-            loading={loading}
-            colors={colors}
-            typography={typography}
-          />
+          {cardAnimations[3] && (
+            <>
+              <Animated.View
+                style={{
+                  flex: 1,
+                  opacity: cardAnimations[3],
+                  transform: [
+                    {
+                      translateY: cardAnimations[3].interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [20, 0],
+                      }),
+                    },
+                  ],
+                }}
+              >
+                <MacroCard
+                  label="Proteína"
+                  icon="food-steak"
+                  value={protein.value}
+                  target={protein.target}
+                  loading={loading}
+                  colors={colors}
+                  typography={typography}
+                />
+              </Animated.View>
+              <Animated.View
+                style={{
+                  flex: 1,
+                  opacity: cardAnimations[3],
+                  transform: [
+                    {
+                      translateY: cardAnimations[3].interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [20, 0],
+                      }),
+                    },
+                  ],
+                }}
+              >
+                <MacroCard
+                  label="Carbs"
+                  icon="bread-slice"
+                  value={carbs.value}
+                  target={carbs.target}
+                  loading={loading}
+                  colors={colors}
+                  typography={typography}
+                />
+              </Animated.View>
+              <Animated.View
+                style={{
+                  flex: 1,
+                  opacity: cardAnimations[3],
+                  transform: [
+                    {
+                      translateY: cardAnimations[3].interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [20, 0],
+                      }),
+                    },
+                  ],
+                }}
+              >
+                <MacroCard
+                  label="Grasas"
+                  icon="peanut"
+                  value={fat.value}
+                  target={fat.target}
+                  loading={loading}
+                  colors={colors}
+                  typography={typography}
+                />
+              </Animated.View>
+            </>
+          )}
         </View>
 
         {/* Meals */}
@@ -310,7 +493,22 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        <View style={s.card}>
+        <Animated.View
+          style={[
+            s.card,
+            cardAnimations[4] && {
+              opacity: cardAnimations[4],
+              transform: [
+                {
+                  translateY: cardAnimations[4].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [30, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
           <MealRow
             title="Desayuno"
             icon="coffee"
@@ -407,20 +605,31 @@ export default function HomeScreen() {
               })
             }
           />
-        </View>
+        </Animated.View>
 
         {/* bottom spacer for FAB */}
         <View style={{ height: 96 }} />
       </ScrollView>
 
-      {/* Bottom CTA -> sheet */}
-      <View style={s.fab}>
+      {/* Bottom CTA -> sheet con animación */}
+      <Animated.View
+        style={[
+          s.fab,
+          {
+            opacity: fabOpacity,
+            transform: [{ scale: fabScale }],
+          },
+        ]}
+      >
         <PrimaryButton
           title="Agregar comida"
-          onPress={() => setSheetOpen(true)}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setSheetOpen(true);
+          }}
           icon={<Feather name="plus" size={18} color={colors.onCta} />}
         />
-      </View>
+      </Animated.View>
 
       <MealPickerSheet
         open={sheetOpen}
@@ -520,7 +729,13 @@ function MealPickerSheet({
             Agregar comida
           </Text>
 
-          <Pressable onPress={onClose} style={sheet.closeBtn}>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              onClose();
+            }}
+            style={sheet.closeBtn}
+          >
             <Feather name="x" size={18} color={colors.textSecondary} />
           </Pressable>
         </View>
@@ -579,9 +794,32 @@ function SheetOption({
   typography: any;
   onPress: () => void;
 }) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.97,
+      useNativeDriver: true,
+      tension: 300,
+      friction: 10,
+    }).start();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 300,
+      friction: 10,
+    }).start();
+  };
+
   return (
     <Pressable
       onPress={onPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
       style={({ pressed }) => [
         {
           borderWidth: 1,
@@ -595,47 +833,57 @@ function SheetOption({
         },
       ]}
     >
-      <View
+      <Animated.View
         style={{
-          width: 42,
-          height: 42,
-          borderRadius: 16,
-          borderWidth: 1,
-          borderColor: colors.border,
+          flexDirection: "row",
           alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "transparent",
+          gap: 12,
+          flex: 1,
+          transform: [{ scale: scaleAnim }],
         }}
       >
-        <MaterialCommunityIcons
-          name={icon}
-          size={20}
-          color={colors.textPrimary}
-        />
-      </View>
-
-      <View style={{ flex: 1, gap: 2 }}>
-        <Text
+        <View
           style={{
-            fontFamily: typography.subtitle?.fontFamily,
-            fontSize: 15,
-            color: colors.textPrimary,
+            width: 42,
+            height: 42,
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: colors.border,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "transparent",
           }}
         >
-          {title}
-        </Text>
-        <Text
-          style={{
-            fontFamily: typography.body?.fontFamily,
-            fontSize: 12,
-            color: colors.textSecondary,
-          }}
-        >
-          {subtitle}
-        </Text>
-      </View>
+          <MaterialCommunityIcons
+            name={icon}
+            size={20}
+            color={colors.textPrimary}
+          />
+        </View>
 
-      <Feather name="chevron-right" size={18} color={colors.textSecondary} />
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text
+            style={{
+              fontFamily: typography.subtitle?.fontFamily,
+              fontSize: 15,
+              color: colors.textPrimary,
+            }}
+          >
+            {title}
+          </Text>
+          <Text
+            style={{
+              fontFamily: typography.body?.fontFamily,
+              fontSize: 12,
+              color: colors.textSecondary,
+            }}
+          >
+            {subtitle}
+          </Text>
+        </View>
+
+        <Feather name="chevron-right" size={18} color={colors.textSecondary} />
+      </Animated.View>
     </Pressable>
   );
 }
@@ -757,6 +1005,19 @@ const MacroCard = React.memo(function MacroCard({
     return Math.min(value / target, 1);
   }, [value, target]);
 
+  const progressAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!loading) {
+      Animated.timing(progressAnim, {
+        toValue: pct,
+        duration: 500,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }).start();
+    }
+  }, [pct, loading, progressAnim]);
+
   return (
     <View
       style={{
@@ -825,10 +1086,13 @@ const MacroCard = React.memo(function MacroCard({
           opacity: loading ? 0.6 : 1,
         }}
       >
-        <View
+        <Animated.View
           style={{
             height: "100%",
-            width: `${pct * 100}%`,
+            width: progressAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: ["0%", "100%"],
+            }),
             backgroundColor: colors.brand,
           }}
         />
@@ -888,40 +1152,71 @@ const MealRow = React.memo(function MealRow({
     return `${count} items · ${kcal} kcal`;
   }, [loading, count, kcal]);
 
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.98,
+      useNativeDriver: true,
+      tension: 300,
+      friction: 10,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 300,
+      friction: 10,
+    }).start();
+  };
+
   return (
     <Pressable
-      onPress={onOpen}
-      style={({ pressed }) => [
-        {
+      onPress={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        onOpen();
+      }}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        borderRadius: 16,
+        paddingVertical: 10,
+        paddingHorizontal: 8,
+      }}
+    >
+      <Animated.View
+        style={{
           flexDirection: "row",
           alignItems: "center",
           gap: 12,
-          borderRadius: 16,
-          paddingVertical: 10,
-          paddingHorizontal: 8,
-        },
-        pressed && { opacity: 0.9, transform: [{ scale: 0.995 }] },
-      ]}
-    >
-      <View
-        style={{
-          width: 42,
-          height: 42,
-          borderRadius: 16,
-          borderWidth: 1,
-          borderColor: colors.border,
-          alignItems: "center",
-          justifyContent: "center",
+          flex: 1,
+          transform: [{ scale: scaleAnim }],
         }}
       >
-        <MaterialCommunityIcons
-          name={icon}
-          size={20}
-          color={colors.textPrimary}
-        />
-      </View>
+        <View
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: colors.border,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <MaterialCommunityIcons
+            name={icon}
+            size={20}
+            color={colors.textPrimary}
+          />
+        </View>
 
-      <View style={{ flex: 1, gap: 6 }}>
+        <View style={{ flex: 1, gap: 6 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <Text
             style={{
@@ -969,29 +1264,19 @@ const MealRow = React.memo(function MealRow({
           {subtitle}
         </Text>
 
-        <View
-          style={{
-            height: 6,
-            borderRadius: 999,
-            backgroundColor: colors.border,
-            overflow: "hidden",
-            opacity: loading ? 0.6 : 1,
-          }}
-        >
-          <View
-            style={{
-              height: "100%",
-              width: `${pct * 100}%`,
-              backgroundColor: colors.brand,
-            }}
+          <AnimatedProgressBar
+            percentage={pct * 100}
+            colors={colors}
+            loading={loading}
           />
         </View>
-      </View>
+      </Animated.View>
 
       {/* Evita que el tap del botón dispare onOpen */}
       <Pressable
         onPress={(e) => {
           e.stopPropagation();
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           onAdd();
         }}
         style={({ pressed }) => [
