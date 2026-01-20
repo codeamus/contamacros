@@ -5,6 +5,8 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,7 +14,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 
 import { userFoodsRepository, type UserFoodDb } from "@/data/food/userFoodsRepository";
@@ -114,7 +116,8 @@ export default function MyFoodsScreen() {
   const { theme } = useTheme();
   const { colors, typography } = theme;
   const { showToast } = useToast();
-  const s = makeStyles(colors, typography);
+  const insets = useSafeAreaInsets();
+  const s = makeStyles(colors, typography, insets);
 
   const [myFoods, setMyFoods] = useState<UserFoodDb[]>([]);
   const [loading, setLoading] = useState(false);
@@ -523,12 +526,26 @@ export default function MyFoodsScreen() {
 
       {/* Modal crear receta */}
       {showCreateModal && (
-        <View style={s.modalOverlay}>
-          <View style={s.modalContent}>
-            <ScrollView
-              contentContainerStyle={s.modalScroll}
-              showsVerticalScrollIndicator={false}
-            >
+        <Pressable
+          style={s.modalOverlay}
+          onPress={() => {
+            // Cerrar modal al tocar fuera (opcional)
+            // setShowCreateModal(false);
+          }}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{ flex: 1, justifyContent: "flex-end" }}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+          >
+            <Pressable onPress={(e) => e.stopPropagation()}>
+              <View style={s.modalContent}>
+                <ScrollView
+                  contentContainerStyle={s.modalScroll}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="interactive"
+                >
               {/* Header modal */}
               <View style={s.modalHeader}>
                 <Text style={s.modalTitle}>Nueva receta</Text>
@@ -754,15 +771,17 @@ export default function MyFoodsScreen() {
                   }
                 />
               </View>
-            </ScrollView>
-          </View>
-        </View>
+                </ScrollView>
+              </View>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
       )}
     </SafeAreaView>
   );
 }
 
-function makeStyles(colors: any, typography: any) {
+function makeStyles(colors: any, typography: any, insets: { bottom: number }) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
     container: { padding: 18, gap: 14 },
@@ -912,9 +931,15 @@ function makeStyles(colors: any, typography: any) {
       maxHeight: "90%",
       borderWidth: 1,
       borderColor: colors.border,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: -2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 10,
+      elevation: 10,
     },
     modalScroll: {
       padding: 18,
+      paddingBottom: Math.max(insets.bottom + 18, 24),
       gap: 16,
     },
     modalHeader: {
