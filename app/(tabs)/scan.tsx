@@ -16,8 +16,9 @@ export default function ScanScreen() {
   const { theme } = useTheme();
   const { colors, typography } = theme;
 
-  const params = useLocalSearchParams<{ meal?: string }>();
+  const params = useLocalSearchParams<{ meal?: string; returnTo?: string }>();
   const meal: MealType = isMealType(params.meal) ? params.meal : "snack";
+  const returnTo = params.returnTo || "add-food";
 
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
@@ -31,12 +32,19 @@ export default function ScanScreen() {
       lockRef.current = true;
       setScanned(true);
 
-      router.replace({
-        pathname: "/(tabs)/add-food",
-        params: { meal, barcode: data },
-      });
+      if (returnTo === "my-foods") {
+        router.replace({
+          pathname: "/(tabs)/my-foods",
+          params: { barcode: data },
+        });
+      } else {
+        router.replace({
+          pathname: "/(tabs)/add-food",
+          params: { meal, barcode: data },
+        });
+      }
     },
-    [meal]
+    [meal, returnTo]
   );
 
   if (!permission) {

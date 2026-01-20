@@ -80,6 +80,19 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="my-foods"
+        options={{
+          title: "Mis comidas",
+          tabBarIcon: ({ color, focused, size }) => (
+            <MaterialCommunityIcons
+              name="chef-hat"
+              size={focused ? (size ?? 22) : (size ?? 20)}
+              color={focused ? colors.brand : color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: "Ajustes",

@@ -51,6 +51,20 @@ export const userFoodsRepository = {
     return { ok: true, data: (data as UserFoodDb[]) ?? [] };
   },
 
+  async listAll(): Promise<RepoResult<UserFoodDb[]>> {
+    const uidRes = await getUid();
+    if (!uidRes.ok) return uidRes;
+
+    const { data, error } = await supabase
+      .from("user_foods")
+      .select("*")
+      .eq("user_id", uidRes.data)
+      .order("created_at", { ascending: false });
+
+    if (error) return { ok: false, message: error.message, code: error.code };
+    return { ok: true, data: (data as UserFoodDb[]) ?? [] };
+  },
+
   async create(input: Omit<UserFoodDb, "id" | "user_id" | "created_at">) {
     const uidRes = await getUid();
     if (!uidRes.ok) return uidRes;
@@ -64,5 +78,19 @@ export const userFoodsRepository = {
     if (error) return { ok: false, message: error.message, code: error.code };
     if (!data) return { ok: false, message: "No se pudo crear el alimento." };
     return { ok: true, data: data as UserFoodDb };
+  },
+
+  async remove(id: string): Promise<RepoResult<void>> {
+    const uidRes = await getUid();
+    if (!uidRes.ok) return uidRes;
+
+    const { error } = await supabase
+      .from("user_foods")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", uidRes.data);
+
+    if (error) return { ok: false, message: error.message, code: error.code };
+    return { ok: true, data: undefined };
   },
 };
