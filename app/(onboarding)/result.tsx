@@ -6,7 +6,7 @@ import { computeMacroTargets } from "@/domain/services/macroTargets";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
-import { activityLabel, goalLabel } from "@/presentation/utils/goalLabel";
+import { getActivityLabel, getGoalLabel } from "@/presentation/utils/labels";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import React, { useEffect, useMemo, useState } from "react";
@@ -258,15 +258,15 @@ export default function ResultScreen() {
                       />
                       <Pill
                         icon="activity"
-                        label={`Actividad: ${activityLabel(
-                          (profile as any)?.activity_level ?? "",
+                        label={`Actividad: ${getActivityLabel(
+                          (profile as any)?.activity_level ?? null,
                         )}`}
                         colors={colors}
                         typography={typography}
                       />
                       <Pill
                         icon="target"
-                        label={`Objetivo: ${goalLabel(profile?.goal ?? "")}`}
+                        label={`Objetivo: ${getGoalLabel(profile?.goal ?? null)}`}
                         colors={colors}
                         typography={typography}
                       />

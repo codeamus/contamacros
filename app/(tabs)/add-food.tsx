@@ -34,7 +34,7 @@ import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { todayStrLocal } from "@/presentation/utils/date";
-import { MEAL_LABELS } from "@/presentation/utils/mealLabels";
+import { MEAL_LABELS } from "@/presentation/utils/labels";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 
 // Extender FoodSearchItem para incluir off

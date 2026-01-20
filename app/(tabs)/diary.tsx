@@ -2,14 +2,14 @@
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Alert,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -19,7 +19,7 @@ import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { todayStrLocal } from "@/presentation/utils/date";
-import { MEAL_LABELS } from "@/presentation/utils/mealLabels";
+import { MEAL_LABELS } from "@/presentation/utils/labels";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 
 const MEAL_ORDER: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
@@ -80,25 +80,6 @@ function mealIcon(
 function filterLabel(k: MealFilter) {
   if (k === "all") return "Todas";
   return MEAL_LABELS[k];
-}
-
-function getParam(url: string, key: string): string | null {
-  try {
-    const u = new URL(url);
-    return u.searchParams.get(key);
-  } catch {
-    // por si viene con hash
-    const qIndex = url.indexOf("?");
-    const hIndex = url.indexOf("#");
-    const raw =
-      qIndex >= 0
-        ? url.slice(qIndex + 1)
-        : hIndex >= 0
-          ? url.slice(hIndex + 1)
-          : "";
-    const params = new URLSearchParams(raw);
-    return params.get(key);
-  }
 }
 
 const MacroProgress = React.memo(function MacroProgress({

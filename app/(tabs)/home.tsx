@@ -208,15 +208,15 @@ export default function HomeScreen() {
                     height={28}
                     width="55%"
                     radius={12}
-                    baseColor={colors.border}
-                    highlightColor={colors.border}
+                    bg={colors.border}
+                    highlight={colors.border}
                   />
                   <Skeleton
                     height={12}
                     width="85%"
                     radius={10}
-                    baseColor={colors.border}
-                    highlightColor={colors.border}
+                    bg={colors.border}
+                    highlight={colors.border}
                     style={{ opacity: 0.7 }}
                   />
                 </>
@@ -684,8 +684,8 @@ function MiniStat({
           height={20}
           width="55%"
           radius={10}
-          baseColor={colors.border}
-          highlightColor={colors.border}
+          bg={colors.border}
+          highlight={colors.border}
         />
       ) : (
         <Text
@@ -791,8 +791,8 @@ const MacroCard = React.memo(function MacroCard({
           height={20}
           width="50%"
           radius={10}
-          baseColor={colors.border}
-          highlightColor={colors.border}
+          bg={colors.border}
+          highlight={colors.border}
         />
       ) : (
         <Text

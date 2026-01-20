@@ -1,6 +1,5 @@
 // src/presentation/hooks/ui/useToast.tsx
 import React, { createContext, useCallback, useContext, useState } from "react";
-import { View } from "react-native";
 
 import { Toast, type ToastConfig } from "@/presentation/components/ui/Toast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
