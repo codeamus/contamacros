@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-import type { GoalDb } from "@/domain/models/profileDb";
+import type { ActivityLevelDb, GoalDb } from "@/domain/models/profileDb";
 import {
   calculateCalorieGoal,
   type GoalType,
@@ -184,6 +184,7 @@ export default function SettingsScreen() {
   const [loading, setLoading] = useState(false);
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [showWeightModal, setShowWeightModal] = useState(false);
+  const [showActivityModal, setShowActivityModal] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [weightInput, setWeightInput] = useState("");
 
@@ -350,6 +351,81 @@ export default function SettingsScreen() {
     }
   }, [profile, weightInput, updateProfile, refreshProfile, showToast]);
 
+  const handleUpdateActivity = useCallback(
+    async (newActivity: ActivityLevelDb) => {
+      if (!profile) return;
+
+      setUpdating(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+      try {
+        // Convertir goal a GoalType para el cálculo
+        const goalForCalc: GoalType = 
+          profile.goal === "maintain" 
+            ? "maintenance" 
+            : profile.goal === "deficit" 
+            ? "deficit" 
+            : profile.goal === "surplus"
+            ? "surplus"
+            : "maintenance";
+        
+        // Recalcular calorías con el nuevo nivel de actividad
+        const calorieResult = calculateCalorieGoal({
+          gender: profile.gender || "male",
+          birthDate: profile.birth_date || "1990-01-01",
+          heightCm: profile.height_cm || 170,
+          weightKg: profile.weight_kg || 70,
+          activityLevel: newActivity,
+          goalType: goalForCalc,
+          goalAdjustment: typeof profile.goal_adjustment === "number" ? profile.goal_adjustment : undefined,
+        });
+
+        // Recalcular macros
+        const macros = computeMacroTargets({
+          calories: calorieResult.dailyCalorieTarget,
+          weightKg: profile.weight_kg || 70,
+        });
+
+        // Actualizar perfil
+        const res = await updateProfile({
+          activity_level: newActivity,
+          goal_adjustment: calorieResult.goalAdjustment,
+          daily_calorie_target: calorieResult.dailyCalorieTarget,
+          protein_g: macros.proteinG,
+          carbs_g: macros.carbsG,
+          fat_g: macros.fatG,
+        });
+
+        if (!res.ok) {
+          showToast({
+            message: res.message || "No se pudo actualizar el nivel de actividad",
+            type: "error",
+            duration: 3000,
+          });
+          return;
+        }
+
+        await refreshProfile();
+        setShowActivityModal(false);
+        showToast({
+          message: "Nivel de actividad actualizado correctamente",
+          type: "success",
+          duration: 2000,
+        });
+      } catch (error: any) {
+        console.error(error);
+        showToast({
+          message: error.message || "Error al actualizar el nivel de actividad",
+          type: "error",
+          duration: 3000,
+        });
+      } finally {
+        setUpdating(false);
+      }
+    },
+    [profile, updateProfile, refreshProfile, showToast],
+  );
+
   const goalLabel = useMemo(() => {
     if (!profile?.goal) return "—";
     const goalMap: Record<string, string> = {
@@ -488,6 +564,10 @@ export default function SettingsScreen() {
                   icon="run"
                   label="Nivel de actividad"
                   value={activityLabel}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowActivityModal(true);
+                  }}
                   colors={colors}
                   typography={typography}
                 />
@@ -799,6 +879,106 @@ export default function SettingsScreen() {
           </KeyboardAvoidingView>
         </Pressable>
       </Modal>
+
+      {/* Modal para editar nivel de actividad */}
+      <Modal
+        visible={showActivityModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowActivityModal(false)}
+      >
+        <Pressable
+          style={s.modalOverlay}
+          onPress={() => setShowActivityModal(false)}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={s.modalContent}
+          >
+            <Pressable onPress={(e) => e.stopPropagation()}>
+              <View style={s.modalHeader}>
+                <Text style={s.modalTitle}>Cambiar nivel de actividad</Text>
+                <Pressable
+                  onPress={() => setShowActivityModal(false)}
+                  style={({ pressed }) => [
+                    s.modalCloseBtn,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <Feather name="x" size={20} color={colors.textPrimary} />
+                </Pressable>
+              </View>
+
+              <View style={s.modalBody}>
+                <Text style={s.modalDescription}>
+                  Selecciona tu nivel de actividad. Se recalcularán automáticamente
+                  tus calorías y macros diarios.
+                </Text>
+
+                <View style={s.goalOptions}>
+                  {(
+                    [
+                      { value: "sedentary", label: "Sedentario", icon: "sofa", desc: "Poco o ningún ejercicio" },
+                      { value: "light", label: "Ligera", icon: "walk", desc: "Ejercicio ligero 1-3 días/semana" },
+                      { value: "moderate", label: "Moderada", icon: "run", desc: "Ejercicio moderado 3-5 días/semana" },
+                      { value: "high", label: "Alta", icon: "bike", desc: "Ejercicio intenso 6-7 días/semana" },
+                      { value: "very_high", label: "Muy alta", icon: "fire", desc: "Ejercicio muy intenso, trabajo físico" },
+                    ] as const
+                  ).map((option) => {
+                    const isSelected = profile?.activity_level === option.value;
+                    return (
+                      <Pressable
+                        key={option.value}
+                        onPress={() => handleUpdateActivity(option.value as ActivityLevelDb)}
+                        disabled={updating || isSelected}
+                        style={({ pressed }) => [
+                          s.activityOption,
+                          isSelected && s.goalOptionSelected,
+                          (updating || isSelected) && { opacity: pressed ? 0.8 : 1 },
+                        ]}
+                      >
+                        <MaterialCommunityIcons
+                          name={option.icon as any}
+                          size={24}
+                          color={isSelected ? colors.brand : colors.textSecondary}
+                        />
+                        <View style={{ flex: 1, gap: 2 }}>
+                          
+                          <Text
+                            style={[
+                              s.activityOptionDesc,
+                              isSelected && { color: colors.textSecondary },
+                            ]}
+                          >
+                            {option.desc}
+                          </Text>
+                        </View>
+                        {isSelected && (
+                          <Feather
+                            name="check"
+                            size={18}
+                            color={colors.brand}
+                            style={{ marginLeft: "auto" }}
+                          />
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                {updating && (
+                  <View style={s.modalLoading}>
+                    <ActivityIndicator size="small" color={colors.brand} />
+                    <Text style={s.modalLoadingText}>
+                      Actualizando nivel de actividad...
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -947,6 +1127,21 @@ function makeStyles(colors: any, typography: any, insets: any) {
     goalOptionTextSelected: {
       color: colors.brand,
       fontWeight: "600",
+    },
+    activityOption: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      padding: 16,
+      borderRadius: 16,
+      borderWidth: 2,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+    },
+    activityOptionDesc: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 12,
+      color: colors.textSecondary,
     },
     weightInputContainer: {
       flexDirection: "row",

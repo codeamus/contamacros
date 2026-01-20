@@ -116,6 +116,7 @@ export const AuthService = {
         | "weight_kg"
         | "goal"
         | "goal_adjustment"
+        | "activity_level"
         | "daily_calorie_target"
         | "onboarding_completed"
         | "protein_g"
