@@ -1,7 +1,7 @@
 // src/presentation/components/ui/Toast.tsx
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useEffect, useRef } from "react";
-import { Animated, StyleSheet, Text, View } from "react-native";
+import { Animated, Platform, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export type ToastType = "success" | "error" | "info" | "warning";
@@ -129,12 +129,15 @@ export function Toast({
     }
   };
 
+  // Altura aproximada de la barra de navegación inferior
+  const tabBarHeight = Platform.OS === "ios" ? 88 : 70;
+  
   return (
     <Animated.View
       style={[
         styles.container,
         {
-          bottom: insets.bottom + 20,
+          bottom: insets.bottom + tabBarHeight + 16,
           opacity,
           transform: [{ translateY }, { scale }],
         },
@@ -168,7 +171,6 @@ export function Toast({
               color: colors.textPrimary,
             },
           ]}
-          numberOfLines={2}
         >
           {message}
         </Text>
@@ -191,8 +193,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 16,
     borderRadius: 18,
-    maxWidth: "90%",
-    minWidth: 200,
+    maxWidth: "95%",
+    minWidth: 120,
+    alignSelf: "center",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.15,
     shadowRadius: 16,
@@ -200,11 +203,12 @@ const styles = StyleSheet.create({
   },
   iconContainer: {
     marginRight: 12,
+    flexShrink: 0,
   },
   message: {
-    flex: 1,
     fontSize: 15,
     lineHeight: 20,
     fontWeight: "500",
+    flexShrink: 1,
   },
 });
