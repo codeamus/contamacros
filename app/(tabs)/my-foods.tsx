@@ -42,6 +42,7 @@ type RecipeIngredient = {
   id: string;
   food: ExtendedFoodSearchItem;
   grams: number;
+  units?: number; // Cantidad de unidades (si aplica)
 };
 
 function clamp(n: number, min: number, max: number) {
@@ -111,6 +112,230 @@ async function searchLocalFoods(q: string): Promise<ExtendedFoodSearchItem[]> {
   return [...userFoods, ...foods, ...generics];
 }
 
+/**
+ * Componente de ingrediente editable
+ */
+function IngredientItem({
+  ingredient,
+  macros,
+  colors,
+  typography,
+  styles,
+  onUpdateGrams,
+  onUpdateUnits,
+  onRemove,
+}: {
+  ingredient: RecipeIngredient;
+  macros: { kcal: number; protein: number; carbs: number; fat: number };
+  colors: any;
+  typography: any;
+  styles: any;
+  onUpdateGrams: (grams: number) => void;
+  onUpdateUnits?: (units: number) => void;
+  onRemove: () => void;
+}) {
+  const hasUnits = ingredient.food.grams_per_unit && ingredient.food.grams_per_unit > 0;
+  const unitLabel = ingredient.food.unit_label_es || "unidad";
+  
+  const [isEditing, setIsEditing] = useState(false);
+  const [editMode, setEditMode] = useState<"grams" | "units">(
+    hasUnits && ingredient.units ? "units" : "grams"
+  );
+  const [gramsStr, setGramsStr] = useState(ingredient.grams.toString());
+  const [unitsStr, setUnitsStr] = useState(
+    ingredient.units?.toString() || 
+    (hasUnits ? Math.round(ingredient.grams / ingredient.food.grams_per_unit!).toString() : "1")
+  );
+
+  useEffect(() => {
+    if (!isEditing) {
+      setGramsStr(ingredient.grams.toString());
+      if (hasUnits) {
+        const calculatedUnits = Math.round(ingredient.grams / ingredient.food.grams_per_unit!);
+        setUnitsStr(calculatedUnits.toString());
+      }
+    }
+  }, [ingredient.grams, ingredient.units, isEditing, hasUnits]);
+
+  const handleSave = useCallback(() => {
+    if (editMode === "units" && hasUnits && onUpdateUnits) {
+      const unitsNum = toFloatSafe(unitsStr);
+      if (Number.isFinite(unitsNum) && unitsNum > 0) {
+        onUpdateUnits(unitsNum);
+        setIsEditing(false);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      } else {
+        setUnitsStr(ingredient.units?.toString() || "1");
+        setIsEditing(false);
+      }
+    } else {
+      const gramsNum = toFloatSafe(gramsStr);
+      if (Number.isFinite(gramsNum) && gramsNum > 0) {
+        onUpdateGrams(gramsNum);
+        setIsEditing(false);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      } else {
+        setGramsStr(ingredient.grams.toString());
+        setIsEditing(false);
+      }
+    }
+  }, [gramsStr, unitsStr, editMode, hasUnits, ingredient.grams, ingredient.units, onUpdateGrams, onUpdateUnits]);
+
+  const handleQuickAdjust = useCallback(
+    (delta: number) => {
+      if (hasUnits && editMode === "units" && onUpdateUnits) {
+        // Ajustar por unidades
+        const currentUnits = ingredient.units || Math.round(ingredient.grams / ingredient.food.grams_per_unit!);
+        const newUnits = clamp(currentUnits + delta, 1, 1000);
+        onUpdateUnits(newUnits);
+      } else {
+        // Ajustar por gramos
+        const newGrams = clamp(ingredient.grams + delta, 1, 2000);
+        onUpdateGrams(newGrams);
+      }
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    },
+    [ingredient.grams, ingredient.units, hasUnits, editMode, onUpdateGrams, onUpdateUnits],
+  );
+
+  const currentUnits = hasUnits 
+    ? (ingredient.units || Math.round(ingredient.grams / ingredient.food.grams_per_unit!))
+    : null;
+
+  return (
+    <View style={styles.ingredientItem}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.ingredientName}>{ingredient.food.name}</Text>
+        {isEditing ? (
+          <View style={styles.ingredientEditContainer}>
+            {hasUnits && (
+              <View style={styles.ingredientEditModeToggle}>
+                <Pressable
+                  onPress={() => setEditMode("units")}
+                  style={({ pressed }) => [
+                    styles.ingredientEditModeBtn,
+                    editMode === "units" && styles.ingredientEditModeBtnActive,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.ingredientEditModeText,
+                      editMode === "units" && styles.ingredientEditModeTextActive,
+                    ]}
+                  >
+                    {unitLabel}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setEditMode("grams")}
+                  style={({ pressed }) => [
+                    styles.ingredientEditModeBtn,
+                    editMode === "grams" && styles.ingredientEditModeBtnActive,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.ingredientEditModeText,
+                      editMode === "grams" && styles.ingredientEditModeTextActive,
+                    ]}
+                  >
+                    gramos
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+            <View style={styles.ingredientEditRow}>
+              <TextInput
+                style={styles.ingredientGramsInput}
+                value={editMode === "units" ? unitsStr : gramsStr}
+                onChangeText={editMode === "units" ? setUnitsStr : setGramsStr}
+                keyboardType="numeric"
+                autoFocus
+                placeholderTextColor={colors.textSecondary}
+                onBlur={handleSave}
+                onSubmitEditing={handleSave}
+              />
+              <Text style={styles.ingredientGramsLabel}>
+                {editMode === "units" ? unitLabel : "g"}
+              </Text>
+              <Pressable
+                onPress={handleSave}
+                style={styles.ingredientSaveBtn}
+              >
+                <Feather name="check" size={14} color={colors.brand} />
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <Text style={styles.ingredientGrams}>
+            {hasUnits && currentUnits
+              ? `${currentUnits} ${unitLabel}${currentUnits !== 1 ? "s" : ""}`
+              : `${ingredient.grams}g`} · {Math.round(macros.kcal)} kcal
+          </Text>
+        )}
+      </View>
+
+      {!isEditing && (
+        <View style={styles.ingredientActions}>
+          <Pressable
+            onPress={() => handleQuickAdjust(hasUnits && editMode === "units" ? -1 : -10)}
+            style={({ pressed }) => [
+              styles.ingredientAdjustBtn,
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Feather name="minus" size={16} color={colors.textPrimary} />
+          </Pressable>
+          
+          {/* Contador de cantidad */}
+          <View style={styles.ingredientCounter}>
+            <Text style={styles.ingredientCounterText}>
+              {hasUnits && currentUnits
+                ? `${currentUnits} ${currentUnits === 1 ? unitLabel : unitLabel + "s"}`
+                : `${ingredient.grams}g`}
+            </Text>
+          </View>
+          
+          <Pressable
+            onPress={() => handleQuickAdjust(hasUnits && editMode === "units" ? 1 : 10)}
+            style={({ pressed }) => [
+              styles.ingredientAdjustBtn,
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Feather name="plus" size={16} color={colors.textPrimary} />
+          </Pressable>
+          
+          <Pressable
+            onPress={() => {
+              setEditMode(hasUnits ? "units" : "grams");
+              setIsEditing(true);
+            }}
+            style={({ pressed }) => [
+              styles.ingredientEditBtn,
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Feather name="edit-2" size={14} color={colors.brand} />
+          </Pressable>
+          
+          <Pressable
+            onPress={onRemove}
+            style={({ pressed }) => [
+              styles.removeIngredientBtn,
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Feather name="x" size={14} color={colors.cta} />
+          </Pressable>
+        </View>
+      )}
+    </View>
+  );
+}
+
 export default function MyFoodsScreen() {
   const params = useLocalSearchParams<{ barcode?: string }>();
   const { theme } = useTheme();
@@ -137,6 +362,8 @@ export default function MyFoodsScreen() {
   const [selectedIngredient, setSelectedIngredient] =
     useState<ExtendedFoodSearchItem | null>(null);
   const [ingredientGrams, setIngredientGrams] = useState("100");
+  const [ingredientUnits, setIngredientUnits] = useState("1");
+  const [ingredientInputMode, setIngredientInputMode] = useState<"grams" | "units">("grams");
 
   const reqIdRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -252,6 +479,14 @@ export default function MyFoodsScreen() {
       setSearchQuery(res.data.name);
       setSearchResults([]);
       setShowSearch(true);
+      // Si tiene unidades, cambiar a modo unidades por defecto
+      if (it.grams_per_unit && it.grams_per_unit > 0) {
+        setIngredientInputMode("units");
+        setIngredientUnits("1");
+      } else {
+        setIngredientInputMode("grams");
+        setIngredientGrams("100");
+      }
     })();
 
     return () => {
@@ -275,30 +510,115 @@ export default function MyFoodsScreen() {
   const handleAddIngredient = useCallback(() => {
     if (!selectedIngredient) return;
 
-    const gramsNum = toFloatSafe(ingredientGrams);
-    if (!Number.isFinite(gramsNum) || gramsNum <= 0) {
-      showToast("Ingresa una cantidad válida", "error");
-      return;
+    const hasUnits = selectedIngredient.grams_per_unit && selectedIngredient.grams_per_unit > 0;
+    let clampedGrams: number;
+    let units: number | undefined;
+
+    if (hasUnits && ingredientInputMode === "units") {
+      // Si está en modo unidades, calcular gramos desde unidades
+      const unitsNum = toFloatSafe(ingredientUnits);
+      if (!Number.isFinite(unitsNum) || unitsNum <= 0) {
+        showToast("Ingresa una cantidad válida", "error");
+        return;
+      }
+      units = Math.round(clamp(unitsNum, 1, 1000));
+      clampedGrams = clamp(units * selectedIngredient.grams_per_unit!, 1, 2000);
+    } else {
+      // Modo gramos
+      const gramsNum = toFloatSafe(ingredientGrams);
+      if (!Number.isFinite(gramsNum) || gramsNum <= 0) {
+        showToast("Ingresa una cantidad válida", "error");
+        return;
+      }
+      clampedGrams = clamp(gramsNum, 1, 2000);
+      units = hasUnits ? Math.round(clampedGrams / selectedIngredient.grams_per_unit!) : undefined;
     }
 
-    const newIngredient: RecipeIngredient = {
-      id: `${Date.now()}-${Math.random()}`,
-      food: selectedIngredient,
-      grams: clamp(gramsNum, 1, 2000),
-    };
+    // Verificar si el ingrediente ya existe (por key del alimento)
+    setIngredients((prev) => {
+      const existingIndex = prev.findIndex(
+        (ing) => ing.food.key === selectedIngredient.key,
+      );
 
-    setIngredients((prev) => [...prev, newIngredient]);
+      if (existingIndex >= 0) {
+        // Si existe, sumar las cantidades
+        const updated = [...prev];
+        const newGrams = clamp(updated[existingIndex].grams + clampedGrams, 1, 2000);
+        const newUnits = hasUnits && updated[existingIndex].units
+          ? updated[existingIndex].units! + (units || 0)
+          : units;
+        
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          grams: newGrams,
+          units: newUnits,
+        };
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        return updated;
+      } else {
+        // Si no existe, agregar nuevo
+        const newIngredient: RecipeIngredient = {
+          id: `${Date.now()}-${Math.random()}`,
+          food: selectedIngredient,
+          grams: clampedGrams,
+          units: units,
+        };
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        return [...prev, newIngredient];
+      }
+    });
+
     setSelectedIngredient(null);
     setSearchQuery("");
     setIngredientGrams("100");
+    setIngredientUnits("1");
+    setIngredientInputMode("grams");
     setShowSearch(false);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [selectedIngredient, ingredientGrams, showToast]);
+  }, [selectedIngredient, ingredientGrams, ingredientUnits, ingredientInputMode, showToast]);
 
   const handleRemoveIngredient = useCallback((id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setIngredients((prev) => prev.filter((ing) => ing.id !== id));
   }, []);
+
+  const handleUpdateIngredientGrams = useCallback(
+    (id: string, newGrams: number) => {
+      const clamped = clamp(newGrams, 1, 2000);
+      setIngredients((prev) =>
+        prev.map((ing) => {
+          if (ing.id !== id) return ing;
+          
+          // Si tiene unidades, recalcular unidades basándose en gramos
+          const hasUnits = ing.food.grams_per_unit && ing.food.grams_per_unit > 0;
+          const newUnits = hasUnits 
+            ? Math.round(clamped / ing.food.grams_per_unit!)
+            : ing.units;
+          
+          return { ...ing, grams: clamped, units: newUnits };
+        }),
+      );
+    },
+    [],
+  );
+
+  const handleUpdateIngredientUnits = useCallback(
+    (id: string, newUnits: number) => {
+      const clamped = clamp(newUnits, 1, 1000);
+      setIngredients((prev) =>
+        prev.map((ing) => {
+          if (ing.id !== id) return ing;
+          
+          // Calcular gramos basándose en unidades
+          const hasUnits = ing.food.grams_per_unit && ing.food.grams_per_unit > 0;
+          if (!hasUnits) return ing;
+          
+          const newGrams = clamp(clamped * ing.food.grams_per_unit!, 1, 2000);
+          return { ...ing, units: clamped, grams: newGrams };
+        }),
+      );
+    },
+    [],
+  );
 
   const handleSaveRecipe = useCallback(async () => {
     if (!canSaveRecipe) return;
@@ -558,6 +878,8 @@ export default function MyFoodsScreen() {
                     setSelectedIngredient(null);
                     setSearchQuery("");
                     setIngredientGrams("100");
+                    setIngredientUnits("1");
+                    setIngredientInputMode("grams");
                     setShowSearch(false);
                   }}
                 >
@@ -618,6 +940,14 @@ export default function MyFoodsScreen() {
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                             setSelectedIngredient(item);
                             setShowSearch(false);
+                            // Si tiene unidades, cambiar a modo unidades por defecto
+                            if (item.grams_per_unit && item.grams_per_unit > 0) {
+                              setIngredientInputMode("units");
+                              setIngredientUnits("1");
+                            } else {
+                              setIngredientInputMode("grams");
+                              setIngredientGrams("100");
+                            }
                           }}
                           style={({ pressed }) => [
                             s.searchItem,
@@ -636,35 +966,94 @@ export default function MyFoodsScreen() {
                 )}
 
                 {/* Ingrediente seleccionado */}
-                {selectedIngredient && (
-                  <View style={s.selectedIngredient}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.selectedName}>
-                        {selectedIngredient.name}
-                      </Text>
-                      <Text style={s.selectedMeta}>
-                        {selectedIngredient.meta}
-                      </Text>
+                {selectedIngredient && (() => {
+                  const hasUnits = selectedIngredient.grams_per_unit && selectedIngredient.grams_per_unit > 0;
+                  const unitLabel = selectedIngredient.unit_label_es || "unidad";
+                  
+                  return (
+                    <View style={s.selectedIngredient}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.selectedName}>
+                          {selectedIngredient.name}
+                        </Text>
+                        <Text style={s.selectedMeta}>
+                          {selectedIngredient.meta}
+                        </Text>
+                      </View>
+                      
+                      {hasUnits && (
+                        <View style={s.inputModeToggle}>
+                          <Pressable
+                            onPress={() => {
+                              setIngredientInputMode("units");
+                              // Calcular unidades desde gramos actuales
+                              const currentGrams = toFloatSafe(ingredientGrams) || 100;
+                              const calculatedUnits = Math.round(currentGrams / selectedIngredient.grams_per_unit!);
+                              setIngredientUnits(calculatedUnits.toString());
+                            }}
+                            style={({ pressed }) => [
+                              s.inputModeBtn,
+                              ingredientInputMode === "units" && s.inputModeBtnActive,
+                              pressed && { opacity: 0.7 },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                s.inputModeText,
+                                ingredientInputMode === "units" && s.inputModeTextActive,
+                              ]}
+                            >
+                              {unitLabel}
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            onPress={() => {
+                              setIngredientInputMode("grams");
+                              // Calcular gramos desde unidades actuales
+                              const currentUnits = toFloatSafe(ingredientUnits) || 1;
+                              const calculatedGrams = Math.round(currentUnits * selectedIngredient.grams_per_unit!);
+                              setIngredientGrams(calculatedGrams.toString());
+                            }}
+                            style={({ pressed }) => [
+                              s.inputModeBtn,
+                              ingredientInputMode === "grams" && s.inputModeBtnActive,
+                              pressed && { opacity: 0.7 },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                s.inputModeText,
+                                ingredientInputMode === "grams" && s.inputModeTextActive,
+                              ]}
+                            >
+                              gramos
+                            </Text>
+                          </Pressable>
+                        </View>
+                      )}
+                      
+                      <View style={s.gramsInput}>
+                        <TextInput
+                          style={s.gramsInputText}
+                          value={ingredientInputMode === "units" ? ingredientUnits : ingredientGrams}
+                          onChangeText={ingredientInputMode === "units" ? setIngredientUnits : setIngredientGrams}
+                          placeholder={ingredientInputMode === "units" ? "1" : "100"}
+                          placeholderTextColor={colors.textSecondary}
+                          keyboardType="numeric"
+                        />
+                        <Text style={s.gramsLabel}>
+                          {ingredientInputMode === "units" ? unitLabel : "g"}
+                        </Text>
+                      </View>
+                      <Pressable
+                        onPress={handleAddIngredient}
+                        style={s.addIngredientBtn}
+                      >
+                        <Feather name="check" size={16} color={colors.onCta} />
+                      </Pressable>
                     </View>
-                    <View style={s.gramsInput}>
-                      <TextInput
-                        style={s.gramsInputText}
-                        value={ingredientGrams}
-                        onChangeText={setIngredientGrams}
-                        placeholder="100"
-                        placeholderTextColor={colors.textSecondary}
-                        keyboardType="numeric"
-                      />
-                      <Text style={s.gramsLabel}>g</Text>
-                    </View>
-                    <Pressable
-                      onPress={handleAddIngredient}
-                      style={s.addIngredientBtn}
-                    >
-                      <Feather name="check" size={16} color={colors.onCta} />
-                    </Pressable>
-                  </View>
-                )}
+                  );
+                })()}
               </View>
 
               {/* Ingredientes agregados */}
@@ -683,23 +1072,21 @@ export default function MyFoodsScreen() {
                         ing.grams,
                       );
                       return (
-                        <View key={ing.id} style={s.ingredientItem}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={s.ingredientName}>{ing.food.name}</Text>
-                            <Text style={s.ingredientGrams}>
-                              {ing.grams}g · {Math.round(macros.kcal)} kcal
-                            </Text>
-                          </View>
-                          <Pressable
-                            onPress={() => handleRemoveIngredient(ing.id)}
-                            style={({ pressed }) => [
-                              s.removeIngredientBtn,
-                              pressed && { opacity: 0.7 },
-                            ]}
-                          >
-                            <Feather name="x" size={14} color={colors.cta} />
-                          </Pressable>
-                        </View>
+                        <IngredientItem
+                          key={ing.id}
+                          ingredient={ing}
+                          macros={macros}
+                          colors={colors}
+                          typography={typography}
+                          styles={s}
+                          onUpdateGrams={(grams) =>
+                            handleUpdateIngredientGrams(ing.id, grams)
+                          }
+                          onUpdateUnits={(units) =>
+                            handleUpdateIngredientUnits(ing.id, units)
+                          }
+                          onRemove={() => handleRemoveIngredient(ing.id)}
+                        />
                       );
                     })}
                   </View>
@@ -1077,6 +1464,32 @@ function makeStyles(colors: any, typography: any, insets: { bottom: number }) {
       fontSize: 12,
       color: colors.textSecondary,
     },
+    inputModeToggle: {
+      flexDirection: "row",
+      gap: 6,
+      marginTop: 8,
+    },
+    inputModeBtn: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    inputModeBtnActive: {
+      borderColor: colors.brand,
+      backgroundColor: `${colors.brand}15`,
+    },
+    inputModeText: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 11,
+      color: colors.textSecondary,
+    },
+    inputModeTextActive: {
+      color: colors.brand,
+      fontWeight: "600",
+    },
     addIngredientBtn: {
       width: 32,
       height: 32,
@@ -1106,6 +1519,108 @@ function makeStyles(colors: any, typography: any, insets: { bottom: number }) {
       fontSize: 12,
       color: colors.textSecondary,
       marginTop: 2,
+    },
+    ingredientActions: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+    },
+    ingredientAdjustBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    ingredientCounter: {
+      minWidth: 50,
+      height: 32,
+      borderRadius: 8,
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 8,
+    },
+    ingredientCounterText: {
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 13,
+      color: colors.textPrimary,
+      fontWeight: "600",
+    },
+    ingredientEditBtn: {
+      width: 28,
+      height: 28,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.brand,
+      backgroundColor: `${colors.brand}15`,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    ingredientEditContainer: {
+      marginTop: 4,
+      gap: 8,
+    },
+    ingredientEditModeToggle: {
+      flexDirection: "row",
+      gap: 6,
+    },
+    ingredientEditModeBtn: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    ingredientEditModeBtnActive: {
+      borderColor: colors.brand,
+      backgroundColor: `${colors.brand}15`,
+    },
+    ingredientEditModeText: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 11,
+      color: colors.textSecondary,
+    },
+    ingredientEditModeTextActive: {
+      color: colors.brand,
+      fontWeight: "600",
+    },
+    ingredientEditRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+    },
+    ingredientGramsInput: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 13,
+      color: colors.textPrimary,
+      backgroundColor: colors.surface,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.brand,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      width: 60,
+      textAlign: "right",
+    },
+    ingredientGramsLabel: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    ingredientSaveBtn: {
+      width: 24,
+      height: 24,
+      borderRadius: 6,
+      backgroundColor: colors.brand,
+      alignItems: "center",
+      justifyContent: "center",
     },
     removeIngredientBtn: {
       padding: 6,

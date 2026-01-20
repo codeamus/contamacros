@@ -18,6 +18,10 @@ export type FoodSearchItem = {
   carbs_100g?: number | null;
   fat_100g?: number | null;
 
+  // Información de unidades (para generic_foods)
+  unit_label_es?: string | null;
+  grams_per_unit?: number | null;
+
   food_id?: string | null;
   user_food_id?: string | null;
 
@@ -77,6 +81,8 @@ export function mapGenericFoodDbToSearchItem(
     protein_100g: genericFood.protein_100g ?? 0,
     carbs_100g: genericFood.carbs_100g ?? 0,
     fat_100g: genericFood.fat_100g ?? 0,
+    unit_label_es: genericFood.unit_label_es ?? null,
+    grams_per_unit: genericFood.grams_per_unit ?? null,
     food_id: null, // No existe en foods
     verified: true,
   };
