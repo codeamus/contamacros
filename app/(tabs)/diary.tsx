@@ -1,9 +1,11 @@
 // app/(tabs)/diary.tsx
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Easing,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -12,11 +14,14 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as Haptics from "expo-haptics";
 
 import { foodLogRepository } from "@/data/food/foodLogRepository";
 import type { FoodLogDb, MealType } from "@/domain/models/foodLogDb";
+import DateHeader from "@/presentation/components/ui/DateHeader";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
+import { useStaggerAnimation } from "@/presentation/hooks/ui/useStaggerAnimation";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { todayStrLocal } from "@/presentation/utils/date";
 import { MEAL_LABELS } from "@/presentation/utils/labels";
@@ -82,13 +87,17 @@ function filterLabel(k: MealFilter) {
   return MEAL_LABELS[k];
 }
 
-const MacroProgress = React.memo(function MacroProgress({
+/**
+ * Barra de progreso animada para macros
+ */
+function AnimatedMacroProgress({
   label,
   value,
   target,
   icon,
   colors,
   typography,
+  animation,
 }: {
   label: string;
   value: number;
@@ -96,12 +105,41 @@ const MacroProgress = React.memo(function MacroProgress({
   icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
   colors: any;
   typography: any;
+  animation: Animated.Value;
 }) {
   const pct = useMemo(() => (target ? clamp01(value / target) : 0), [value, target]);
   const showTarget = useMemo(() => target && Number.isFinite(target), [target]);
+  
+  const progressAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(progressAnim, {
+      toValue: pct,
+      duration: 600,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [pct, progressAnim]);
+
+  const translateY = animation.interpolate({
+    inputRange: [0, 1],
+    outputRange: [20, 0],
+  });
+
+  const opacity = animation.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
 
   return (
-    <View style={{ flex: 1, gap: 10 }}>
+    <Animated.View
+      style={{
+        flex: 1,
+        gap: 10,
+        opacity,
+        transform: [{ translateY }],
+      }}
+    >
       <View
         style={{
           flexDirection: "row",
@@ -146,17 +184,141 @@ const MacroProgress = React.memo(function MacroProgress({
           overflow: "hidden",
         }}
       >
-        <View
+        <Animated.View
           style={{
             height: "100%",
-            width: `${pct * 100}%`,
+            width: progressAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: ["0%", "100%"],
+            }),
             backgroundColor: colors.brand,
           }}
         />
       </View>
-    </View>
+    </Animated.View>
   );
-});
+}
+
+const MacroProgress = React.memo(AnimatedMacroProgress);
+
+/**
+ * Componente de item de comida con animación
+ */
+function FoodItem({
+  item,
+  index,
+  colors,
+  typography,
+  styles,
+  onPress,
+  onLongPress,
+}: {
+  item: FoodLogDb;
+  index: number;
+  colors: any;
+  typography: any;
+  styles: any;
+  onPress: () => void;
+  onLongPress: () => void;
+}) {
+  const itemAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(itemAnim, {
+      toValue: 1,
+      duration: 400,
+      delay: index * 50,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [itemAnim, index]);
+
+  return (
+    <Animated.View
+      style={{
+        opacity: itemAnim,
+        transform: [
+          {
+            translateX: itemAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [-20, 0],
+            }),
+          },
+        ],
+      }}
+    >
+      <Pressable
+        style={({ pressed }) => [
+          styles.item,
+          pressed && {
+            opacity: 0.95,
+            transform: [{ scale: 0.997 }],
+          },
+        ]}
+        onPress={onPress}
+        onLongPress={onLongPress}
+      >
+        <View style={{ flex: 1, gap: 6 }}>
+          <Text style={styles.itemName} numberOfLines={1}>
+            {item.name}
+          </Text>
+
+          <View style={styles.itemMetaRow}>
+            <View style={styles.metaChip}>
+              <MaterialCommunityIcons
+                name="fire"
+                size={14}
+                color={colors.textSecondary}
+              />
+              <Text style={styles.metaChipText}>
+                {Math.round(item.calories || 0)} kcal
+              </Text>
+            </View>
+
+            <View style={styles.metaChip}>
+              <MaterialCommunityIcons
+                name="food-steak"
+                size={14}
+                color={colors.textSecondary}
+              />
+              <Text style={styles.metaChipText}>
+                P {Math.round(item.protein_g || 0)}
+              </Text>
+            </View>
+
+            <View style={styles.metaChip}>
+              <MaterialCommunityIcons
+                name="bread-slice"
+                size={14}
+                color={colors.textSecondary}
+              />
+              <Text style={styles.metaChipText}>
+                C {Math.round(item.carbs_g || 0)}
+              </Text>
+            </View>
+
+            <View style={styles.metaChip}>
+              <MaterialCommunityIcons
+                name="peanut"
+                size={14}
+                color={colors.textSecondary}
+              />
+              <Text style={styles.metaChipText}>
+                F {Math.round(item.fat_g || 0)}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <MaterialCommunityIcons
+          name="dots-vertical"
+          size={18}
+          color={colors.textSecondary}
+        />
+      </Pressable>
+    </Animated.View>
+  );
+}
 
 export default function DiaryScreen() {
   const params = useLocalSearchParams<{ meal?: string; day?: string }>();
@@ -210,6 +372,7 @@ export default function DiaryScreen() {
 
   // Función para volver al día de hoy
   const goToToday = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     // Limpiar el parámetro day navegando sin parámetros
     router.replace({
       pathname: "/(tabs)/diary",
@@ -232,12 +395,14 @@ export default function DiaryScreen() {
   );
 
   async function onDelete(id: string) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert("Eliminar", "¿Eliminar este item del diario?", [
       { text: "Cancelar", style: "cancel" },
       {
         text: "Eliminar",
         style: "destructive",
         onPress: async () => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           const res = await foodLogRepository.remove(id);
           if (!res.ok) {
             setErr(res.message);
@@ -250,6 +415,7 @@ export default function DiaryScreen() {
   }
 
   function onOpenItemActions(it: FoodLogDb) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Alert.alert(it.name, "¿Qué deseas hacer?", [
       { text: "Cancelar", style: "cancel" },
       {
@@ -257,7 +423,7 @@ export default function DiaryScreen() {
         onPress: () => {
           router.push({
             pathname: "/(tabs)/add-food",
-            params: { logId: it.id }, // 👈 siguiente PR: add-food soporta edición
+            params: { logId: it.id },
           });
         },
       },
@@ -287,6 +453,24 @@ export default function DiaryScreen() {
   const addMealParam: MealType | undefined =
     filterMeal === "all" ? undefined : filterMeal;
 
+  // Animaciones escalonadas
+  const summaryAnimations = useStaggerAnimation(4, 80, 100);
+  const mealAnimations = useStaggerAnimation(visibleMeals.length, 100, 300);
+  
+  // Animación de la barra de calorías
+  const caloriesProgressAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!loading) {
+      Animated.timing(caloriesProgressAnim, {
+        toValue: kcalPct,
+        duration: 800,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }).start();
+    }
+  }, [kcalPct, loading, caloriesProgressAnim]);
+
   return (
     <SafeAreaView style={s.safe}>
       <ScrollView
@@ -296,66 +480,66 @@ export default function DiaryScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={() => {
-              // Al hacer pull-to-refresh, volver al día de hoy
               goToToday();
-              // El load se ejecutará automáticamente cuando cambie el día
             }}
             tintColor={colors.textSecondary}
           />
         }
       >
-        {/* Header */}
-        <View style={s.header}>
-          <View style={{ flex: 1 }}>
-            <Text style={s.kicker}>Diario</Text>
-            <Text style={s.title}>{day}</Text>
-          </View>
-
-          <Pressable
-            style={s.iconBtn}
-            onPress={() => {
-              // Al presionar refresh, volver al día de hoy
-              goToToday();
-            }}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator />
-            ) : (
-              <Feather name="refresh-cw" size={18} color={colors.textPrimary} />
-            )}
-          </Pressable>
-
-          <Pressable
-            style={s.iconBtn}
-            onPress={() =>
+        {/* Header con componente reutilizable */}
+        <DateHeader
+          dateStr={day}
+          kicker="Diario"
+          onRefresh={goToToday}
+          loading={loading}
+          rightAction={{
+            icon: "plus",
+            onPress: () => {
               router.push({
                 pathname: "/(tabs)/add-food",
                 params: addMealParam ? { meal: addMealParam } : undefined,
-              })
-            }
-          >
-            <Feather name="plus" size={18} color={colors.textPrimary} />
-          </Pressable>
-        </View>
+              });
+            },
+          }}
+        />
 
-        {/* Filter chips */}
-        <View style={s.chipsRow}>
+        {/* Filter chips con animación */}
+        <Animated.View
+          style={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            gap: 8,
+            marginTop: 2,
+            opacity: summaryAnimations[0],
+            transform: [
+              {
+                translateY: summaryAnimations[0].interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [10, 0],
+                }),
+              },
+            ],
+          }}
+        >
           {(["all", "breakfast", "lunch", "dinner", "snack"] as const).map(
-            (k) => {
+            (k, index) => {
               const active = filterMeal === k;
               return (
                 <Pressable
                   key={k}
-                  onPress={() => setFilterMeal(k)}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setFilterMeal(k);
+                  }}
                   style={({ pressed }) => [
                     s.chipPill,
                     {
-                      borderColor: active ? colors.textPrimary : colors.border,
+                      borderColor: active ? colors.brand : colors.border,
                       backgroundColor: active
-                        ? "rgba(34,197,94,0.10)"
+                        ? `${colors.brand}15`
                         : colors.surface,
-                      opacity: pressed ? 0.9 : 1,
+                      opacity: pressed ? 0.8 : 1,
+                      transform: [{ scale: pressed ? 0.96 : 1 }],
                     },
                   ]}
                 >
@@ -371,9 +555,10 @@ export default function DiaryScreen() {
                       s.chipPillText,
                       {
                         color: active
-                          ? colors.textPrimary
+                          ? colors.brand
                           : colors.textSecondary,
                         fontFamily: typography.subtitle?.fontFamily,
+                        fontWeight: active ? "600" : "400",
                       },
                     ]}
                   >
@@ -383,17 +568,53 @@ export default function DiaryScreen() {
               );
             },
           )}
-        </View>
+        </Animated.View>
 
         {!!err && (
-          <View style={s.alert}>
+          <Animated.View
+            style={[
+              s.alert,
+              {
+                opacity: summaryAnimations[0],
+                transform: [
+                  {
+                    translateY: summaryAnimations[0].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [10, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
             <Feather name="alert-triangle" size={16} color={colors.onCta} />
             <Text style={s.alertText}>{err}</Text>
-          </View>
+          </Animated.View>
         )}
 
-        {/* Summary */}
-        <View style={s.card}>
+        {/* Summary Card con animaciones */}
+        <Animated.View
+          style={[
+            s.card,
+            {
+              opacity: summaryAnimations[0],
+              transform: [
+                {
+                  translateY: summaryAnimations[0].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [30, 0],
+                  }),
+                },
+                {
+                  scale: summaryAnimations[0].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.95, 1],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
           <View style={s.cardHeaderRow}>
             <View style={s.cardHeaderLeft}>
               <View style={s.badge}>
@@ -403,7 +624,9 @@ export default function DiaryScreen() {
                   color={colors.onCta}
                 />
               </View>
-              <Text style={s.cardTitle}>Resumen de hoy</Text>
+              <Text style={s.cardTitle}>
+                {day === todayStrLocal() ? "Resumen de hoy" : "Resumen del día"}
+              </Text>
             </View>
 
             {targetKcal && (
@@ -420,7 +643,17 @@ export default function DiaryScreen() {
           </Text>
 
           <View style={s.progressTrack}>
-            <View style={[s.progressFill, { width: `${kcalPct * 100}%` }]} />
+            <Animated.View
+              style={[
+                s.progressFill,
+                {
+                  width: caloriesProgressAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ["0%", "100%"],
+                  }),
+                },
+              ]}
+            />
           </View>
 
           <View style={s.hintRow}>
@@ -444,6 +677,7 @@ export default function DiaryScreen() {
               icon="food-steak"
               colors={colors}
               typography={typography}
+              animation={summaryAnimations[1]}
             />
             <MacroProgress
               label="Carbs"
@@ -452,6 +686,7 @@ export default function DiaryScreen() {
               icon="bread-slice"
               colors={colors}
               typography={typography}
+              animation={summaryAnimations[2]}
             />
             <MacroProgress
               label="Grasas"
@@ -460,12 +695,28 @@ export default function DiaryScreen() {
               icon="peanut"
               colors={colors}
               typography={typography}
+              animation={summaryAnimations[3]}
             />
           </View>
-        </View>
+        </Animated.View>
 
-        {/* Meals */}
-        <View style={s.sectionHeader}>
+        {/* Meals Section */}
+        <Animated.View
+          style={[
+            s.sectionHeader,
+            {
+              opacity: summaryAnimations[0],
+              transform: [
+                {
+                  translateY: summaryAnimations[0].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [10, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
           <View style={s.sectionTitleRow}>
             <MaterialCommunityIcons
               name="silverware-fork-knife"
@@ -478,19 +729,20 @@ export default function DiaryScreen() {
           </View>
 
           <Pressable
-            onPress={() =>
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.push({
                 pathname: "/(tabs)/add-food",
                 params: addMealParam ? { meal: addMealParam } : undefined,
-              })
-            }
+              });
+            }}
           >
             <Text style={s.sectionAction}>Añadir</Text>
           </Pressable>
-        </View>
+        </Animated.View>
 
         <View style={{ gap: 12 }}>
-          {visibleMeals.map((m) => {
+          {visibleMeals.map((m, mealIndex) => {
             const items = grouped[m];
             const isEmpty = !items.length;
             if (filterMeal === "all" && isEmpty) return null;
@@ -508,8 +760,32 @@ export default function DiaryScreen() {
                   { kcal: 0, p: 0, c: 0, f: 0 },
                 );
 
+            const mealAnim = mealAnimations[mealIndex] || mealAnimations[0];
+
             return (
-              <View key={m} style={s.mealCard}>
+              <Animated.View
+                key={m}
+                style={[
+                  s.mealCard,
+                  {
+                    opacity: mealAnim,
+                    transform: [
+                      {
+                        translateY: mealAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [30, 0],
+                        }),
+                      },
+                      {
+                        scale: mealAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.96, 1],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
                 <View style={s.mealHeader}>
                   <View style={s.mealHeaderLeft}>
                     <View style={s.mealIconWrap}>
@@ -535,17 +811,18 @@ export default function DiaryScreen() {
                   </View>
 
                   <Pressable
-                    onPress={() =>
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       router.push({
                         pathname: "/(tabs)/add-food",
                         params: { meal: m },
-                      })
-                    }
+                      });
+                    }}
                     style={({ pressed }) => [
                       s.mealAddBtn,
                       pressed && {
                         opacity: 0.92,
-                        transform: [{ scale: 0.99 }],
+                        transform: [{ scale: 0.98 }],
                       },
                     ]}
                   >
@@ -566,15 +843,16 @@ export default function DiaryScreen() {
                     </Text>
 
                     <Pressable
-                      onPress={() =>
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         router.push({
                           pathname: "/(tabs)/add-food",
                           params: { meal: m },
-                        })
-                      }
+                        });
+                      }}
                       style={({ pressed }) => [
                         s.mealEmptyBtn,
-                        pressed && { opacity: 0.9 },
+                        pressed && { opacity: 0.9, transform: [{ scale: 0.96 }] },
                       ]}
                     >
                       <Feather name="plus" size={14} color={colors.brand} />
@@ -583,86 +861,47 @@ export default function DiaryScreen() {
                   </View>
                 ) : (
                   <View style={{ marginTop: 12, gap: 10 }}>
-                    {items.map((it) => (
-                      <Pressable
+                    {items.map((it, itemIndex) => (
+                      <FoodItem
                         key={it.id}
-                        style={({ pressed }) => [
-                          s.item,
-                          pressed && {
-                            opacity: 0.95,
-                            transform: [{ scale: 0.997 }],
-                          },
-                        ]}
-                        onPress={() => onOpenItemActions(it)} // ✅ menú editar/eliminar
-                        onLongPress={() => onDelete(it.id)} // fallback rápido
-                      >
-                        <View style={{ flex: 1, gap: 6 }}>
-                          <Text style={s.itemName} numberOfLines={1}>
-                            {it.name}
-                          </Text>
-
-                          <View style={s.itemMetaRow}>
-                            <View style={s.metaChip}>
-                              <MaterialCommunityIcons
-                                name="fire"
-                                size={14}
-                                color={colors.textSecondary}
-                              />
-                              <Text style={s.metaChipText}>
-                                {Math.round(it.calories || 0)} kcal
-                              </Text>
-                            </View>
-
-                            <View style={s.metaChip}>
-                              <MaterialCommunityIcons
-                                name="food-steak"
-                                size={14}
-                                color={colors.textSecondary}
-                              />
-                              <Text style={s.metaChipText}>
-                                P {Math.round(it.protein_g || 0)}
-                              </Text>
-                            </View>
-
-                            <View style={s.metaChip}>
-                              <MaterialCommunityIcons
-                                name="bread-slice"
-                                size={14}
-                                color={colors.textSecondary}
-                              />
-                              <Text style={s.metaChipText}>
-                                C {Math.round(it.carbs_g || 0)}
-                              </Text>
-                            </View>
-
-                            <View style={s.metaChip}>
-                              <MaterialCommunityIcons
-                                name="peanut"
-                                size={14}
-                                color={colors.textSecondary}
-                              />
-                              <Text style={s.metaChipText}>
-                                F {Math.round(it.fat_g || 0)}
-                              </Text>
-                            </View>
-                          </View>
-                        </View>
-
-                        <MaterialCommunityIcons
-                          name="dots-vertical"
-                          size={18}
-                          color={colors.textSecondary}
-                        />
-                      </Pressable>
+                        item={it}
+                        index={itemIndex}
+                        colors={colors}
+                        typography={typography}
+                        styles={s}
+                        onPress={() => onOpenItemActions(it)}
+                        onLongPress={() => onDelete(it.id)}
+                      />
                     ))}
                   </View>
                 )}
-              </View>
+              </Animated.View>
             );
           })}
 
           {filterMeal === "all" && !loading && logs.length === 0 && (
-            <View style={s.emptyCard}>
+            <Animated.View
+              style={[
+                s.emptyCard,
+                {
+                  opacity: summaryAnimations[0],
+                  transform: [
+                    {
+                      translateY: summaryAnimations[0].interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [20, 0],
+                      }),
+                    },
+                    {
+                      scale: summaryAnimations[0].interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.95, 1],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
               <View style={s.emptyIcon}>
                 <MaterialCommunityIcons
                   name="clipboard-text-outline"
@@ -678,12 +917,15 @@ export default function DiaryScreen() {
               <View style={{ marginTop: 12, width: "100%" }}>
                 <PrimaryButton
                   title="Agregar comida"
-                  onPress={() => router.push("/(tabs)/add-food")}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    router.push("/(tabs)/add-food");
+                  }}
                   disabled={loading}
                   icon={<Feather name="plus" size={18} color={colors.onCta} />}
                 />
               </View>
-            </View>
+            </Animated.View>
           )}
         </View>
 
@@ -697,34 +939,6 @@ function makeStyles(colors: any, typography: any) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
     container: { padding: 18, gap: 14 },
-
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 10,
-      marginBottom: 2,
-    },
-    kicker: {
-      fontFamily: typography.body?.fontFamily,
-      fontSize: 13,
-      color: colors.textSecondary,
-    },
-    title: {
-      fontFamily: typography.title?.fontFamily,
-      fontSize: 26,
-      color: colors.textPrimary,
-    },
-
-    iconBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surface,
-      alignItems: "center",
-      justifyContent: "center",
-    },
 
     chipsRow: {
       flexDirection: "row",
