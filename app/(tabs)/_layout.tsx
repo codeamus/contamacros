@@ -13,7 +13,7 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.textPrimary,
+        tabBarActiveTintColor: colors.brand, // Color brand para tabs activos
         tabBarInactiveTintColor: colors.textSecondary,
 
         tabBarStyle: {
@@ -23,11 +23,17 @@ export default function TabsLayout() {
           height: Platform.OS === "ios" ? 88 : 70,
           paddingTop: 10,
           paddingBottom: Platform.OS === "ios" ? 26 : 12,
+          elevation: 8, // Sombra en Android
+          shadowColor: "#000", // Sombra en iOS
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
         },
 
         tabBarLabelStyle: {
           fontFamily: typography.body?.fontFamily,
           fontSize: 12,
+          fontWeight: "600", // Más bold para mejor legibilidad
         },
       }}
     >
@@ -53,9 +59,9 @@ export default function TabsLayout() {
           title: "Inicio",
           tabBarIcon: ({ color, focused, size }) => (
             <Feather
-              name={focused ? "home" : "home"}
-              size={size ?? 20}
-              color={color}
+              name="home"
+              size={focused ? (size ?? 22) : (size ?? 20)}
+              color={focused ? colors.brand : color}
             />
           ),
         }}
@@ -64,11 +70,11 @@ export default function TabsLayout() {
         name="diary"
         options={{
           title: "Diario",
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({ color, focused, size }) => (
             <MaterialCommunityIcons
               name="silverware-fork-knife"
-              size={size ?? 20}
-              color={color}
+              size={focused ? (size ?? 22) : (size ?? 20)}
+              color={focused ? colors.brand : color}
             />
           ),
         }}
@@ -77,12 +83,17 @@ export default function TabsLayout() {
         name="settings"
         options={{
           title: "Ajustes",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="settings" size={size ?? 20} color={color} />
+          tabBarIcon: ({ color, focused, size }) => (
+            <Feather
+              name="settings"
+              size={focused ? (size ?? 22) : (size ?? 20)}
+              color={focused ? colors.brand : color}
+            />
           ),
         }}
       />
       <Tabs.Screen name="scan" options={{ href: null }} />
+      <Tabs.Screen name="calendar" options={{ href: null }} />
     </Tabs>
   );
 }
