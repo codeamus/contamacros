@@ -4,6 +4,7 @@ export const StorageKeys = {
   SESSION_TOKEN: "session_token",
   USER_PROFILE: "user_profile",
   PENDING_PROFILE_SYNC: "pending_profile_sync",
+  SEARCH_HISTORY: "search_history",
 } as const;
 
 export type StorageKey = (typeof StorageKeys)[keyof typeof StorageKeys];
