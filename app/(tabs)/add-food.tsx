@@ -18,13 +18,13 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { StorageKeys } from "@/core/storage/keys";
+import { storage } from "@/core/storage/storage";
 import { foodLogRepository } from "@/data/food/foodLogRepository";
 import { genericFoodsRepository } from "@/data/food/genericFoodsRepository";
 import { userFoodsRepository } from "@/data/food/userFoodsRepository";
 import { openFoodFactsService } from "@/data/openfoodfacts/openFoodFactsService";
 import { supabase } from "@/data/supabase/supabaseClient";
-import { StorageKeys } from "@/core/storage/keys";
-import { storage } from "@/core/storage/storage";
 import {
   mapFoodDbArrayToSearchItems,
   mapGenericFoodDbArrayToSearchItems,
@@ -56,6 +56,10 @@ function toFloatSafe(s: string) {
   return Number.isFinite(n) ? n : NaN;
 }
 
+/**
+ * Calcula los macros totales basándose en los valores por 100g y la cantidad en gramos
+ * Fórmula: (valor_macro_100g / 100) * cantidad_seleccionada_en_gramos
+ */
 function computeFrom100gMacros(
   macros: {
     kcal_100g?: number | null;
@@ -66,10 +70,10 @@ function computeFrom100gMacros(
   grams: number,
 ) {
   const factor = grams / 100;
-  const kcal = Math.round((macros.kcal_100g ?? 0) * factor);
-  const protein = Math.round((macros.protein_100g ?? 0) * factor);
-  const carbs = Math.round((macros.carbs_100g ?? 0) * factor);
-  const fat = Math.round((macros.fat_100g ?? 0) * factor);
+  const kcal = Number(((macros.kcal_100g ?? 0) * factor).toFixed(1));
+  const protein = Number(((macros.protein_100g ?? 0) * factor).toFixed(1));
+  const carbs = Number(((macros.carbs_100g ?? 0) * factor).toFixed(1));
+  const fat = Number(((macros.fat_100g ?? 0) * factor).toFixed(1));
   return { kcal, protein, carbs, fat };
 }
 
@@ -209,7 +213,10 @@ export default function AddFoodScreen() {
   const [loadingRecipes, setLoadingRecipes] = useState(false);
 
   const [gramsStr, setGramsStr] = useState("100");
+  const [unitsStr, setUnitsStr] = useState("1");
+  const [inputMode, setInputMode] = useState<"grams" | "units">("grams");
   const gramsNum = useMemo(() => toFloatSafe(gramsStr), [gramsStr]);
+  const unitsNum = useMemo(() => toFloatSafe(unitsStr), [unitsStr]);
 
   const reqIdRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -239,6 +246,8 @@ export default function AddFoodScreen() {
       setResults([]);
       setErr(null);
       setGramsStr("100");
+      setUnitsStr("1");
+      setInputMode("grams");
       setIsSearchingLocal(false);
       setIsSearchingMore(false);
       setIsInputFocused(false);
@@ -320,6 +329,17 @@ export default function AddFoodScreen() {
       setSelected(it);
       setQuery(res.data.name);
       setResults([]);
+      
+      // Detectar si tiene unidades y inicializar con 1 unidad
+      if (it.grams_per_unit && it.grams_per_unit > 0) {
+        setInputMode("units");
+        setUnitsStr("1");
+        setGramsStr(it.grams_per_unit.toString());
+      } else {
+        setInputMode("grams");
+        setGramsStr("100");
+        setUnitsStr("1");
+      }
     })();
 
     return () => {
@@ -376,13 +396,55 @@ export default function AddFoodScreen() {
     };
   }, [query]);
 
+  // Detectar si el alimento tiene unidades disponibles
+  const hasUnits = useMemo(() => {
+    return selected?.grams_per_unit && selected.grams_per_unit > 0;
+  }, [selected]);
+
+  // Sincronizar unidades y gramos cuando cambia el modo o el valor
+  useEffect(() => {
+    if (!selected || !hasUnits || !selected.grams_per_unit) return;
+
+    if (inputMode === "units" && Number.isFinite(unitsNum) && unitsNum > 0) {
+      // Convertir unidades a gramos
+      const calculatedGrams = unitsNum * selected.grams_per_unit;
+      const currentGrams = gramsNum;
+      // Solo actualizar si hay diferencia significativa para evitar loops
+      if (Math.abs(calculatedGrams - currentGrams) > 0.5) {
+        setGramsStr(calculatedGrams.toFixed(1));
+      }
+    }
+  }, [inputMode, unitsNum, selected, hasUnits]);
+
+  useEffect(() => {
+    if (!selected || !hasUnits || !selected.grams_per_unit) return;
+
+    if (inputMode === "grams" && Number.isFinite(gramsNum) && gramsNum > 0) {
+      // Convertir gramos a unidades
+      const calculatedUnits = gramsNum / selected.grams_per_unit;
+      const currentUnits = unitsNum;
+      // Solo actualizar si hay diferencia significativa para evitar loops
+      if (Math.abs(calculatedUnits - currentUnits) > 0.01) {
+        setUnitsStr(calculatedUnits.toFixed(1));
+      }
+    }
+  }, [inputMode, gramsNum, selected, hasUnits]);
+
   const gramsError = useMemo(() => {
-    if (!gramsStr.trim()) return "Ingresa gramos";
-    if (!Number.isFinite(gramsNum)) return "Valor inválido";
-    if (gramsNum <= 0) return "Debe ser > 0";
-    if (gramsNum > 2000) return "Demasiado alto (máx 2000g)";
-    return null;
-  }, [gramsStr, gramsNum]);
+    if (inputMode === "units") {
+      if (!unitsStr.trim()) return "Ingresa cantidad";
+      if (!Number.isFinite(unitsNum)) return "Valor inválido";
+      if (unitsNum <= 0) return "Debe ser > 0";
+      if (unitsNum > 100) return "Demasiado alto (máx 100 unidades)";
+      return null;
+    } else {
+      if (!gramsStr.trim()) return "Ingresa gramos";
+      if (!Number.isFinite(gramsNum)) return "Valor inválido";
+      if (gramsNum <= 0) return "Debe ser > 0";
+      if (gramsNum > 2000) return "Demasiado alto (máx 2000g)";
+      return null;
+    }
+  }, [gramsStr, gramsNum, unitsStr, unitsNum, inputMode]);
 
   const preview = useMemo(() => {
     if (!selected) return null;
@@ -397,6 +459,15 @@ export default function AddFoodScreen() {
       g,
     );
   }, [selected, gramsNum]);
+
+  // Detectar si es fast food
+  const isFastFood = useMemo(() => {
+    return selected?.tags?.some(tag => 
+      tag.toLowerCase().includes("fastfood") || 
+      tag.toLowerCase().includes("fast_food") ||
+      tag.toLowerCase().includes("fast-food")
+    ) ?? false;
+  }, [selected]);
 
   const canShowSearchMore = useMemo(
     () =>
@@ -505,10 +576,11 @@ export default function AddFoodScreen() {
       name: selected.name,
       grams: Math.round(g),
 
-      calories: preview.kcal,
-      protein_g: preview.protein,
-      carbs_g: preview.carbs,
-      fat_g: preview.fat,
+      // Redondear a enteros porque la base de datos usa integer
+      calories: Math.round(preview.kcal),
+      protein_g: Math.round(preview.protein),
+      carbs_g: Math.round(preview.carbs),
+      fat_g: Math.round(preview.fat),
 
       source:
         selected.source === "off"
@@ -835,7 +907,19 @@ export default function AddFoodScreen() {
                     s.result,
                     pressed && { opacity: 0.95, transform: [{ scale: 0.997 }] },
                   ]}
-                  onPress={() => setSelected(it)}
+                  onPress={() => {
+                    setSelected(it);
+                    // Detectar si tiene unidades y inicializar con 1 unidad
+                    if (it.grams_per_unit && it.grams_per_unit > 0) {
+                      setInputMode("units");
+                      setUnitsStr("1");
+                      setGramsStr(it.grams_per_unit.toString());
+                    } else {
+                      setInputMode("grams");
+                      setGramsStr("100");
+                      setUnitsStr("1");
+                    }
+                  }}
                 >
                   <View style={s.resultIcon}>
                     <MaterialCommunityIcons
@@ -921,23 +1005,97 @@ export default function AddFoodScreen() {
             </View>
 
             <View style={{ marginTop: 12 }}>
-              <Text style={s.label}>Gramos consumidos</Text>
+              <View style={s.labelRow}>
+                <Text style={s.label}>
+                  {hasUnits ? "Cantidad" : "Gramos consumidos"}
+                </Text>
+                {hasUnits && (
+                  <View style={s.modeToggle}>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setInputMode("units");
+                      }}
+                      style={({ pressed }) => [
+                        s.modeToggleBtn,
+                        inputMode === "units" && s.modeToggleBtnActive,
+                        pressed && { opacity: 0.7 },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          s.modeToggleText,
+                          inputMode === "units" && s.modeToggleTextActive,
+                        ]}
+                      >
+                        {selected.unit_label_es || "unidad"}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setInputMode("grams");
+                      }}
+                      style={({ pressed }) => [
+                        s.modeToggleBtn,
+                        inputMode === "grams" && s.modeToggleBtnActive,
+                        pressed && { opacity: 0.7 },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          s.modeToggleText,
+                          inputMode === "grams" && s.modeToggleTextActive,
+                        ]}
+                      >
+                        Gramos
+                      </Text>
+                    </Pressable>
+                  </View>
+                )}
+              </View>
+              
               <View style={s.gramsRow}>
                 <MaterialCommunityIcons
-                  name="scale"
+                  name={inputMode === "units" ? "package-variant" : "scale"}
                   size={18}
                   color={colors.textSecondary}
                 />
                 <TextInput
-                  value={gramsStr}
-                  onChangeText={setGramsStr}
-                  keyboardType="numeric"
+                  value={inputMode === "units" ? unitsStr : gramsStr}
+                  onChangeText={(text) => {
+                    if (inputMode === "units") {
+                      setUnitsStr(text);
+                    } else {
+                      setGramsStr(text);
+                    }
+                  }}
+                  keyboardType="decimal-pad"
                   style={s.gramsInput}
-                  placeholder="100"
+                  placeholder={inputMode === "units" ? "1" : "100"}
                   placeholderTextColor={colors.textSecondary}
                 />
-                <Text style={s.gramsUnit}>g</Text>
+                <Text style={s.gramsUnit}>
+                  {inputMode === "units" 
+                    ? (selected.unit_label_es || "unidad") 
+                    : "g"}
+                </Text>
               </View>
+              
+              {/* Mostrar peso total destacado si es fast food */}
+              {isFastFood && (
+                <View style={s.fastFoodBadge}>
+                  <MaterialCommunityIcons
+                    name="information"
+                    size={14}
+                    color={colors.cta}
+                  />
+                  <Text style={s.fastFoodBadgeText}>
+                    Peso total: {Math.round(gramsNum)}g
+                  </Text>
+                </View>
+              )}
+              
               {!!gramsError && <Text style={s.errorSmall}>{gramsError}</Text>}
             </View>
 
@@ -948,20 +1106,20 @@ export default function AddFoodScreen() {
                   size={18}
                   color={colors.textPrimary}
                 />
-                <Text style={s.previewTitle}>Estimación</Text>
+                <Text style={s.previewTitle}>Resumen nutricional</Text>
               </View>
 
               <View style={s.previewGrid}>
                 <MacroChip
                   kind="kcal"
-                  value={preview?.kcal ?? 0}
+                  value={Math.round(preview?.kcal ?? 0)}
                   suffix="kcal"
                   colors={colors}
                   typography={typography}
                 />
                 <MacroChip
                   kind="p"
-                  value={preview?.protein ?? 0}
+                  value={Number((preview?.protein ?? 0).toFixed(1))}
                   suffix="g"
                   label="Proteína"
                   colors={colors}
@@ -969,7 +1127,7 @@ export default function AddFoodScreen() {
                 />
                 <MacroChip
                   kind="c"
-                  value={preview?.carbs ?? 0}
+                  value={Number((preview?.carbs ?? 0).toFixed(1))}
                   suffix="g"
                   label="Carbs"
                   colors={colors}
@@ -977,7 +1135,7 @@ export default function AddFoodScreen() {
                 />
                 <MacroChip
                   kind="f"
-                  value={preview?.fat ?? 0}
+                  value={Number((preview?.fat ?? 0).toFixed(1))}
                   suffix="g"
                   label="Grasas"
                   colors={colors}
@@ -1416,7 +1574,37 @@ function makeStyles(colors: any, typography: any) {
       fontFamily: typography.subtitle?.fontFamily,
       fontSize: 13,
     },
-
+    labelRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 8,
+    },
+    modeToggle: {
+      flexDirection: "row",
+      gap: 6,
+    },
+    modeToggleBtn: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    modeToggleBtnActive: {
+      borderColor: colors.brand,
+      backgroundColor: `${colors.brand}15`,
+    },
+    modeToggleText: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 11,
+      color: colors.textSecondary,
+    },
+    modeToggleTextActive: {
+      color: colors.brand,
+      fontWeight: "600",
+    },
     gramsRow: {
       marginTop: 8,
       borderWidth: 1,
@@ -1446,6 +1634,36 @@ function makeStyles(colors: any, typography: any) {
       color: "#EF4444",
       fontFamily: typography.body?.fontFamily,
       fontSize: 12,
+    },
+    fastFoodBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginTop: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 12,
+      backgroundColor: `${colors.cta}15`,
+      borderWidth: 1,
+      borderColor: `${colors.cta}30`,
+    },
+    fastFoodBadgeText: {
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 13,
+      color: colors.cta,
+      fontWeight: "600",
+    },
+    portionInfo: {
+      marginTop: 12,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      alignItems: "center",
+    },
+    portionInfoText: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 12,
+      color: colors.textSecondary,
     },
 
     previewBox: {

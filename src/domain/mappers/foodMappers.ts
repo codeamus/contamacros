@@ -21,6 +21,7 @@ export type FoodSearchItem = {
   // Información de unidades (para generic_foods)
   unit_label_es?: string | null;
   grams_per_unit?: number | null;
+  tags?: string[]; // Para detectar fast food, etc.
 
   food_id?: string | null;
   user_food_id?: string | null;
@@ -83,6 +84,7 @@ export function mapGenericFoodDbToSearchItem(
     fat_100g: genericFood.fat_100g ?? 0,
     unit_label_es: genericFood.unit_label_es ?? null,
     grams_per_unit: genericFood.grams_per_unit ?? null,
+    tags: genericFood.tags ?? [],
     food_id: null, // No existe en foods
     verified: true,
   };

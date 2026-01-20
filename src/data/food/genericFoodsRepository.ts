@@ -14,6 +14,7 @@ export type GenericFoodDb = {
 
   unit_label_es: string | null;
   grams_per_unit: number | null;
+  tags: string[];
 
   created_at: string;
 };
@@ -43,7 +44,7 @@ export const genericFoodsRepository = {
     const { data, error } = await supabase
       .from("generic_foods")
       .select(
-        "id, name_es, name_norm, aliases_search, kcal_100g, protein_100g, carbs_100g, fat_100g, unit_label_es, grams_per_unit, created_at",
+        "id, name_es, name_norm, aliases_search, kcal_100g, protein_100g, carbs_100g, fat_100g, unit_label_es, grams_per_unit, tags, created_at",
       )
       // ✅ busca por normalizados
       .or(`name_norm.ilike.%${q}%,aliases_search.ilike.%${q}%`)
