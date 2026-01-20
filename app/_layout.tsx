@@ -1,5 +1,6 @@
 // app/_layout.tsx
 import { AuthProvider, useAuth } from "@/presentation/hooks/auth/AuthProvider";
+import { ToastProvider } from "@/presentation/hooks/ui/useToast";
 import { ThemeProvider } from "@/presentation/theme/ThemeProvider";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -74,7 +75,9 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ThemeProvider>
         <AuthProvider>
-          <AuthGate />
+          <ToastProvider>
+            <AuthGate />
+          </ToastProvider>
         </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>

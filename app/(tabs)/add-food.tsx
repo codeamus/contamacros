@@ -9,7 +9,6 @@ import React, {
 } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -23,15 +22,16 @@ import { foodLogRepository } from "@/data/food/foodLogRepository";
 import { genericFoodsRepository } from "@/data/food/genericFoodsRepository";
 import { openFoodFactsService } from "@/data/openfoodfacts/openFoodFactsService";
 import { supabase } from "@/data/supabase/supabaseClient";
-import type { MealType } from "@/domain/models/foodLogDb";
-import type { OffProduct } from "@/domain/models/offProduct";
 import {
   mapFoodDbArrayToSearchItems,
   mapGenericFoodDbArrayToSearchItems,
   mapUserFoodDbArrayToSearchItems,
   type FoodSearchItem,
 } from "@/domain/mappers/foodMappers";
+import type { MealType } from "@/domain/models/foodLogDb";
+import type { OffProduct } from "@/domain/models/offProduct";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
+import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { todayStrLocal } from "@/presentation/utils/date";
 import { MEAL_LABELS } from "@/presentation/utils/mealLabels";
@@ -157,6 +157,7 @@ export default function AddFoodScreen() {
 
   const { theme } = useTheme();
   const { colors, typography } = theme;
+  const { showToast } = useToast();
   const s = makeStyles(colors, typography);
 
   const day = todayStrLocal();
@@ -491,10 +492,19 @@ export default function AddFoodScreen() {
     setGramsStr("100");
     reqIdRef.current += 1;
 
-    Alert.alert("Listo", "Se agregó al diario de hoy.", [
-      { text: "OK", onPress: () => router.replace("/(tabs)/diary") },
-    ]);
-  }, [selected, gramsError, preview, gramsNum, day, meal]);
+    // Mostrar toast con animación bonita
+    showToast({
+      message: "Se agregó a tus alimentos del día.",
+      type: "success",
+      icon: "check-circle",
+      duration: 2000,
+    });
+
+    // Redirigir después de un pequeño delay para que se vea el toast
+    setTimeout(() => {
+      router.replace("/(tabs)/diary");
+    }, 2000);
+  }, [selected, gramsError, preview, gramsNum, day, meal, showToast, router]);
 
   return (
     <SafeAreaView style={s.safe}>
