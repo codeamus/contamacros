@@ -163,7 +163,8 @@ export default function HomeScreen() {
           <Pressable
             style={s.headerIconBtn}
             onPress={() => {
-              // luego calendario
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push("/(tabs)/calendar");
             }}
             disabled={loading}
           >

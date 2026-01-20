@@ -165,4 +165,49 @@ export const foodLogRepository = {
       return { ok: false, ...mapError(e) };
     }
   },
+
+  /**
+   * Obtiene resúmenes de calorías por día en un rango de fechas
+   * Útil para el calendario
+   */
+  async getDailySummaries(
+    startDate: string,
+    endDate: string,
+  ): Promise<RepoResult<{ day: string; calories: number }[]>> {
+    try {
+      const uidRes = await getUid();
+      if (!uidRes.ok) return uidRes;
+      const uid = uidRes.data;
+
+      const { data, error } = await supabase
+        .from("food_logs")
+        .select("day, calories")
+        .eq("user_id", uid)
+        .gte("day", startDate)
+        .lte("day", endDate)
+        .order("day", { ascending: true });
+
+      if (error) return { ok: false, message: error.message, code: error.code };
+
+      // Agrupar por día y sumar calorías
+      const grouped = (data ?? []).reduce(
+        (acc, log) => {
+          const day = log.day as string;
+          const calories = log.calories as number;
+          acc[day] = (acc[day] || 0) + calories;
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
+
+      const summaries = Object.entries(grouped).map(([day, calories]) => ({
+        day,
+        calories,
+      }));
+
+      return { ok: true, data: summaries };
+    } catch (e) {
+      return { ok: false, ...mapError(e) };
+    }
+  },
 };

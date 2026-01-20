@@ -1,5 +1,5 @@
 // app/(tabs)/diary.tsx
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
@@ -159,13 +159,15 @@ const MacroProgress = React.memo(function MacroProgress({
 });
 
 export default function DiaryScreen() {
-  const params = useLocalSearchParams<{ meal?: string }>();
+  const params = useLocalSearchParams<{ meal?: string; day?: string }>();
 
   const { profile } = useAuth();
   const { theme } = useTheme();
   const { colors, typography } = theme;
 
-  const day = todayStrLocal();
+  // Si hay un parámetro 'day' explícito en la navegación, usarlo
+  // Si no, siempre usar el día de hoy (no persistir días anteriores)
+  const day = params.day && params.day !== "" ? params.day : todayStrLocal();
 
   const [logs, setLogs] = useState<FoodLogDb[]>([]);
   const [loading, setLoading] = useState(false);
@@ -206,10 +208,20 @@ export default function DiaryScreen() {
     [day],
   );
 
+  const routerInstance = useRouter();
+
   useFocusEffect(
     useCallback(() => {
-      load("normal");
-    }, [load]),
+      // Cuando se enfoca desde el tab (sin parámetros explícitos), 
+      // limpiar cualquier parámetro day persistente para mostrar siempre el día de hoy
+      if (!params.day || params.day === "") {
+        // No hay parámetro, usar día de hoy (ya está configurado arriba)
+        load("normal");
+      } else {
+        // Hay un parámetro explícito (viene del calendario), usarlo
+        load("normal");
+      }
+    }, [load, params.day]),
   );
 
   async function onDelete(id: string) {
