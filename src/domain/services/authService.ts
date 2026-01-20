@@ -115,6 +115,8 @@ export const AuthService = {
         | "height_cm"
         | "weight_kg"
         | "goal"
+        | "goal_adjustment"
+        | "daily_calorie_target"
         | "onboarding_completed"
         | "protein_g"
         | "carbs_g"

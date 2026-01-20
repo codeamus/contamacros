@@ -1,32 +1,30 @@
 // app/(tabs)/settings.tsx
-import { router } from "expo-router";
+import * as Haptics from "expo-haptics";
 import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
-  View,
+  View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import * as Haptics from "expo-haptics";
 
+import type { GoalDb } from "@/domain/models/profileDb";
+import {
+  calculateCalorieGoal,
+  type GoalType,
+} from "@/domain/services/calorieGoals";
+import { computeMacroTargets } from "@/domain/services/macroTargets";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme, type ThemeMode } from "@/presentation/theme/ThemeProvider";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import {
-  calculateCalorieGoal,
-} from "@/domain/services/calorieGoals";
-import type { GoalDb } from "@/domain/models/profileDb";
-import { computeMacroTargets } from "@/domain/services/macroTargets";
 
 type SettingItemProps = {
   icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
@@ -216,18 +214,22 @@ export default function SettingsScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       try {
-        // Convertir "maintain" a "maintenance" para el cálculo
-        const goalForCalc = newGoal === "maintain" ? "maintenance" : newGoal;
+        // Convertir "maintain" (DB) a "maintenance" (dominio) para el cálculo
+        const goalForCalc: GoalType = 
+          newGoal === "maintain" 
+            ? "maintenance" 
+            : (newGoal === "deficit" ? "deficit" : "surplus");
         
-        // Recalcular calorías con el nuevo objetivo
+        // Al cambiar el objetivo, usar el valor por defecto del nuevo objetivo
+        // No usar el goal_adjustment anterior ya que puede estar fuera de rango
         const calorieResult = calculateCalorieGoal({
           gender: profile.gender || "male",
           birthDate: profile.birth_date || "1990-01-01",
           heightCm: profile.height_cm || 170,
           weightKg: profile.weight_kg || 70,
           activityLevel: profile.activity_level || "moderate",
-          goalType: goalForCalc as GoalType,
-          goalAdjustment: profile.goal_adjustment,
+          goalType: goalForCalc,
+          // No pasar goalAdjustment para que use el valor por defecto del nuevo objetivo
         });
 
         // Recalcular macros
@@ -236,10 +238,11 @@ export default function SettingsScreen() {
           weightKg: profile.weight_kg || 70,
         });
 
-        // Actualizar perfil (convertir "maintenance" a "maintain" para la DB)
-        const goalForDb = newGoal === "maintenance" ? "maintain" : newGoal;
+        // Actualizar perfil (newGoal ya está en formato DB: "deficit" | "maintain" | "surplus")
+        // También actualizar goal_adjustment con el valor calculado
         const res = await updateProfile({
-          goal: goalForDb as any,
+          goal: newGoal,
+          goal_adjustment: calorieResult.goalAdjustment,
           daily_calorie_target: calorieResult.dailyCalorieTarget,
           protein_g: macros.proteinG,
           carbs_g: macros.carbsG,
@@ -263,6 +266,7 @@ export default function SettingsScreen() {
           duration: 2000,
         });
       } catch (error: any) {
+        console.error(error);
         showToast({
           message: error.message || "Error al actualizar el objetivo",
           type: "error",
@@ -300,7 +304,7 @@ export default function SettingsScreen() {
         weightKg: weightNum,
           activityLevel: profile.activity_level || "moderate",
           goalType: (profile.goal === "maintain" ? "maintenance" : (profile.goal as GoalType)) || "maintenance",
-          goalAdjustment: profile.goal_adjustment,
+          goalAdjustment: profile.goal_adjustment ?? undefined,
         });
 
       // Recalcular macros con el nuevo peso
@@ -457,7 +461,7 @@ export default function SettingsScreen() {
                   value={`${profile.weight_kg} kg`}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setWeightInput(profile.weight_kg.toString());
+                    setWeightInput((profile.weight_kg || 70).toString());
                     setShowWeightModal(true);
                   }}
                   colors={colors}
@@ -671,8 +675,7 @@ export default function SettingsScreen() {
                     ] as const
                   ).map((option) => {
                     // Comparar con ambos valores posibles (maintain/maintenance)
-                    const isSelected = profile?.goal === option.value || 
-                      (option.value === "maintain" && profile?.goal === "maintenance");
+                    const isSelected = profile?.goal === option.value;
                     return (
                       <Pressable
                         key={option.value}
