@@ -6,11 +6,11 @@ import { makeTypography } from "@/presentation/theme/typography";
 import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import React, {
-     createContext,
-     useContext,
-     useEffect,
-     useMemo,
-     useState,
+    createContext,
+    useContext,
+    useEffect,
+    useMemo,
+    useState,
 } from "react";
 import { useColorScheme } from "react-native";
 
@@ -62,12 +62,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         if (saved === "light" || saved === "dark" || saved === "system") {
           setModePref(saved);
         }
-      } finally {
-        // Espera a fonts para evitar flash
-        if (fontsLoaded) {
-          await SplashScreen.hideAsync().catch(() => {});
-        }
+      } catch {
+        // Ignorar errores de storage
       }
+      // NO ocultamos el splash aquí - se maneja centralmente en _layout.tsx
+      // Esto evita condiciones de carrera cuando hay navegación rápida
     })();
   }, [fontsLoaded]);
 

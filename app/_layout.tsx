@@ -27,9 +27,18 @@ function AuthGate() {
   const showLoader = initializing || (session && !profile && !inOnboarding);
 
   // ✅ Cuando la app está lista para renderizar UI real, escondemos el splash
+  // Usamos un pequeño delay para asegurar que el view controller esté listo
   useEffect(() => {
     if (!showLoader) {
-      SplashScreen.hideAsync().catch(() => {});
+      // Pequeño delay para asegurar que la navegación esté completa
+      // Esto evita el error "No native splash screen registered"
+      const timer = setTimeout(() => {
+        SplashScreen.hideAsync().catch(() => {
+          // Ignorar errores silenciosamente si el splash ya fue ocultado
+        });
+      }, 100);
+
+      return () => clearTimeout(timer);
     }
   }, [showLoader]);
 
