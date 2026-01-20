@@ -8,7 +8,7 @@ import { useTodayMeals } from "@/presentation/hooks/diary/useTodayMeals";
 import { useTodaySummary } from "@/presentation/hooks/diary/useTodaySummary";
 import { useStaggerAnimation } from "@/presentation/hooks/ui/useStaggerAnimation";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
-import { todayStrLocal } from "@/presentation/utils/date";
+import { formatDateToSpanish } from "@/presentation/utils/date";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
@@ -155,8 +155,8 @@ export default function HomeScreen() {
         <View style={s.header}>
           <View style={{ flex: 1 }}>
             <Text style={s.headerKicker}>Diario</Text>
-            <Text style={s.headerTitle}>
-              {day === todayStrLocal() ? "Hoy" : day}
+            <Text style={s.headerTitle} numberOfLines={1}>
+              {formatDateToSpanish(day)}
             </Text>
           </View>
 
