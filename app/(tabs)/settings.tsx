@@ -2,19 +2,31 @@
 import { router } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Haptics from "expo-haptics";
 
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme, type ThemeMode } from "@/presentation/theme/ThemeProvider";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import {
+  calculateCalorieGoal,
+} from "@/domain/services/calorieGoals";
+import type { GoalDb } from "@/domain/models/profileDb";
+import { computeMacroTargets } from "@/domain/services/macroTargets";
 
 type SettingItemProps = {
   icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
@@ -164,13 +176,18 @@ const ThemeOption = React.memo(function ThemeOption({
 });
 
 export default function SettingsScreen() {
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, updateProfile, refreshProfile } = useAuth();
   const { theme, themeMode, setThemeMode } = useTheme();
   const { colors, typography } = theme;
   const { showToast } = useToast();
-  const s = makeStyles(colors, typography);
+  const insets = useSafeAreaInsets();
+  const s = makeStyles(colors, typography, insets);
 
   const [loading, setLoading] = useState(false);
+  const [showGoalModal, setShowGoalModal] = useState(false);
+  const [showWeightModal, setShowWeightModal] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [weightInput, setWeightInput] = useState("");
 
   const handleThemeChange = useCallback(
     async (mode: ThemeMode) => {
@@ -185,17 +202,156 @@ export default function SettingsScreen() {
   );
 
   const onLogout = useCallback(() => {
-    setLoading(true);
+          setLoading(true);
     signOut().finally(() => {
       setLoading(false);
     });
   }, [signOut]);
+
+  const handleUpdateGoal = useCallback(
+    async (newGoal: GoalDb) => {
+      if (!profile) return;
+
+      setUpdating(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+      try {
+        // Convertir "maintain" a "maintenance" para el cálculo
+        const goalForCalc = newGoal === "maintain" ? "maintenance" : newGoal;
+        
+        // Recalcular calorías con el nuevo objetivo
+        const calorieResult = calculateCalorieGoal({
+          gender: profile.gender || "male",
+          birthDate: profile.birth_date || "1990-01-01",
+          heightCm: profile.height_cm || 170,
+          weightKg: profile.weight_kg || 70,
+          activityLevel: profile.activity_level || "moderate",
+          goalType: goalForCalc as GoalType,
+          goalAdjustment: profile.goal_adjustment,
+        });
+
+        // Recalcular macros
+        const macros = computeMacroTargets({
+          calories: calorieResult.dailyCalorieTarget,
+          weightKg: profile.weight_kg || 70,
+        });
+
+        // Actualizar perfil (convertir "maintenance" a "maintain" para la DB)
+        const goalForDb = newGoal === "maintenance" ? "maintain" : newGoal;
+        const res = await updateProfile({
+          goal: goalForDb as any,
+          daily_calorie_target: calorieResult.dailyCalorieTarget,
+          protein_g: macros.proteinG,
+          carbs_g: macros.carbsG,
+          fat_g: macros.fatG,
+        });
+
+        if (!res.ok) {
+          showToast({
+            message: res.message || "No se pudo actualizar el objetivo",
+            type: "error",
+            duration: 3000,
+          });
+          return;
+        }
+
+        await refreshProfile();
+        setShowGoalModal(false);
+        showToast({
+          message: "Objetivo actualizado correctamente",
+          type: "success",
+          duration: 2000,
+        });
+      } catch (error: any) {
+        showToast({
+          message: error.message || "Error al actualizar el objetivo",
+          type: "error",
+          duration: 3000,
+        });
+          } finally {
+        setUpdating(false);
+      }
+    },
+    [profile, updateProfile, refreshProfile, showToast],
+  );
+
+  const handleUpdateWeight = useCallback(async () => {
+    if (!profile) return;
+
+    const weightNum = parseFloat(weightInput.replace(",", "."));
+    if (!Number.isFinite(weightNum) || weightNum <= 0 || weightNum > 300) {
+      showToast({
+        message: "Ingresa un peso válido (1-300 kg)",
+        type: "error",
+        duration: 2000,
+      });
+      return;
+    }
+
+    setUpdating(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    try {
+      // Recalcular calorías con el nuevo peso
+      const calorieResult = calculateCalorieGoal({
+        gender: profile.gender || "male",
+        birthDate: profile.birth_date || "1990-01-01",
+        heightCm: profile.height_cm || 170,
+        weightKg: weightNum,
+          activityLevel: profile.activity_level || "moderate",
+          goalType: (profile.goal === "maintain" ? "maintenance" : (profile.goal as GoalType)) || "maintenance",
+          goalAdjustment: profile.goal_adjustment,
+        });
+
+      // Recalcular macros con el nuevo peso
+      const macros = computeMacroTargets({
+        calories: calorieResult.dailyCalorieTarget,
+        weightKg: weightNum,
+      });
+
+      // Actualizar perfil
+      const res = await updateProfile({
+        weight_kg: weightNum,
+        daily_calorie_target: calorieResult.dailyCalorieTarget,
+        protein_g: macros.proteinG,
+        carbs_g: macros.carbsG,
+        fat_g: macros.fatG,
+      });
+
+      if (!res.ok) {
+        showToast({
+          message: res.message || "No se pudo actualizar el peso",
+          type: "error",
+          duration: 3000,
+        });
+        return;
+      }
+
+      await refreshProfile();
+      setShowWeightModal(false);
+      setWeightInput("");
+      showToast({
+        message: "Peso actualizado correctamente",
+        type: "success",
+        duration: 2000,
+      });
+    } catch (error: any) {
+      showToast({
+        message: error.message || "Error al actualizar el peso",
+        type: "error",
+        duration: 3000,
+      });
+    } finally {
+      setUpdating(false);
+    }
+  }, [profile, weightInput, updateProfile, refreshProfile, showToast]);
 
   const goalLabel = useMemo(() => {
     if (!profile?.goal) return "—";
     const goalMap: Record<string, string> = {
       deficit: "Déficit calórico",
       maintain: "Mantenimiento",
+      maintenance: "Mantenimiento",
       surplus: "Superávit calórico",
     };
     return goalMap[profile.goal] || profile.goal;
@@ -237,10 +393,10 @@ export default function SettingsScreen() {
             <View style={s.headerText}>
               <Text style={s.headerTitle}>
                 {profile?.full_name || profile?.email?.split("@")[0] || "Usuario"}
-              </Text>
+        </Text>
               <Text style={s.headerSubtitle}>
                 {profile?.email || "Sin email"}
-              </Text>
+        </Text>
             </View>
           </View>
         </View>
@@ -261,6 +417,10 @@ export default function SettingsScreen() {
               icon="target"
               label="Objetivo"
               value={goalLabel}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShowGoalModal(true);
+              }}
               colors={colors}
               typography={typography}
             />
@@ -270,7 +430,7 @@ export default function SettingsScreen() {
               label="Meta diaria"
               value={
                 profile?.daily_calorie_target
-                  ? `${profile.daily_calorie_target} kcal`
+            ? `${profile.daily_calorie_target} kcal`
                   : "—"
               }
               colors={colors}
@@ -295,6 +455,11 @@ export default function SettingsScreen() {
                   icon="scale-bathroom"
                   label="Peso"
                   value={`${profile.weight_kg} kg`}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setWeightInput(profile.weight_kg.toString());
+                    setShowWeightModal(true);
+                  }}
                   colors={colors}
                   typography={typography}
                 />
@@ -342,7 +507,7 @@ export default function SettingsScreen() {
                 }}
               >
                 Tema de la aplicación
-              </Text>
+        </Text>
               <View
                 style={{
                   flexDirection: "row",
@@ -379,7 +544,7 @@ export default function SettingsScreen() {
               </View>
             </View>
           </View>
-        </View>
+      </View>
 
         {/* App Section */}
         <View style={s.section}>
@@ -421,13 +586,13 @@ export default function SettingsScreen() {
               typography={typography}
             />
           </View>
-        </View>
+      </View>
 
         {/* Cuenta Section */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>Cuenta</Text>
           <View style={s.sectionContent}>
-            <Pressable
+      <Pressable
               onPress={onLogout}
               disabled={loading}
               style={({ pressed }) => [
@@ -455,17 +620,187 @@ export default function SettingsScreen() {
               >
                 {loading ? "Cerrando sesión..." : "Cerrar sesión"}
               </Text>
-            </Pressable>
-          </View>
+      </Pressable>
+    </View>
         </View>
 
         <View style={{ height: 30 }} />
       </ScrollView>
+
+      {/* Modal para editar objetivo */}
+      <Modal
+        visible={showGoalModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowGoalModal(false)}
+      >
+        <Pressable
+          style={s.modalOverlay}
+          onPress={() => setShowGoalModal(false)}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={s.modalContent}
+          >
+            <Pressable onPress={(e) => e.stopPropagation()}>
+              <View style={s.modalHeader}>
+                <Text style={s.modalTitle}>Cambiar objetivo</Text>
+                <Pressable
+                  onPress={() => setShowGoalModal(false)}
+                  style={({ pressed }) => [
+                    s.modalCloseBtn,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <Feather name="x" size={20} color={colors.textPrimary} />
+                </Pressable>
+              </View>
+
+              <View style={s.modalBody}>
+                <Text style={s.modalDescription}>
+                  Selecciona tu nuevo objetivo. Se recalcularán automáticamente
+                  tus calorías y macros diarios.
+                </Text>
+
+                <View style={s.goalOptions}>
+                  {(
+                    [
+                      { value: "deficit", label: "Déficit calórico", icon: "trending-down" },
+                      { value: "maintain", label: "Mantenimiento", icon: "trending-neutral" },
+                      { value: "surplus", label: "Superávit calórico", icon: "trending-up" },
+                    ] as const
+                  ).map((option) => {
+                    // Comparar con ambos valores posibles (maintain/maintenance)
+                    const isSelected = profile?.goal === option.value || 
+                      (option.value === "maintain" && profile?.goal === "maintenance");
+                    return (
+                      <Pressable
+                        key={option.value}
+                        onPress={() => handleUpdateGoal(option.value as GoalDb)}
+                        disabled={updating || isSelected}
+                        style={({ pressed }) => [
+                          s.goalOption,
+                          isSelected && s.goalOptionSelected,
+                          (updating || isSelected) && { opacity: pressed ? 0.8 : 1 },
+                        ]}
+                      >
+                        <MaterialCommunityIcons
+                          name={option.icon as any}
+                          size={24}
+                          color={isSelected ? colors.brand : colors.textSecondary}
+                        />
+                        <Text
+                          style={[
+                            s.goalOptionText,
+                            isSelected && s.goalOptionTextSelected,
+                          ]}
+                        >
+                          {option.label}
+                        </Text>
+                        {isSelected && (
+                          <Feather
+                            name="check"
+                            size={18}
+                            color={colors.brand}
+                            style={{ marginLeft: "auto" }}
+                          />
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                {updating && (
+                  <View style={s.modalLoading}>
+                    <ActivityIndicator size="small" color={colors.brand} />
+                    <Text style={s.modalLoadingText}>
+                      Actualizando objetivos...
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
+
+      {/* Modal para editar peso */}
+      <Modal
+        visible={showWeightModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowWeightModal(false)}
+      >
+        <Pressable
+          style={s.modalOverlay}
+          onPress={() => setShowWeightModal(false)}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={s.modalContent}
+          >
+            <Pressable onPress={(e) => e.stopPropagation()}>
+              <View style={s.modalHeader}>
+                <Text style={s.modalTitle}>Actualizar peso</Text>
+                <Pressable
+                  onPress={() => {
+                    setShowWeightModal(false);
+                    setWeightInput("");
+                  }}
+                  style={({ pressed }) => [
+                    s.modalCloseBtn,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <Feather name="x" size={20} color={colors.textPrimary} />
+                </Pressable>
+              </View>
+
+              <View style={s.modalBody}>
+                <Text style={s.modalDescription}>
+                  Ingresa tu peso actual. Se recalcularán automáticamente tus
+                  calorías y macros diarios.
+                </Text>
+
+                <View style={s.weightInputContainer}>
+                  <TextInput
+                    style={s.weightInput}
+                    value={weightInput}
+                    onChangeText={setWeightInput}
+                    placeholder="Ej: 75.5"
+                    placeholderTextColor={colors.textSecondary}
+                    keyboardType="decimal-pad"
+                    autoFocus
+                  />
+                  <Text style={s.weightInputLabel}>kg</Text>
+                </View>
+
+                {updating ? (
+                  <View style={s.modalLoading}>
+                    <ActivityIndicator size="small" color={colors.brand} />
+                    <Text style={s.modalLoadingText}>Actualizando...</Text>
+                  </View>
+                ) : (
+                  <Pressable
+                    onPress={handleUpdateWeight}
+                    style={({ pressed }) => [
+                      s.modalSaveBtn,
+                      pressed && { opacity: 0.8 },
+                    ]}
+                  >
+                    <Text style={s.modalSaveBtnText}>Guardar</Text>
+                  </Pressable>
+                )}
+              </View>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
 
-function makeStyles(colors: any, typography: any) {
+function makeStyles(colors: any, typography: any, insets: any) {
   return StyleSheet.create({
     safe: {
       flex: 1,
@@ -527,13 +862,135 @@ function makeStyles(colors: any, typography: any) {
       justifyContent: "center",
       paddingVertical: 16,
       paddingHorizontal: 20,
-      borderRadius: 16,
+    borderRadius: 16,
       borderWidth: 2,
       gap: 10,
-    },
+  },
     logoutText: {
       fontSize: 16,
       fontWeight: "600",
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0, 0, 0, 0.5)",
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 20,
+    },
+    modalContent: {
+      width: "100%",
+      maxWidth: 400,
+      backgroundColor: colors.surface,
+      borderRadius: 24,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: "hidden",
+    },
+    modalHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    modalTitle: {
+      fontFamily: typography.title?.fontFamily,
+      fontSize: 20,
+      color: colors.textPrimary,
+      fontWeight: "700",
+    },
+    modalCloseBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.background,
+    },
+    modalBody: {
+      padding: 20,
+      gap: 20,
+    },
+    modalDescription: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 14,
+      color: colors.textSecondary,
+      lineHeight: 20,
+    },
+    goalOptions: {
+      gap: 12,
+    },
+    goalOption: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      padding: 16,
+      borderRadius: 16,
+      borderWidth: 2,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+    },
+    goalOptionSelected: {
+      borderColor: colors.brand,
+      backgroundColor: `${colors.brand}10`,
+    },
+    goalOptionText: {
+      flex: 1,
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 15,
+      color: colors.textSecondary,
+    },
+    goalOptionTextSelected: {
+      color: colors.brand,
+      fontWeight: "600",
+    },
+    weightInputContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      padding: 16,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+    },
+    weightInput: {
+      flex: 1,
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 18,
+      color: colors.textPrimary,
+    },
+    weightInputLabel: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 16,
+      color: colors.textSecondary,
+    },
+    modalSaveBtn: {
+      paddingVertical: 16,
+      paddingHorizontal: 24,
+      borderRadius: 16,
+      backgroundColor: colors.brand,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    modalSaveBtnText: {
+      fontFamily: typography.subtitle?.fontFamily,
+    fontSize: 16,
+      color: colors.onCta,
+      fontWeight: "600",
+    },
+    modalLoading: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 12,
+      paddingVertical: 16,
+    },
+    modalLoadingText: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 14,
+      color: colors.textSecondary,
     },
   });
 }
