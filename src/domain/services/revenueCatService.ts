@@ -335,30 +335,52 @@ export const RevenueCatService = {
 
       // Validar que el package tenga la estructura correcta
       if (!packageToPurchase) {
-        throw new Error("Package no válido: objeto undefined");
+        return {
+          ok: false,
+          message: "Package no válido: objeto undefined",
+        };
       }
 
-      const productId = packageToPurchase.product?.identifier || packageToPurchase.storeProduct?.identifier;
-      if (!productId) {
-        throw new Error("Package no válido: no se encontró productId");
+      // Usar la estructura moderna del SDK: product es la propiedad principal
+      if (!packageToPurchase.product?.identifier) {
+        return {
+          ok: false,
+          message: `Package no válido: no se encontró product.identifier. El package debe tener la estructura correcta del SDK de RevenueCat.`,
+        };
+      }
+
+      const productId = packageToPurchase.product.identifier;
+      
+      // Verificar que el productId sea uno de los esperados
+      const validProductIds = ["contamacros_month", "contamacros_yearly"];
+      if (!validProductIds.includes(productId)) {
+        console.warn("[RevenueCat] Product ID no reconocido:", productId);
       }
 
       console.log("[RevenueCat] Iniciando compra:", {
         identifier: packageToPurchase.identifier,
         productId: productId,
+        price: packageToPurchase.product.priceString,
+        currencyCode: packageToPurchase.product.currencyCode,
         hasProduct: !!packageToPurchase.product,
-        hasStoreProduct: !!packageToPurchase.storeProduct,
       });
 
       const { customerInfo } = await PurchasesModule.purchasePackage(
         packageToPurchase,
       );
 
+      // Verificar que la compra fue exitosa y el entitlement está activo
+      const hasProEntitlement =
+        customerInfo.entitlements.active[ENTITLEMENT_ID] !== undefined;
+
       console.log("[RevenueCat] Compra exitosa:", {
         entitlements: Object.keys(customerInfo.entitlements.active),
+        hasProEntitlement,
+        productId: productId,
       });
 
       // Sincronizar estado con Supabase después de compra exitosa
+      // Esto actualiza is_premium en la tabla profiles
       await this.syncPremiumStatusWithSupabase(customerInfo);
 
       return { ok: true, data: customerInfo };
@@ -401,11 +423,17 @@ export const RevenueCatService = {
       console.log("[RevenueCat] Restaurando compras...");
       const customerInfo = await PurchasesModule.restorePurchases();
 
+      // Verificar si se restauró una suscripción activa
+      const hasProEntitlement =
+        customerInfo.entitlements.active[ENTITLEMENT_ID] !== undefined;
+
       console.log("[RevenueCat] Compras restauradas:", {
         entitlements: Object.keys(customerInfo.entitlements.active),
+        hasProEntitlement,
       });
 
       // Sincronizar estado con Supabase después de restaurar compras
+      // Esto actualiza is_premium en la tabla profiles según el estado del entitlement
       await this.syncPremiumStatusWithSupabase(customerInfo);
 
       return { ok: true, data: customerInfo };

@@ -1,5 +1,4 @@
 // src/presentation/components/premium/PremiumPaywall.tsx
-import { AuthService } from "@/domain/services/authService";
 import { RevenueCatService } from "@/domain/services/revenueCatService";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useRevenueCat } from "@/presentation/hooks/subscriptions/useRevenueCat";
@@ -396,6 +395,16 @@ export default function PremiumPaywall({
         currencyCode: selectedPackage.product?.currencyCode || selectedPackage.storeProduct?.currencyCode,
       });
 
+      // Validar que el package tenga product antes de comprar
+      if (!selectedPackage?.product?.identifier) {
+        showToast({
+          message: "Error: El plan seleccionado no es válido. Por favor, intenta de nuevo.",
+          type: "error",
+        });
+        setIsProcessing(false);
+        return;
+      }
+
       // Comprar package usando RevenueCatService (maneja sincronización automática)
       const purchaseResult = await RevenueCatService.purchasePackage(
         selectedPackage as any
@@ -406,22 +415,32 @@ export default function PremiumPaywall({
       }
 
       const customerInfo = purchaseResult.data;
+      const hasProEntitlement = customerInfo.entitlements.active["ContaMacros Pro"] !== undefined;
+      
       console.log("[PremiumPaywall] Compra exitosa:", {
         entitlements: Object.keys(customerInfo.entitlements.active),
-        hasProEntitlement: customerInfo.entitlements.active["ContaMacros Pro"] !== undefined,
+        hasProEntitlement,
+        productId: selectedPackage.product.identifier,
       });
 
-      // Recargar estado de RevenueCat
+      // Recargar estado de RevenueCat (mantener loading hasta que se complete)
       await reload();
 
       // La sincronización con Supabase ya se hizo automáticamente en purchasePackage
-      // Solo refrescamos el perfil local para obtener el estado actualizado
+      // Esperar un momento para que Supabase se actualice, luego refrescar perfil
+      // Mantener el estado de loading hasta que todo esté sincronizado
       try {
+        // Pequeño delay para asegurar que Supabase se haya actualizado
+        await new Promise((resolve) => setTimeout(resolve, 500));
         await refreshProfile();
+        console.log("[PremiumPaywall] ✅ Perfil actualizado después de compra");
       } catch (profileError) {
         console.warn("[PremiumPaywall] Error al refrescar perfil (no crítico):", profileError);
         // No fallar si esto falla, RevenueCat ya tiene el estado correcto y Supabase ya está sincronizado
       }
+
+      // Solo cerrar el estado de loading después de que todo esté sincronizado
+      setIsProcessing(false);
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showToast({
@@ -477,43 +496,48 @@ export default function PremiumPaywall({
       }
 
       const customerInfo = result.data;
+      const hasProEntitlement = customerInfo.entitlements.active["ContaMacros Pro"] !== undefined;
+      
       console.log("[PremiumPaywall] Compras restauradas:", {
         entitlements: Object.keys(customerInfo.entitlements.active),
+        hasProEntitlement,
       });
 
-      // Verificar si hay una suscripción activa
-      const hasActiveSubscription =
-        Object.keys(customerInfo.entitlements.active).length > 0;
-
-      // Recargar estado
+      // Recargar estado de RevenueCat (mantener loading hasta que se complete)
       await reload();
 
-      // Actualizar perfil si se restauró una suscripción activa
-      if (hasActiveSubscription) {
+      // La sincronización con Supabase ya se hizo automáticamente en restorePurchases
+      // Esperar un momento para que Supabase se actualice, luego refrescar perfil
+      // Mantener el estado de loading hasta que todo esté sincronizado
+      if (hasProEntitlement) {
         try {
-          await AuthService.updateMyProfile({
-            is_premium: true,
-          });
+          // Pequeño delay para asegurar que Supabase se haya actualizado
+          await new Promise((resolve) => setTimeout(resolve, 500));
           await refreshProfile();
+          console.log("[PremiumPaywall] ✅ Perfil actualizado después de restaurar");
         } catch (profileError) {
-          console.warn("[PremiumPaywall] Error al actualizar perfil:", profileError);
+          console.warn("[PremiumPaywall] Error al refrescar perfil (no crítico):", profileError);
+          // No fallar si esto falla, RevenueCat ya tiene el estado correcto y Supabase ya está sincronizado
         }
       }
 
+      // Solo cerrar el estado de loading después de que todo esté sincronizado
+      setIsProcessing(false);
+
       Haptics.notificationAsync(
-        hasActiveSubscription
+        hasProEntitlement
           ? Haptics.NotificationFeedbackType.Success
           : Haptics.NotificationFeedbackType.Warning,
       );
       showToast({
-        message: hasActiveSubscription
+        message: hasProEntitlement
           ? "Compras restauradas exitosamente"
           : "No se encontraron compras para restaurar",
-        type: hasActiveSubscription ? "success" : "info",
+        type: hasProEntitlement ? "success" : "info",
         duration: 3000,
       });
 
-      if (hasActiveSubscription) {
+      if (hasProEntitlement) {
         onSuccess?.();
         onClose();
       }
