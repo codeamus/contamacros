@@ -173,7 +173,12 @@ export default function CreateFoodModal({
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <View style={s.container}>
           <View style={s.header}>
-            <Text style={s.title}>Agregar Alimento a la Comunidad</Text>
+            <View>
+              <Text style={s.title}>Agregar Alimento Nuevo</Text>
+              <Text style={s.subtitle}>
+                Ayuda a otros compartiendo este alimento
+              </Text>
+            </View>
             <Pressable onPress={onClose} style={s.closeButton}>
               <MaterialCommunityIcons
                 name="close"
@@ -188,82 +193,165 @@ export default function CreateFoodModal({
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
+            {/* Info Banner */}
+            <View style={s.infoBanner}>
+              <MaterialCommunityIcons
+                name="information"
+                size={20}
+                color={colors.brand}
+              />
+              <Text style={s.infoBannerText}>
+                Solo necesitas el nombre y los valores nutricionales. Nosotros
+                calculamos el resto automáticamente.
+              </Text>
+            </View>
+
             {/* Nombre del alimento */}
             <View style={s.fieldContainer}>
-              <Text style={s.label}>Nombre del alimento *</Text>
+              <Text style={s.label}>
+                1. ¿Cómo se llama este alimento? *
+              </Text>
+              <Text style={s.helpText}>
+                Ejemplo: "Pastel de Jaiba", "Pollo a la Plancha", "Ensalada
+                César"
+              </Text>
               <TextInput
                 style={s.input}
                 value={name}
                 onChangeText={setName}
-                placeholder="Ej: Pastel de Jaiba"
+                placeholder="Escribe el nombre del alimento..."
                 placeholderTextColor={colors.textSecondary}
                 autoCapitalize="words"
               />
             </View>
 
-            {/* Cantidad base y unidad */}
-            <View style={s.row}>
-              <View style={[s.fieldContainer, { flex: 1, marginRight: 8 }]}>
-                <Text style={s.label}>Cantidad base *</Text>
-                <TextInput
-                  style={s.input}
-                  value={portionBase}
-                  onChangeText={setPortionBase}
-                  placeholder="100"
-                  placeholderTextColor={colors.textSecondary}
-                  keyboardType="decimal-pad"
-                />
-              </View>
-
-              <View style={[s.fieldContainer, { flex: 1, marginLeft: 8 }]}>
-                <Text style={s.label}>Unidad *</Text>
-                <View style={s.unitSelector}>
-                  {(["gr", "ml", "unidad"] as PortionUnit[]).map((unit) => (
-                    <Pressable
-                      key={unit}
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        setPortionUnit(unit);
-                      }}
+            {/* Sección: ¿Cómo quieres medirlo? */}
+            <View style={s.fieldContainer}>
+              <Text style={s.label}>
+                2. ¿Cómo quieres medir este alimento? *
+              </Text>
+              <Text style={s.helpText}>
+                Elige la forma más común de medirlo
+              </Text>
+              <View style={s.unitSelector}>
+                {(
+                  [
+                    { key: "unidad", label: "Por unidad", icon: "cookie", desc: "Ej: 1 plátano, 1 huevo" },
+                    { key: "gr", label: "Por peso", icon: "scale-bathroom", desc: "Ej: 100 gramos" },
+                    { key: "ml", label: "Por volumen", icon: "cup", desc: "Ej: 250 ml" },
+                  ] as const
+                ).map((item) => (
+                  <Pressable
+                    key={item.key}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setPortionUnit(item.key as PortionUnit);
+                      // Resetear campos cuando cambia la unidad
+                      if (item.key === "unidad") {
+                        setPortionBase("1");
+                        setGramsPerUnit("");
+                      } else if (item.key === "gr") {
+                        setPortionBase("100");
+                      } else {
+                        setPortionBase("100");
+                      }
+                    }}
+                    style={[
+                      s.unitOptionLarge,
+                      portionUnit === item.key && s.unitOptionSelected,
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name={item.icon as any}
+                      size={24}
+                      color={
+                        portionUnit === item.key ? colors.brand : colors.textSecondary
+                      }
+                    />
+                    <Text
                       style={[
-                        s.unitOption,
-                        portionUnit === unit && s.unitOptionSelected,
+                        s.unitOptionTextLarge,
+                        portionUnit === item.key && s.unitOptionTextSelected,
                       ]}
                     >
-                      <Text
-                        style={[
-                          s.unitOptionText,
-                          portionUnit === unit && s.unitOptionTextSelected,
-                        ]}
-                      >
-                        {unit === "gr" ? "gr" : unit === "ml" ? "ml" : "unidad"}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
+                      {item.label}
+                    </Text>
+                    <Text style={s.unitOptionDesc}>{item.desc}</Text>
+                  </Pressable>
+                ))}
               </View>
             </View>
 
-            {/* Campo extra para unidad */}
-            {portionUnit === "unidad" && (
+            {/* Campo específico según unidad seleccionada */}
+            {portionUnit === "unidad" ? (
               <View style={s.fieldContainer}>
-                <Text style={s.label}>¿Cuántos gramos pesa una unidad? *</Text>
+                <Text style={s.label}>
+                  3. ¿Cuánto pesa una unidad en gramos? *
+                </Text>
+                <Text style={s.helpText}>
+                  Si no lo sabes exacto, estima. Ejemplo: un plátano mediano
+                  pesa ~120 gramos
+                </Text>
                 <View style={s.row}>
                   <TextInput
                     style={[s.input, { flex: 1, marginRight: 8 }]}
                     value={gramsPerUnit}
                     onChangeText={setGramsPerUnit}
-                    placeholder="Ej: 150"
+                    placeholder="120"
                     placeholderTextColor={colors.textSecondary}
                     keyboardType="decimal-pad"
                   />
+                  <Text
+                    style={[
+                      s.unitHelper,
+                      { flex: 1, marginLeft: 8, alignSelf: "center" },
+                    ]}
+                  >
+                    gramos
+                  </Text>
+                </View>
+                <View style={s.fieldContainer}>
+                  <Text style={s.label}>
+                    ¿Cómo quieres que aparezca la unidad? (opcional)
+                  </Text>
+                  <Text style={s.helpText}>
+                    Ejemplo: "unidad", "pieza", "rodaja", "taza"
+                  </Text>
                   <TextInput
-                    style={[s.input, { flex: 1, marginLeft: 8 }]}
+                    style={s.input}
                     value={unitLabel}
                     onChangeText={setUnitLabel}
-                    placeholder="Etiqueta (ej: unidad, pieza)"
+                    placeholder="unidad"
                     placeholderTextColor={colors.textSecondary}
                   />
+                </View>
+              </View>
+            ) : (
+              <View style={s.fieldContainer}>
+                <Text style={s.label}>
+                  3. ¿Para qué cantidad quieres los valores? *
+                </Text>
+                <Text style={s.helpText}>
+                  Normalmente es 100 {portionUnit === "gr" ? "gramos" : "ml"},
+                  pero puedes cambiarlo si quieres
+                </Text>
+                <View style={s.row}>
+                  <TextInput
+                    style={[s.input, { flex: 1, marginRight: 8 }]}
+                    value={portionBase}
+                    onChangeText={setPortionBase}
+                    placeholder="100"
+                    placeholderTextColor={colors.textSecondary}
+                    keyboardType="decimal-pad"
+                  />
+                  <Text
+                    style={[
+                      s.unitHelper,
+                      { flex: 1, marginLeft: 8, alignSelf: "center" },
+                    ]}
+                  >
+                    {portionUnit === "gr" ? "gramos" : "ml"}
+                  </Text>
                 </View>
               </View>
             )}
@@ -271,99 +359,151 @@ export default function CreateFoodModal({
             {/* Macros */}
             <View style={s.section}>
               <Text style={s.sectionTitle}>
-                Macronutrientes{" "}
-                {portionUnit === "unidad"
-                  ? `(por ${portionBase} ${portionUnit}${portionBase !== "1" ? "s" : ""})`
-                  : `(por ${portionBase} ${portionUnit})`}
+                4. ¿Cuántos macronutrientes tiene?
               </Text>
-              
+              <Text style={s.helpText}>
+                Puedes buscar esta info en la etiqueta del producto o en
+                internet. Si no sabes algún valor, déjalo en 0.
+              </Text>
+
               <View style={s.macrosContainer}>
-                <View style={s.macroField}>
-                  <Text style={s.macroLabel}>Proteínas (g)</Text>
-                  <TextInput
-                    style={s.macroInput}
-                    value={protein}
-                    onChangeText={setProtein}
-                    placeholder="0"
-                    placeholderTextColor={colors.textSecondary}
-                    keyboardType="decimal-pad"
-                  />
+                <View style={s.macroCard}>
+                  <View style={s.macroHeader}>
+                    <MaterialCommunityIcons
+                      name="dumbbell"
+                      size={20}
+                      color="#4A90E2"
+                    />
+                    <Text style={s.macroLabel}>Proteínas</Text>
+                  </View>
+                  <View style={s.macroInputContainer}>
+                    <TextInput
+                      style={s.macroInput}
+                      value={protein}
+                      onChangeText={setProtein}
+                      placeholder="0"
+                      placeholderTextColor={colors.textSecondary}
+                      keyboardType="decimal-pad"
+                    />
+                    <Text style={s.macroUnit}>gramos</Text>
+                  </View>
+                  <Text style={s.macroExample}>
+                    Ej: carne tiene ~25g, huevo tiene ~6g
+                  </Text>
                 </View>
 
-                <View style={s.macroField}>
-                  <Text style={s.macroLabel}>Carbohidratos (g)</Text>
-                  <TextInput
-                    style={s.macroInput}
-                    value={carbs}
-                    onChangeText={setCarbs}
-                    placeholder="0"
-                    placeholderTextColor={colors.textSecondary}
-                    keyboardType="decimal-pad"
-                  />
+                <View style={s.macroCard}>
+                  <View style={s.macroHeader}>
+                    <MaterialCommunityIcons
+                      name="bread-slice"
+                      size={20}
+                      color="#F5A623"
+                    />
+                    <Text style={s.macroLabel}>Carbohidratos</Text>
+                  </View>
+                  <View style={s.macroInputContainer}>
+                    <TextInput
+                      style={s.macroInput}
+                      value={carbs}
+                      onChangeText={setCarbs}
+                      placeholder="0"
+                      placeholderTextColor={colors.textSecondary}
+                      keyboardType="decimal-pad"
+                    />
+                    <Text style={s.macroUnit}>gramos</Text>
+                  </View>
+                  <Text style={s.macroExample}>
+                    Ej: arroz tiene ~28g, pan tiene ~50g
+                  </Text>
                 </View>
 
-                <View style={s.macroField}>
-                  <Text style={s.macroLabel}>Grasas (g)</Text>
-                  <TextInput
-                    style={s.macroInput}
-                    value={fat}
-                    onChangeText={setFat}
-                    placeholder="0"
-                    placeholderTextColor={colors.textSecondary}
-                    keyboardType="decimal-pad"
-                  />
+                <View style={s.macroCard}>
+                  <View style={s.macroHeader}>
+                    <MaterialCommunityIcons
+                      name="oil"
+                      size={20}
+                      color="#50C878"
+                    />
+                    <Text style={s.macroLabel}>Grasas</Text>
+                  </View>
+                  <View style={s.macroInputContainer}>
+                    <TextInput
+                      style={s.macroInput}
+                      value={fat}
+                      onChangeText={setFat}
+                      placeholder="0"
+                      placeholderTextColor={colors.textSecondary}
+                      keyboardType="decimal-pad"
+                    />
+                    <Text style={s.macroUnit}>gramos</Text>
+                  </View>
+                  <Text style={s.macroExample}>
+                    Ej: aguacate tiene ~15g, aceite tiene ~100g
+                  </Text>
                 </View>
               </View>
 
-              {/* Calorías calculadas */}
+              {/* Calorías calculadas - Más prominente */}
               <View style={s.caloriesContainer}>
-                <MaterialCommunityIcons
-                  name="fire"
-                  size={20}
-                  color={colors.brand}
-                />
-                <Text style={s.caloriesLabel}>Calorías calculadas:</Text>
-                <Text style={s.caloriesValue}>
-                  {calculatedCalories.toFixed(1)} kcal
-                </Text>
-              </View>
-
-              {/* Valores por 100g */}
-              <View style={s.infoBox}>
-                <Text style={s.infoTitle}>Valores por 100g:</Text>
-                <Text style={s.infoText}>
-                  Proteínas: {macrosPer100g.protein.toFixed(1)}g | Carbos:{" "}
-                  {macrosPer100g.carbs.toFixed(1)}g | Grasas:{" "}
-                  {macrosPer100g.fat.toFixed(1)}g
-                </Text>
+                <View style={s.caloriesIcon}>
+                  <MaterialCommunityIcons
+                    name="fire"
+                    size={28}
+                    color={colors.brand}
+                  />
+                </View>
+                <View style={s.caloriesContent}>
+                  <Text style={s.caloriesLabel}>
+                    Calorías calculadas automáticamente:
+                  </Text>
+                  <Text style={s.caloriesValue}>
+                    {calculatedCalories.toFixed(0)} kcal
+                  </Text>
+                  <Text style={s.caloriesSubtext}>
+                    Para{" "}
+                    {portionUnit === "unidad"
+                      ? `1 ${unitLabel || "unidad"}`
+                      : `${portionBase} ${portionUnit === "gr" ? "gramos" : "ml"}`}
+                  </Text>
+                </View>
               </View>
             </View>
 
             {/* Botón guardar */}
-            <Pressable
-              onPress={handleSave}
-              disabled={!canSave || saving}
-              style={({ pressed }) => [
-                s.saveButton,
-                (!canSave || saving) && s.saveButtonDisabled,
-                pressed && s.saveButtonPressed,
-              ]}
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color={colors.onCta} />
-              ) : (
-                <>
-                  <MaterialCommunityIcons
-                    name="plus-circle"
-                    size={20}
-                    color={colors.onCta}
-                  />
-                  <Text style={s.saveButtonText}>
-                    Agregar y ganar +50 XP
-                  </Text>
-                </>
+            <View style={s.saveSection}>
+              <Pressable
+                onPress={handleSave}
+                disabled={!canSave || saving}
+                style={({ pressed }) => [
+                  s.saveButton,
+                  (!canSave || saving) && s.saveButtonDisabled,
+                  pressed && s.saveButtonPressed,
+                ]}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color={colors.onCta} />
+                ) : (
+                  <>
+                    <MaterialCommunityIcons
+                      name="check-circle"
+                      size={24}
+                      color={colors.onCta}
+                    />
+                    <View style={s.saveButtonContent}>
+                      <Text style={s.saveButtonText}>Agregar a la Comunidad</Text>
+                      <Text style={s.saveButtonSubtext}>
+                        Ganarás 50 puntos de experiencia 🎉
+                      </Text>
+                    </View>
+                  </>
+                )}
+              </Pressable>
+              {!canSave && (
+                <Text style={s.saveHint}>
+                  Completa todos los campos marcados con * para continuar
+                </Text>
               )}
-            </Pressable>
+            </View>
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -394,7 +534,7 @@ function makeStyles(colors: any, typography: any) {
     },
     header: {
       flexDirection: "row",
-      alignItems: "center",
+      alignItems: "flex-start",
       justifyContent: "space-between",
       padding: 20,
       borderBottomWidth: 1,
@@ -402,10 +542,33 @@ function makeStyles(colors: any, typography: any) {
     },
     title: {
       ...typography.h2,
-      fontSize: 20,
-      fontWeight: "700",
+      fontSize: 22,
+      fontWeight: "800",
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    subtitle: {
+      ...typography.body,
+      fontSize: 14,
+      color: colors.textSecondary,
+    },
+    infoBanner: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 12,
+      padding: 16,
+      borderRadius: 12,
+      backgroundColor: colors.brand + "15",
+      borderWidth: 1,
+      borderColor: colors.brand + "30",
+      marginBottom: 20,
+    },
+    infoBannerText: {
+      ...typography.body,
+      fontSize: 13,
       color: colors.textPrimary,
       flex: 1,
+      lineHeight: 18,
     },
     closeButton: {
       width: 32,
@@ -422,10 +585,17 @@ function makeStyles(colors: any, typography: any) {
     },
     label: {
       ...typography.subtitle,
-      fontSize: 14,
-      fontWeight: "600",
+      fontSize: 16,
+      fontWeight: "700",
       color: colors.textPrimary,
-      marginBottom: 8,
+      marginBottom: 6,
+    },
+    helpText: {
+      ...typography.caption,
+      fontSize: 13,
+      color: colors.textSecondary,
+      marginBottom: 12,
+      lineHeight: 18,
     },
     input: {
       ...typography.body,
@@ -442,32 +612,41 @@ function makeStyles(colors: any, typography: any) {
       flexDirection: "row",
     },
     unitSelector: {
-      flexDirection: "row",
-      gap: 8,
+      gap: 12,
     },
-    unitOption: {
-      flex: 1,
-      paddingVertical: 10,
-      paddingHorizontal: 12,
-      borderRadius: 12,
+    unitOptionLarge: {
+      padding: 16,
+      borderRadius: 16,
       borderWidth: 2,
       borderColor: colors.border,
       backgroundColor: colors.background,
       alignItems: "center",
+      gap: 8,
     },
     unitOptionSelected: {
       borderColor: colors.brand,
       backgroundColor: colors.brand + "15",
     },
-    unitOptionText: {
-      ...typography.body,
-      fontSize: 14,
+    unitOptionTextLarge: {
+      ...typography.subtitle,
+      fontSize: 15,
       color: colors.textSecondary,
-      fontWeight: "600",
+      fontWeight: "700",
     },
     unitOptionTextSelected: {
       color: colors.brand,
-      fontWeight: "700",
+    },
+    unitOptionDesc: {
+      ...typography.caption,
+      fontSize: 12,
+      color: colors.textSecondary,
+      textAlign: "center",
+    },
+    unitHelper: {
+      ...typography.body,
+      fontSize: 16,
+      color: colors.textSecondary,
+      fontWeight: "500",
     },
     section: {
       marginTop: 8,
@@ -481,50 +660,98 @@ function makeStyles(colors: any, typography: any) {
       marginBottom: 12,
     },
     macrosContainer: {
-      gap: 12,
-      marginBottom: 16,
+      gap: 16,
+      marginBottom: 20,
     },
-    macroField: {
-      marginBottom: 8,
+    macroCard: {
+      padding: 16,
+      borderRadius: 16,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: 12,
+    },
+    macroHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
     },
     macroLabel: {
-      ...typography.body,
-      fontSize: 13,
-      color: colors.textSecondary,
-      marginBottom: 6,
+      ...typography.subtitle,
+      fontSize: 15,
+      fontWeight: "700",
+      color: colors.textPrimary,
+    },
+    macroInputContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
     },
     macroInput: {
       ...typography.body,
-      fontSize: 16,
+      fontSize: 24,
+      fontWeight: "700",
       color: colors.textPrimary,
       backgroundColor: colors.background,
-      borderWidth: 1,
+      borderWidth: 2,
       borderColor: colors.border,
       borderRadius: 12,
       paddingHorizontal: 16,
       paddingVertical: 12,
+      minWidth: 100,
+      textAlign: "center",
+    },
+    macroUnit: {
+      ...typography.body,
+      fontSize: 16,
+      color: colors.textSecondary,
+      fontWeight: "600",
+    },
+    macroExample: {
+      ...typography.caption,
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontStyle: "italic",
     },
     caloriesContainer: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 8,
-      padding: 16,
-      borderRadius: 12,
+      gap: 16,
+      padding: 20,
+      borderRadius: 16,
       backgroundColor: colors.brand + "15",
-      marginBottom: 12,
+      borderWidth: 2,
+      borderColor: colors.brand + "30",
+      marginBottom: 8,
+    },
+    caloriesIcon: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: colors.brand + "25",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    caloriesContent: {
+      flex: 1,
     },
     caloriesLabel: {
       ...typography.body,
-      fontSize: 14,
-      color: colors.textPrimary,
-      fontWeight: "600",
+      fontSize: 13,
+      color: colors.textSecondary,
+      marginBottom: 4,
     },
     caloriesValue: {
-      ...typography.h3,
-      fontSize: 18,
-      fontWeight: "800",
+      ...typography.h1,
+      fontSize: 32,
+      fontWeight: "900",
       color: colors.brand,
-      marginLeft: "auto",
+      marginBottom: 2,
+    },
+    caloriesSubtext: {
+      ...typography.caption,
+      fontSize: 12,
+      color: colors.textSecondary,
     },
     infoBox: {
       padding: 12,
@@ -545,28 +772,49 @@ function makeStyles(colors: any, typography: any) {
       fontSize: 12,
       color: colors.textSecondary,
     },
+    saveSection: {
+      marginTop: 8,
+      gap: 12,
+    },
     saveButton: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "center",
-      gap: 8,
-      paddingVertical: 16,
+      justifyContent: "flex-start",
+      gap: 16,
+      paddingVertical: 20,
       paddingHorizontal: 24,
       borderRadius: 16,
       backgroundColor: colors.brand,
-      marginTop: 8,
     },
     saveButtonDisabled: {
       opacity: 0.5,
     },
     saveButtonPressed: {
-      opacity: 0.8,
+      opacity: 0.9,
+      transform: [{ scale: 0.98 }],
+    },
+    saveButtonContent: {
+      flex: 1,
     },
     saveButtonText: {
       ...typography.button,
-      fontSize: 16,
-      fontWeight: "700",
+      fontSize: 18,
+      fontWeight: "800",
       color: colors.onCta,
+      marginBottom: 2,
+    },
+    saveButtonSubtext: {
+      ...typography.caption,
+      fontSize: 13,
+      color: colors.onCta,
+      opacity: 0.9,
+    },
+    saveHint: {
+      ...typography.caption,
+      fontSize: 12,
+      color: colors.textSecondary,
+      textAlign: "center",
+      fontStyle: "italic",
     },
   });
 }
