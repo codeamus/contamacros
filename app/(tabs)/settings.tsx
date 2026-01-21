@@ -200,8 +200,10 @@ export default function SettingsScreen() {
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [showWeightModal, setShowWeightModal] = useState(false);
   const [showActivityModal, setShowActivityModal] = useState(false);
+  const [showNameModal, setShowNameModal] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [weightInput, setWeightInput] = useState("");
+  const [nameInput, setNameInput] = useState("");
   const [showPaywall, setShowPaywall] = useState(false);
   const [showCustomerCenter, setShowCustomerCenter] = useState(false);
 
@@ -443,6 +445,62 @@ export default function SettingsScreen() {
     [profile, updateProfile, refreshProfile, showToast],
   );
 
+  const handleUpdateName = useCallback(
+    async () => {
+      if (!profile) return;
+
+      const trimmedName = nameInput.trim();
+      if (!trimmedName) {
+        showToast({
+          message: "El nombre no puede estar vacío",
+          type: "error",
+          duration: 2000,
+        });
+        return;
+      }
+
+      if (trimmedName === profile.full_name) {
+        setShowNameModal(false);
+        return;
+      }
+
+      setUpdating(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+      try {
+        const res = await updateProfile({
+          full_name: trimmedName,
+        });
+
+        if (!res.ok) {
+          showToast({
+            message: res.message || "No se pudo actualizar el nombre",
+            type: "error",
+            duration: 3000,
+          });
+          return;
+        }
+
+        await refreshProfile();
+        setShowNameModal(false);
+        showToast({
+          message: "Nombre actualizado correctamente",
+          type: "success",
+          duration: 2000,
+        });
+      } catch (error) {
+        showToast({
+          message: "Error al actualizar el nombre",
+          type: "error",
+          duration: 3000,
+        });
+      } finally {
+        setUpdating(false);
+      }
+    },
+    [profile, nameInput, updateProfile, refreshProfile, showToast],
+  );
+
   const goalLabel = useMemo(() => {
     if (!profile?.goal) return "—";
     const goalMap: Record<string, string> = {
@@ -559,6 +617,19 @@ export default function SettingsScreen() {
         <View style={s.section}>
           <Text style={s.sectionTitle}>Perfil</Text>
           <View style={s.sectionContent}>
+            <SettingItem
+              icon="account"
+              label="Nombre"
+              value={profile?.full_name || "—"}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setNameInput(profile?.full_name || "");
+                setShowNameModal(true);
+              }}
+              colors={colors}
+              typography={typography}
+            />
+            <View style={{ height: 10 }} />
             <SettingItem
               icon="email-outline"
               label="Email"
@@ -1132,6 +1203,79 @@ export default function SettingsScreen() {
                       Actualizando nivel de actividad...
                     </Text>
                   </View>
+                )}
+              </View>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
+
+      {/* Modal para editar nombre */}
+      <Modal
+        visible={showNameModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowNameModal(false)}
+      >
+        <Pressable
+          style={s.modalOverlay}
+          onPress={() => setShowNameModal(false)}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={s.modalContent}
+          >
+            <Pressable onPress={(e) => e.stopPropagation()}>
+              <View style={s.modalHeader}>
+                <Text style={s.modalTitle}>Editar nombre</Text>
+                <Pressable
+                  onPress={() => {
+                    setShowNameModal(false);
+                    setNameInput("");
+                  }}
+                  style={({ pressed }) => [
+                    s.modalCloseBtn,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <Feather name="x" size={20} color={colors.textPrimary} />
+                </Pressable>
+              </View>
+
+              <View style={s.modalBody}>
+                <Text style={s.modalDescription}>
+                  Ingresa tu nombre completo. Este nombre aparecerá en tu perfil y en el ranking.
+                </Text>
+
+                <View style={s.weightInputContainer}>
+                  <TextInput
+                    style={[s.weightInput, { textAlign: "left" }]}
+                    value={nameInput}
+                    onChangeText={setNameInput}
+                    placeholder="Ej: Matías"
+                    placeholderTextColor={colors.textSecondary}
+                    keyboardType="default"
+                    autoFocus
+                    maxLength={50}
+                  />
+                </View>
+
+                {updating ? (
+                  <View style={s.modalLoading}>
+                    <ActivityIndicator size="small" color={colors.brand} />
+                    <Text style={s.modalLoadingText}>Actualizando...</Text>
+                  </View>
+                ) : (
+                  <Pressable
+                    onPress={handleUpdateName}
+                    disabled={!nameInput.trim()}
+                    style={({ pressed }) => [
+                      s.modalSaveBtn,
+                      (!nameInput.trim() || pressed) && { opacity: 0.8 },
+                    ]}
+                  >
+                    <Text style={s.modalSaveBtnText}>Guardar</Text>
+                  </Pressable>
                 )}
               </View>
             </Pressable>
