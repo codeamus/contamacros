@@ -129,19 +129,45 @@ export const openFoodFactsService = {
     signal?: AbortSignal,
   ): Promise<Result<OffProduct>> {
     const code = barcode.trim();
-    if (!code) return { ok: false, message: "Barcode vacío." };
+    console.log("[OpenFoodFacts] 🔍 getByBarcode llamado:", { code, hasSignal: !!signal });
+    
+    if (!code) {
+      console.error("[OpenFoodFacts] ❌ Barcode vacío");
+      return { ok: false, message: "Barcode vacío." };
+    }
 
     try {
       const url =
         `${BASE}/api/v2/product/${encodeURIComponent(code)}` +
         `?fields=code,product_name,product_name_es,product_name_en,generic_name,brands,image_front_url,image_url,nutriments`;
 
+      console.log("[OpenFoodFacts] 🌐 Haciendo request a:", url);
+
       const r = await fetch(url, { signal });
-      if (!r.ok)
+      
+      console.log("[OpenFoodFacts] 📡 Respuesta HTTP:", {
+        status: r.status,
+        statusText: r.statusText,
+        ok: r.ok,
+      });
+      
+      if (!r.ok) {
+        console.error("[OpenFoodFacts] ❌ Error HTTP:", r.status, r.statusText);
         return { ok: false, message: `OFF product error (${r.status})` };
+      }
 
       const json = await r.json();
+      
+      console.log("[OpenFoodFacts] 📦 JSON recibido:", {
+        hasStatus: "status" in json,
+        status: json?.status,
+        statusVerbose: json?.status_verbose,
+        hasProduct: !!json?.product,
+        productKeys: json?.product ? Object.keys(json.product) : [],
+      });
+      
       if (json?.status === 0) {
+        console.error("[OpenFoodFacts] ❌ Producto no encontrado (status=0):", json?.status_verbose);
         return {
           ok: false,
           message: json?.status_verbose ?? "Producto no encontrado.",
@@ -149,10 +175,39 @@ export const openFoodFactsService = {
       }
 
       const product = json?.product ?? json;
-      if (!product) return { ok: false, message: "Producto no encontrado." };
+      
+      if (!product) {
+        console.error("[OpenFoodFacts] ❌ No hay producto en la respuesta");
+        return { ok: false, message: "Producto no encontrado." };
+      }
 
-      return { ok: true, data: mapOffProduct(product) };
+      console.log("[OpenFoodFacts] ✅ Producto encontrado:", {
+        code: product?.code,
+        name: pickName(product),
+        hasNutriments: !!product?.nutriments,
+      });
+
+      const mapped = mapOffProduct(product);
+      
+      console.log("[OpenFoodFacts] ✅ Producto mapeado:", {
+        id: mapped.id,
+        name: mapped.name,
+        kcal_100g: mapped.kcal_100g,
+        protein_100g: mapped.protein_100g,
+        carbs_100g: mapped.carbs_100g,
+        fat_100g: mapped.fat_100g,
+      });
+
+      return { ok: true, data: mapped };
     } catch (e: any) {
+      console.error("[OpenFoodFacts] 💥 Excepción:", {
+        name: e?.name,
+        message: e?.message,
+        stack: e?.stack,
+        isAbortError: e?.name === "AbortError",
+        signalAborted: signal?.aborted,
+      });
+      
       // Si fue cancelado, no es un error real
       if (e?.name === "AbortError" || signal?.aborted) {
         return { ok: false, message: "Búsqueda cancelada." };

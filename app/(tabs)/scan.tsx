@@ -28,20 +28,34 @@ export default function ScanScreen() {
 
   const onBarcodeScanned = useCallback(
     ({ data }: { data: string }) => {
-      if (lockRef.current) return;
+      console.log("[ScanScreen] 📷 Código escaneado:", { data, returnTo, meal });
+      
+      if (lockRef.current) {
+        console.log("[ScanScreen] ⚠️ Escaneo bloqueado (ya procesado)");
+        return;
+      }
+      
       lockRef.current = true;
       setScanned(true);
 
-      if (returnTo === "my-foods") {
-        router.replace({
-          pathname: "/(tabs)/my-foods",
-          params: { barcode: data },
-        });
-      } else {
-        router.replace({
-          pathname: "/(tabs)/add-food",
-          params: { meal, barcode: data },
-        });
+      try {
+        if (returnTo === "my-foods") {
+          console.log("[ScanScreen] 🔄 Navegando a my-foods con barcode:", data);
+          router.replace({
+            pathname: "/(tabs)/my-foods",
+            params: { barcode: data },
+          });
+        } else {
+          console.log("[ScanScreen] 🔄 Navegando a add-food con barcode:", data, "meal:", meal);
+          router.replace({
+            pathname: "/(tabs)/add-food",
+            params: { meal, barcode: data },
+          });
+        }
+      } catch (error) {
+        console.error("[ScanScreen] ❌ Error al navegar:", error);
+        lockRef.current = false;
+        setScanned(false);
       }
     },
     [meal, returnTo]

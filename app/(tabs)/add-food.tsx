@@ -252,6 +252,16 @@ export default function AddFoodScreen() {
   const [results, setResults] = useState<ExtendedFoodSearchItem[]>([]);
   const [selected, setSelected] = useState<ExtendedFoodSearchItem | null>(null);
   const [isInputFocused, setIsInputFocused] = useState(false);
+  
+  // Log cuando selected cambia
+  useEffect(() => {
+    console.log("[AddFoodScreen] 🔄 selected cambió:", {
+      hasSelected: !!selected,
+      selectedKey: selected?.key,
+      selectedName: selected?.name,
+      selectedSource: selected?.source,
+    });
+  }, [selected]);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [myRecipes, setMyRecipes] = useState<ExtendedFoodSearchItem[]>([]);
   const [loadingRecipes, setLoadingRecipes] = useState(false);
@@ -288,22 +298,42 @@ export default function AddFoodScreen() {
   useFocusEffect(
     useCallback(() => {
       // ✅ cada vez que entras a AddFood, parte limpio
-      setSelected(null);
-      setQuery("");
-      setResults([]);
-      setErr(null);
-      setGramsStr("100");
-      setUnitsStr("1");
-      setInputMode("grams");
-      setIsSearchingLocal(false);
-      setIsSearchingMore(false);
+      // PERO: No limpiar selected si hay un barcode pendiente (viene del scanner)
+      const hasBarcode = typeof params.barcode === "string" && params.barcode.trim().length > 0;
+      
+      console.log("[AddFoodScreen] 🔄 useFocusEffect ejecutado:", {
+        hasBarcode,
+        barcode: params.barcode,
+        currentSelected: !!selected,
+      });
+      
+      if (!hasBarcode) {
+        // Solo limpiar si NO hay barcode pendiente
+        setSelected(null);
+        setQuery("");
+        setResults([]);
+        setErr(null);
+        setGramsStr("100");
+        setUnitsStr("1");
+        setInputMode("grams");
+        setIsSearchingLocal(false);
+        setIsSearchingMore(false);
+      } else {
+        console.log("[AddFoodScreen] ⏸️ No limpiando estado porque hay barcode pendiente");
+      }
       setIsInputFocused(false);
-      reqIdRef.current += 1; // ✅ invalida requests anteriores
+      
+      // Solo invalidar requests si NO hay barcode pendiente
+      if (!hasBarcode) {
+        reqIdRef.current += 1; // ✅ invalida requests anteriores
 
-      // Cancelar cualquier búsqueda pendiente
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
+        // Cancelar cualquier búsqueda pendiente solo si no hay barcode
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+          abortControllerRef.current = null;
+        }
+      } else {
+        console.log("[AddFoodScreen] ⏸️ No cancelando búsquedas porque hay barcode pendiente");
       }
 
       return () => {
@@ -325,10 +355,22 @@ export default function AddFoodScreen() {
   useEffect(() => {
     const barcode =
       typeof params.barcode === "string" ? params.barcode.trim() : "";
-    if (!barcode) return;
+    
+    console.log("[AddFoodScreen] 🔍 useEffect barcode activado:", {
+      barcode,
+      hasBarcode: !!barcode,
+      barcodeType: typeof params.barcode,
+      rawParams: params.barcode,
+    });
+    
+    if (!barcode) {
+      console.log("[AddFoodScreen] ⚠️ Barcode vacío, saliendo del useEffect");
+      return;
+    }
 
     // Cancelar búsqueda anterior si existe
     if (abortControllerRef.current) {
+      console.log("[AddFoodScreen] 🚫 Cancelando búsqueda anterior");
       abortControllerRef.current.abort();
     }
 
@@ -337,49 +379,91 @@ export default function AddFoodScreen() {
     const myReqId = ++reqIdRef.current;
 
     (async () => {
-      setErr(null);
-      setIsSearchingMore(true);
+      try {
+        console.log("[AddFoodScreen] 🔄 Iniciando búsqueda por barcode:", barcode);
+        setErr(null);
+        setIsSearchingMore(true);
 
-      const res = await openFoodFactsService.getByBarcode(
-        barcode,
-        abortController.signal,
-      );
+        const res = await openFoodFactsService.getByBarcode(
+          barcode,
+          abortController.signal,
+        );
 
-      // Verificar si la request fue cancelada
-      if (myReqId !== reqIdRef.current || abortController.signal.aborted) {
-        return;
-      }
+        console.log("[AddFoodScreen] 📦 Respuesta de OpenFoodFacts:", {
+          ok: res.ok,
+          hasData: !!res.data,
+          message: res.message,
+          productName: res.data?.name,
+          productId: res.data?.id,
+        });
 
-      setIsSearchingMore(false);
-
-      if (!res.ok) {
-        // No mostrar error si fue cancelado
-        if (res.message !== "Búsqueda cancelada.") {
-          setErr(res.message);
+        // Verificar si la request fue cancelada
+        if (myReqId !== reqIdRef.current || abortController.signal.aborted) {
+          console.log("[AddFoodScreen] ⚠️ Request cancelada o reemplazada");
+          return;
         }
-        return;
+
+        setIsSearchingMore(false);
+
+        if (!res.ok) {
+          console.error("[AddFoodScreen] ❌ Error en búsqueda:", res.message);
+          // No mostrar error si fue cancelado
+          if (res.message !== "Búsqueda cancelada.") {
+            setErr(res.message);
+          }
+          return;
+        }
+
+        if (!res.data) {
+          console.error("[AddFoodScreen] ❌ Respuesta OK pero sin datos");
+          setErr("Producto no encontrado");
+          return;
+        }
+
+        const it: ExtendedFoodSearchItem = {
+          key: `off:${res.data.id}`,
+          source: "off",
+          name: res.data.name,
+          meta: res.data.brand ? res.data.brand : "Sin marca",
+          kcal_100g: res.data.kcal_100g ?? null,
+          protein_100g: res.data.protein_100g ?? null,
+          carbs_100g: res.data.carbs_100g ?? null,
+          fat_100g: res.data.fat_100g ?? null,
+          off: res.data,
+          verified: false,
+        };
+
+        console.log("[AddFoodScreen] ✅ Item creado:", {
+          key: it.key,
+          name: it.name,
+          source: it.source,
+          hasKcal: !!it.kcal_100g,
+          hasOff: !!it.off,
+        });
+
+        setSelected(it);
+        setQuery(res.data.name);
+        setResults([]);
+        
+        console.log("[AddFoodScreen] ✅ Estado actualizado: selected establecido, query actualizado");
+        // La inicialización se hará automáticamente en useEffect
+      } catch (error: any) {
+        console.error("[AddFoodScreen] 💥 Excepción en búsqueda por barcode:", {
+          error: error?.message,
+          stack: error?.stack,
+          name: error?.name,
+        });
+        
+        setIsSearchingMore(false);
+        
+        if (error?.name !== "AbortError" && !abortController.signal.aborted) {
+          setErr(error?.message || "Error al buscar producto");
+        }
       }
-
-      const it: ExtendedFoodSearchItem = {
-        key: `off:${res.data.id}`,
-        source: "off",
-        name: res.data.name,
-        meta: res.data.brand ? res.data.brand : "Sin marca",
-        kcal_100g: res.data.kcal_100g ?? null,
-        protein_100g: res.data.protein_100g ?? null,
-        carbs_100g: res.data.carbs_100g ?? null,
-        fat_100g: res.data.fat_100g ?? null,
-        off: res.data,
-        verified: false,
-      };
-
-      setSelected(it);
-      setQuery(res.data.name);
-      setResults([]);
-      // La inicialización se hará automáticamente en useEffect
     })();
 
     return () => {
+      console.log("[AddFoodScreen] 🧹 Cleanup: abortando búsqueda");
       abortController.abort();
     };
   }, [params.barcode]);
