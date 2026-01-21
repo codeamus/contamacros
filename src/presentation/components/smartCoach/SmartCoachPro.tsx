@@ -230,8 +230,33 @@ export default function SmartCoachPro({
     );
   }
 
-  // Sin recomendación
+  // Sin recomendación - Mostrar mensaje positivo si es premium y hay actividad
   if (!recommendation) {
+    // Si es premium, mostrar mensaje de que todo está equilibrado
+    if (isPremium && caloriesBurned > 0) {
+      return (
+        <View style={s.container}>
+          <View style={[s.card, s.successCard]}>
+            <View style={s.content}>
+              <View style={[s.iconContainer, s.successIconContainer]}>
+                <MaterialCommunityIcons
+                  name="check-circle"
+                  size={28}
+                  color="#10B981"
+                />
+              </View>
+              <View style={s.textContainer}>
+                <Text style={s.title}>Coach Pro</Text>
+                <Text style={s.message}>
+                  ¡Excelente! Tu actividad física de hoy ({caloriesBurned.toLocaleString()} kcal quemadas) ha compensado tu balance calórico. Mantén este ritmo.
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      );
+    }
+    // Si no es premium o no hay actividad, no mostrar nada
     return null;
   }
 
@@ -451,6 +476,10 @@ function makeStyles(colors: any, typography: any) {
       borderLeftWidth: 4,
       borderLeftColor: colors.cta,
     },
+    successCard: {
+      borderLeftWidth: 4,
+      borderLeftColor: "#10B981",
+    },
     loadingCard: {
       alignItems: "center",
       justifyContent: "center",
@@ -486,6 +515,10 @@ function makeStyles(colors: any, typography: any) {
     exerciseIconContainer: {
       borderColor: colors.cta + "40",
       backgroundColor: colors.cta + "15",
+    },
+    successIconContainer: {
+      borderColor: "#10B98140",
+      backgroundColor: "#10B98115",
     },
     textContainer: {
       flex: 1,

@@ -9,6 +9,7 @@ import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useTodayMeals } from "@/presentation/hooks/diary/useTodayMeals";
 import { useTodaySummary } from "@/presentation/hooks/diary/useTodaySummary";
 import { useSmartCoachPro } from "@/presentation/hooks/smartCoach/useSmartCoachPro";
+import { useHealthSync } from "@/presentation/hooks/health/useHealthSync";
 import { useStaggerAnimation } from "@/presentation/hooks/ui/useStaggerAnimation";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { formatDateToSpanish } from "@/presentation/utils/date";
@@ -17,8 +18,10 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   Easing,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -110,6 +113,9 @@ export default function HomeScreen() {
     isPremium,
   );
 
+  // Health Sync (Premium)
+  const { caloriesBurned, isSyncing, syncCalories, reload: reloadHealth } = useHealthSync(isPremium);
+
   const hasTargets =
     caloriesTarget > 0 && proteinTarget > 0 && carbsTarget > 0 && fatTarget > 0;
 
@@ -142,7 +148,8 @@ export default function HomeScreen() {
   const [paywallVisible, setPaywallVisible] = useState(false);
 
   // Animaciones de entrada escalonadas para las cards
-  const cardAnimations = useStaggerAnimation(5, 80, 100);
+  // 7 animaciones: SmartCoachPro[0], Activity[1], Restantes[2], Consumidas[3], MainCard[4], Macros[5], Meals[6]
+  const cardAnimations = useStaggerAnimation(7, 80, 100);
 
   // Animación del FAB
   const fabScale = useRef(new Animated.Value(0)).current;
@@ -174,10 +181,14 @@ export default function HomeScreen() {
 
     // Refrescar ambos hooks en paralelo
     // El Smart Coach se actualizará automáticamente cuando cambien los totals
-    await Promise.all([reloadSummary(), reloadMeals()]);
+    const refreshPromises = [reloadSummary(), reloadMeals()];
+    if (isPremium) {
+      refreshPromises.push(reloadHealth());
+    }
+    await Promise.all(refreshPromises);
 
     setRefreshing(false);
-  }, [reloadSummary, reloadMeals]);
+  }, [reloadSummary, reloadMeals, isPremium, reloadHealth]);
 
   // Función para refrescar después de agregar comida desde Smart Coach
   // Debe funcionar exactamente igual que pull to refresh
@@ -239,7 +250,25 @@ export default function HomeScreen() {
 
         {/* Smart Coach Pro Card */}
         {hasTargets && (
-          <View style={{ marginBottom: 8 }}>
+          <Animated.View
+            style={{
+              marginBottom: 8,
+              opacity: cardAnimations[0] || 1,
+              transform: cardAnimations[0]
+                ? [
+                    {
+                      translateY: cardAnimations[0].interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [20, 0],
+                      }),
+                    },
+                    {
+                      scale: cardAnimations[0],
+                    },
+                  ]
+                : [],
+            }}
+          >
             <SmartCoachPro
               recommendation={smartCoach.recommendation}
               loading={smartCoach.loading}
@@ -247,7 +276,101 @@ export default function HomeScreen() {
               onFoodAdded={handleFoodAdded}
               onShowPaywall={() => setPaywallVisible(true)}
             />
-          </View>
+          </Animated.View>
+        )}
+
+        {/* Activity Card (Premium) */}
+        {isPremium && hasTargets && (
+          <Animated.View
+            style={{
+              opacity: cardAnimations[1] || 1,
+              transform: cardAnimations[1]
+                ? [
+                    {
+                      translateY: cardAnimations[1].interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [20, 0],
+                      }),
+                    },
+                    {
+                      scale: cardAnimations[1],
+                    },
+                  ]
+                : [],
+            }}
+          >
+            <View style={s.activityCard}>
+              <View style={s.activityCardHeader}>
+                <View style={s.activityIconContainer}>
+                  <MaterialCommunityIcons
+                    name="heart-pulse"
+                    size={20}
+                    color={colors.brand}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.activityTitle}>Actividad Física</Text>
+                  <Text style={s.activitySubtitle}>
+                    {Platform.OS === "ios" ? "Apple Health" : "Health Connect"}
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={async () => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    try {
+                      await syncCalories();
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    } catch (error) {
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                    }
+                  }}
+                  disabled={isSyncing}
+                  style={({ pressed }) => [
+                    s.activitySyncButton,
+                    (pressed || isSyncing) && s.activitySyncButtonPressed,
+                  ]}
+                >
+                  {isSyncing ? (
+                    <ActivityIndicator size="small" color={colors.brand} />
+                  ) : (
+                    <MaterialCommunityIcons
+                      name="sync"
+                      size={18}
+                      color={colors.brand}
+                    />
+                  )}
+                </Pressable>
+              </View>
+
+              <View style={s.activityContent}>
+                <View style={s.activityValueContainer}>
+                  <Text style={s.activityValue}>
+                    {caloriesBurned > 0 ? caloriesBurned.toLocaleString() : "—"}
+                  </Text>
+                  <Text style={s.activityUnit}>kcal quemadas</Text>
+                </View>
+                {caloriesBurned > 0 && (
+                  <View style={s.activityBadge}>
+                    <MaterialCommunityIcons
+                      name="check-circle"
+                      size={14}
+                      color="#10B981"
+                    />
+                    <Text style={s.activityBadgeText}>Sincronizado</Text>
+                  </View>
+                )}
+              </View>
+
+              {caloriesBurned === 0 && (
+                <View style={s.activityEmptyState}>
+                  <Text style={s.activityEmptyText}>
+                    Toca el botón de sincronizar para conectar con{" "}
+                    {Platform.OS === "ios" ? "Apple Health" : "Health Connect"}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </Animated.View>
         )}
 
         {/* Missing targets card */}
@@ -289,20 +412,20 @@ export default function HomeScreen() {
 
         {/* Summary Cards */}
         <View style={s.summaryRow}>
-          {cardAnimations[0] && (
+          {cardAnimations[2] && (
             <Animated.View
               style={{
                 flex: 1,
-                opacity: cardAnimations[0],
+                opacity: cardAnimations[2],
                 transform: [
                   {
-                    translateY: cardAnimations[0].interpolate({
+                    translateY: cardAnimations[2].interpolate({
                       inputRange: [0, 1],
                       outputRange: [20, 0],
                     }),
                   },
                   {
-                    scale: cardAnimations[0],
+                    scale: cardAnimations[2],
                   },
                 ],
               }}
@@ -323,20 +446,20 @@ export default function HomeScreen() {
               />
             </Animated.View>
           )}
-          {cardAnimations[1] && (
+          {cardAnimations[3] && (
             <Animated.View
               style={{
                 flex: 1,
-                opacity: cardAnimations[1],
+                opacity: cardAnimations[3],
                 transform: [
                   {
-                    translateY: cardAnimations[1].interpolate({
+                    translateY: cardAnimations[3].interpolate({
                       inputRange: [0, 1],
                       outputRange: [20, 0],
                     }),
                   },
                   {
-                    scale: cardAnimations[1],
+                    scale: cardAnimations[3] || new Animated.Value(1),
                   },
                 ],
               }}
@@ -363,11 +486,11 @@ export default function HomeScreen() {
         <Animated.View
           style={[
             s.card,
-            cardAnimations[2] && {
-              opacity: cardAnimations[2],
+            cardAnimations[6] && {
+              opacity: cardAnimations[6],
               transform: [
                 {
-                  translateY: cardAnimations[2].interpolate({
+                  translateY: cardAnimations[6].interpolate({
                     inputRange: [0, 1],
                     outputRange: [30, 0],
                   }),
@@ -472,15 +595,15 @@ export default function HomeScreen() {
         </View>
 
         <View style={s.macrosRow}>
-          {cardAnimations[3] && (
+          {cardAnimations[5] && (
             <>
               <Animated.View
                 style={{
                   flex: 1,
-                  opacity: cardAnimations[3],
+                  opacity: cardAnimations[5],
                   transform: [
                     {
-                      translateY: cardAnimations[3].interpolate({
+                      translateY: cardAnimations[5].interpolate({
                         inputRange: [0, 1],
                         outputRange: [20, 0],
                       }),
@@ -501,10 +624,10 @@ export default function HomeScreen() {
               <Animated.View
                 style={{
                   flex: 1,
-                  opacity: cardAnimations[3],
+                  opacity: cardAnimations[5],
                   transform: [
                     {
-                      translateY: cardAnimations[3].interpolate({
+                      translateY: cardAnimations[5].interpolate({
                         inputRange: [0, 1],
                         outputRange: [20, 0],
                       }),
@@ -525,10 +648,10 @@ export default function HomeScreen() {
               <Animated.View
                 style={{
                   flex: 1,
-                  opacity: cardAnimations[3],
+                  opacity: cardAnimations[5],
                   transform: [
                     {
-                      translateY: cardAnimations[3].interpolate({
+                      translateY: cardAnimations[5].interpolate({
                         inputRange: [0, 1],
                         outputRange: [20, 0],
                       }),
@@ -568,11 +691,11 @@ export default function HomeScreen() {
         <Animated.View
           style={[
             s.card,
-            cardAnimations[4] && {
-              opacity: cardAnimations[4],
+            cardAnimations[6] && {
+              opacity: cardAnimations[6],
               transform: [
                 {
-                  translateY: cardAnimations[4].interpolate({
+                  translateY: cardAnimations[6].interpolate({
                     inputRange: [0, 1],
                     outputRange: [30, 0],
                   }),
@@ -1612,5 +1735,106 @@ function makeStyles(colors: any, typography: any) {
     divider: { height: 1, backgroundColor: colors.border, opacity: 0.7 },
 
     fab: { position: "absolute", left: 18, right: 18, bottom: 18 },
+
+    // Activity Card Styles (Premium)
+    activityCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 22,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 16,
+      gap: 12,
+    },
+    activityCardHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
+    activityIconContainer: {
+      width: 40,
+      height: 40,
+      borderRadius: 14,
+      backgroundColor: colors.brand + "15",
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: colors.brand + "30",
+    },
+    activityTitle: {
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 15,
+      fontWeight: "600",
+      color: colors.textPrimary,
+    },
+    activitySubtitle: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    activitySyncButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    activitySyncButtonPressed: {
+      opacity: 0.7,
+      transform: [{ scale: 0.95 }],
+    },
+    activityContent: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    activityValueContainer: {
+      flexDirection: "row",
+      alignItems: "baseline",
+      gap: 6,
+    },
+    activityValue: {
+      fontFamily: typography.title?.fontFamily,
+      fontSize: 28,
+      fontWeight: "700",
+      color: colors.textPrimary,
+    },
+    activityUnit: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 13,
+      color: colors.textSecondary,
+    },
+    activityBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 999,
+      backgroundColor: "#10B98115",
+      borderWidth: 1,
+      borderColor: "#10B98130",
+    },
+    activityBadgeText: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 11,
+      fontWeight: "600",
+      color: "#10B981",
+    },
+    activityEmptyState: {
+      marginTop: 4,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    activityEmptyText: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 12,
+      color: colors.textSecondary,
+      lineHeight: 18,
+    },
   });
 }
