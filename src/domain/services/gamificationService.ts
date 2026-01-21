@@ -13,6 +13,7 @@ export type UserStats = {
   daily_streak: number;
   last_activity_date: string | null;
   total_foods_contributed: number;
+  contribution_count: number; // Número de alimentos creados
   created_at: string;
   updated_at: string;
 };
@@ -32,6 +33,7 @@ export type LeaderboardEntry = {
   xp_points: number;
   level: number;
   daily_streak: number;
+  contribution_count: number; // Número de alimentos creados
   rank: number;
   is_premium?: boolean;
 };
@@ -107,19 +109,25 @@ export const GamificationService = {
       }
 
       if (existing) {
-        return { ok: true, data: existing as UserStats };
+        // Calcular level dinámicamente si no viene de la BD
+        const statsWithLevel = {
+          ...existing,
+          level: calculateLevel(existing.xp_points || 0),
+        } as UserStats;
+        return { ok: true, data: statsWithLevel };
       }
 
       // Crear stats iniciales si no existen
+      // NO incluimos level porque es dinámico basado en XP
       const { data: newStats, error: createError } = await supabase
         .from("user_stats")
         .insert({
           user_id: uid,
           xp_points: 0,
-          level: 0,
           daily_streak: 0,
           last_activity_date: null,
           total_foods_contributed: 0,
+          contribution_count: 0,
         })
         .select("*")
         .maybeSingle();
@@ -132,7 +140,12 @@ export const GamificationService = {
         return { ok: false, message: "No se pudieron crear las estadísticas." };
       }
 
-      return { ok: true, data: newStats as UserStats };
+      // Calcular level dinámicamente si no viene de la BD
+      const statsWithLevel = {
+        ...newStats,
+        level: calculateLevel(newStats.xp_points || 0),
+      } as UserStats;
+      return { ok: true, data: statsWithLevel };
     } catch (error) {
       return {
         ok: false,
@@ -163,11 +176,11 @@ export const GamificationService = {
       const rankUp = oldRank.name !== newRank.name;
 
       // Actualizar stats
+      // NO incluimos level porque es dinámico basado en XP
       const { data: updated, error } = await supabase
         .from("user_stats")
         .update({
           xp_points: newXP,
-          level: newLevel,
           updated_at: new Date().toISOString(),
         })
         .eq("user_id", uid)
@@ -221,13 +234,14 @@ export const GamificationService = {
       const newXP = currentStats.xp_points + 50;
       const newLevel = calculateLevel(newXP);
 
-      // Actualizar stats
+      // Actualizar stats (incrementar contribution_count y total_foods_contributed)
+      // NO incluimos level porque es dinámico basado en XP
       const { data: updated, error } = await supabase
         .from("user_stats")
         .update({
           xp_points: newXP,
-          level: newLevel,
           total_foods_contributed: currentStats.total_foods_contributed + 1,
+          contribution_count: (currentStats.contribution_count || 0) + 1,
           updated_at: new Date().toISOString(),
         })
         .eq("user_id", uid)
@@ -320,11 +334,11 @@ export const GamificationService = {
       const newLevel = calculateLevel(newXP);
 
       // Actualizar stats
+      // NO incluimos level porque es dinámico basado en XP
       const { data: updated, error } = await supabase
         .from("user_stats")
         .update({
           xp_points: newXP,
-          level: newLevel,
           daily_streak: newStreak,
           last_activity_date: today,
           updated_at: new Date().toISOString(),
@@ -426,41 +440,66 @@ export const GamificationService = {
   },
 
   /**
-   * Obtiene el leaderboard (top 10 usuarios por XP)
+   * Obtiene el leaderboard (top 10 usuarios por número de aportes)
+   * Ordenado por contribution_count DESC
+   * Usa la relación profiles:id para el JOIN
    */
   async getLeaderboard(limit: number = 10): Promise<RepoResult<LeaderboardEntry[]>> {
     try {
+      console.log("[GamificationService] 🔍 Obteniendo leaderboard...");
+      
       const { data, error } = await supabase
         .from("user_stats")
         .select(
           `
-          user_id,
+          id,
           xp_points,
-          level,
-          daily_streak,
-          profiles!inner(full_name, email, is_premium)
+          contribution_count,
+          profiles:id (
+            full_name,
+            email,
+            is_premium
+          )
         `,
         )
-        .order("xp_points", { ascending: false })
+        .order("contribution_count", { ascending: false })
         .limit(limit);
 
+      console.log("[GamificationService] 📊 Resultado de getLeaderboard:", {
+        hasData: !!data,
+        dataLength: data?.length || 0,
+        error: error ? { message: error.message, code: error.code } : null,
+        sampleData: data?.[0] || null,
+      });
+
       if (error) {
+        console.error("[GamificationService] ❌ Error en getLeaderboard:", error);
         return { ok: false, message: error.message, code: error.code };
       }
 
-      const entries: LeaderboardEntry[] = (data || []).map((item: any, index: number) => ({
-        user_id: item.user_id,
-        full_name: item.profiles?.full_name || null,
-        email: item.profiles?.email || "",
-        xp_points: item.xp_points || 0,
-        level: item.level || 0,
-        daily_streak: item.daily_streak || 0,
-        rank: index + 1,
-        is_premium: item.profiles?.is_premium || false,
-      }));
+      const entries: LeaderboardEntry[] = (data || []).map((item: any, index: number) => {
+        // profiles:id puede devolver un objeto o array dependiendo de la relación
+        // Si es una relación one-to-one, será un objeto; si es one-to-many, será un array
+        const profile = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles;
+        const xp = item.xp_points || 0;
+        
+        return {
+          user_id: item.id, // Usar id como user_id para mantener compatibilidad con el tipo LeaderboardEntry
+          full_name: profile?.full_name || null,
+          email: profile?.email || "",
+          xp_points: xp,
+          level: calculateLevel(xp), // Calcular nivel dinámicamente basado en XP
+          daily_streak: 0, // No se almacena en la consulta, se puede obtener por separado si es necesario
+          contribution_count: item.contribution_count || 0,
+          rank: index + 1,
+          is_premium: profile?.is_premium || false,
+        };
+      });
 
+      console.log("[GamificationService] ✅ Entradas procesadas:", entries.length);
       return { ok: true, data: entries };
     } catch (error) {
+      console.error("[GamificationService] 💥 Excepción en getLeaderboard:", error);
       return {
         ok: false,
         message: error instanceof Error ? error.message : "Error al obtener leaderboard",
@@ -469,57 +508,83 @@ export const GamificationService = {
   },
 
   /**
-   * Obtiene la posición del usuario actual en el ranking
+   * Obtiene la posición del usuario actual en el ranking (basado en contribution_count)
+   * Usa id en lugar de user_id para las consultas
    */
-  async getUserRankingPosition(): Promise<RepoResult<{ position: number; entry: LeaderboardEntry | null }>> {
+  async getUserRankingPosition(): Promise<RepoResult<{ position: number; entry: LeaderboardEntry }>> {
     try {
+      console.log("[GamificationService] 🔍 Obteniendo posición del usuario...");
+      
       const uidRes = await getUid();
       if (!uidRes.ok) return uidRes;
       const uid = uidRes.data;
 
-      // Obtener XP del usuario
-      const statsResult = await this.getUserStats();
-      if (!statsResult.ok) {
-        return { ok: false, message: statsResult.message };
-      }
-
-      const userXP = statsResult.data.xp_points;
-
-      // Contar cuántos usuarios tienen más XP
-      const { count, error } = await supabase
+      // Obtener stats del usuario usando id (que es la columna de identificación)
+      // NO pedimos level porque es dinámico basado en XP
+      const { data: userStats, error: statsError } = await supabase
         .from("user_stats")
-        .select("*", { count: "exact", head: true })
-        .gt("xp_points", userXP);
+        .select("id, xp_points, contribution_count")
+        .eq("id", uid)
+        .maybeSingle();
 
-      if (error) {
-        return { ok: false, message: error.message, code: error.code };
+      if (statsError) {
+        console.error("[GamificationService] ❌ Error obteniendo stats:", statsError);
+        return { ok: false, message: statsError.message, code: statsError.code };
       }
 
-      const position = (count || 0) + 1;
+      if (!userStats) {
+        console.error("[GamificationService] ❌ No se encontraron stats para el usuario");
+        return { ok: false, message: "No se encontraron estadísticas del usuario" };
+      }
 
-      // Obtener datos del usuario para el entry
-      const { data: profileData } = await supabase
+      // Obtener datos del usuario para el entry usando la relación profiles:id
+      const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("full_name, email, is_premium")
         .eq("id", uid)
         .maybeSingle();
 
+      if (profileError) {
+        console.error("[GamificationService] ❌ Error obteniendo perfil:", profileError);
+      }
+
+      // Obtener posición por contribution_count
+      const { count: contributionCount, error: countError } = await supabase
+        .from("user_stats")
+        .select("*", { count: "exact", head: true })
+        .gt("contribution_count", userStats.contribution_count || 0);
+
+      if (countError) {
+        console.error("[GamificationService] ❌ Error contando usuarios:", countError);
+      }
+
+      const contributionPosition = (contributionCount || 0) + 1;
+      const userXP = userStats.xp_points || 0;
+
       const entry: LeaderboardEntry = {
-        user_id: uid,
+        user_id: userStats.id, // Usar id como user_id para mantener compatibilidad
         full_name: profileData?.full_name || null,
         email: profileData?.email || "",
         xp_points: userXP,
-        level: statsResult.data.level,
-        daily_streak: statsResult.data.daily_streak,
-        rank: position,
+        level: calculateLevel(userXP), // Calcular nivel dinámicamente basado en XP
+        daily_streak: 0, // No se almacena en la consulta, se puede obtener por separado si es necesario
+        contribution_count: userStats.contribution_count || 0,
+        rank: contributionPosition, // Posición basada en aportes
         is_premium: profileData?.is_premium || false,
       };
 
-      return { ok: true, data: { position, entry } };
+      console.log("[GamificationService] ✅ Posición del usuario:", {
+        position: contributionPosition,
+        contribution_count: entry.contribution_count,
+        xp_points: entry.xp_points,
+      });
+
+      return { ok: true, data: { position: contributionPosition, entry } };
     } catch (error) {
+      console.error("[GamificationService] 💥 Excepción en getUserRankingPosition:", error);
       return {
         ok: false,
-        message: error instanceof Error ? error.message : "Error al obtener posición en ranking",
+        message: error instanceof Error ? error.message : "Error al obtener posición",
       };
     }
   },
@@ -534,7 +599,8 @@ export const GamificationService = {
     progress: number; // 0-100
     xpRemaining: number;
   } {
-    const currentLevel = stats.level;
+    // Calcular nivel dinámicamente basado en XP (no leer de stats.level)
+    const currentLevel = calculateLevel(stats.xp_points);
     const currentXP = stats.xp_points;
     const currentLevelXP = xpForCurrentLevel(currentLevel);
     const nextLevelXP = xpForNextLevel(currentLevel);

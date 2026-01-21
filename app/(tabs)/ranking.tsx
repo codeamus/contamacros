@@ -3,7 +3,6 @@ import { GamificationService, getUserRank, type LeaderboardEntry } from "@/domai
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
@@ -29,17 +28,41 @@ export default function RankingScreen() {
 
   const loadLeaderboard = useCallback(async () => {
     setLoading(true);
+    console.log("[RankingScreen] 🔄 Cargando leaderboard...");
+    
     const [leaderboardResult, positionResult] = await Promise.all([
       GamificationService.getLeaderboard(10),
       GamificationService.getUserRankingPosition(),
     ]);
 
+    console.log("[RankingScreen] 📊 Resultados:", {
+      leaderboard: {
+        ok: leaderboardResult.ok,
+        dataLength: leaderboardResult.ok ? leaderboardResult.data.length : 0,
+        message: leaderboardResult.ok ? null : leaderboardResult.message,
+        firstEntry: leaderboardResult.ok && leaderboardResult.data.length > 0 ? leaderboardResult.data[0] : null,
+      },
+      position: {
+        ok: positionResult.ok,
+        data: positionResult.ok ? positionResult.data : null,
+        message: positionResult.ok ? null : positionResult.message,
+      },
+    });
+
     if (leaderboardResult.ok) {
+      console.log("[RankingScreen] ✅ Leaderboard cargado:", leaderboardResult.data);
       setLeaderboard(leaderboardResult.data);
+    } else {
+      console.error("[RankingScreen] ❌ Error cargando leaderboard:", leaderboardResult.message);
     }
+    
     if (positionResult.ok) {
+      console.log("[RankingScreen] ✅ Posición del usuario cargada:", positionResult.data);
       setUserPosition(positionResult.data);
+    } else {
+      console.error("[RankingScreen] ❌ Error cargando posición:", positionResult.message);
     }
+    
     setLoading(false);
   }, []);
 
@@ -89,9 +112,9 @@ export default function RankingScreen() {
             size={36}
             color={colors.brand}
           />
-          <Text style={s.title}>Ranking de la Comunidad</Text>
+          <Text style={s.title}>Top Creadores</Text>
           <Text style={s.subtitle}>
-            Los mejores usuarios por experiencia
+            Los usuarios que más alimentos han creado
           </Text>
         </View>
 
@@ -146,10 +169,12 @@ export default function RankingScreen() {
                     <Text style={s.podiumName} numberOfLines={1}>
                       {top3[1].full_name || top3[1].email.split("@")[0] || "Usuario"}
                     </Text>
-                    <Text style={s.podiumXP}>{top3[1].xp_points} XP</Text>
                     <Text style={s.podiumRankBadge}>
                       {getUserRank(top3[1].xp_points).emoji}{" "}
                       {getUserRank(top3[1].xp_points).name}
+                    </Text>
+                    <Text style={s.podiumContributions}>
+                      {top3[1].contribution_count} {top3[1].contribution_count === 1 ? "aporte" : "aportes"}
                     </Text>
                   </View>
                 )}
@@ -183,10 +208,12 @@ export default function RankingScreen() {
                     <Text style={s.podiumNameLarge} numberOfLines={1}>
                       {top3[0].full_name || top3[0].email.split("@")[0] || "Usuario"}
                     </Text>
-                    <Text style={s.podiumXPLarge}>{top3[0].xp_points} XP</Text>
                     <Text style={s.podiumRankBadgeLarge}>
                       {getUserRank(top3[0].xp_points).emoji}{" "}
                       {getUserRank(top3[0].xp_points).name}
+                    </Text>
+                    <Text style={s.podiumContributionsLarge}>
+                      {top3[0].contribution_count} {top3[0].contribution_count === 1 ? "aporte" : "aportes"}
                     </Text>
                   </View>
                 )}
@@ -223,10 +250,12 @@ export default function RankingScreen() {
                     <Text style={s.podiumName} numberOfLines={1}>
                       {top3[2].full_name || top3[2].email.split("@")[0] || "Usuario"}
                     </Text>
-                    <Text style={s.podiumXP}>{top3[2].xp_points} XP</Text>
                     <Text style={s.podiumRankBadge}>
                       {getUserRank(top3[2].xp_points).emoji}{" "}
                       {getUserRank(top3[2].xp_points).name}
+                    </Text>
+                    <Text style={s.podiumContributions}>
+                      {top3[2].contribution_count} {top3[2].contribution_count === 1 ? "aporte" : "aportes"}
                     </Text>
                   </View>
                 )}
@@ -241,12 +270,7 @@ export default function RankingScreen() {
                   {rest.map((entry) => (
                     <View key={entry.user_id} style={s.entryWrapper}>
                       {entry.is_premium ? (
-                        <LinearGradient
-                          colors={["#FFD70020", "#FFD70010", "transparent"]}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 0 }}
-                          style={s.premiumGradient}
-                        >
+                        <View style={s.premiumGradient}>
                           <View style={[s.entryCard, s.entryCardPremium]}>
                             <View style={s.rankContainer}>
                               <MaterialCommunityIcons
@@ -282,11 +306,13 @@ export default function RankingScreen() {
                               </View>
                             </View>
                             <View style={s.statsContainer}>
-                              <Text style={s.statValue}>{entry.xp_points}</Text>
-                              <Text style={s.statLabel}>XP</Text>
+                              <Text style={s.statValue}>{entry.contribution_count}</Text>
+                              <Text style={s.statLabel}>
+                                {entry.contribution_count === 1 ? "aporte" : "aportes"}
+                              </Text>
                             </View>
                           </View>
-                        </LinearGradient>
+                        </View>
                       ) : (
                         <View style={s.entryCard}>
                           <View style={s.rankContainer}>
@@ -316,8 +342,10 @@ export default function RankingScreen() {
                             </View>
                           </View>
                           <View style={s.statsContainer}>
-                            <Text style={s.statValue}>{entry.xp_points}</Text>
-                            <Text style={s.statLabel}>XP</Text>
+                            <Text style={s.statValue}>{entry.contribution_count}</Text>
+                            <Text style={s.statLabel}>
+                              {entry.contribution_count === 1 ? "aporte" : "aportes"}
+                            </Text>
                           </View>
                         </View>
                       )}
@@ -358,9 +386,9 @@ export default function RankingScreen() {
                 </Text>
               </View>
               <View style={s.stickyXP}>
-                <Text style={s.stickyXPLabel}>XP</Text>
+                <Text style={s.stickyXPLabel}>Aportes</Text>
                 <Text style={s.stickyXPValue}>
-                  {userPosition.entry.xp_points}
+                  {userPosition.entry.contribution_count}
                 </Text>
               </View>
             </View>
@@ -523,14 +551,14 @@ function makeStyles(colors: any, typography: any) {
       textAlign: "center",
       marginBottom: 6,
     },
-    podiumXP: {
+    podiumContributions: {
       ...typography.h3,
       fontSize: 16,
       fontWeight: "800",
       color: colors.brand,
       marginBottom: 4,
     },
-    podiumXPLarge: {
+    podiumContributionsLarge: {
       ...typography.h2,
       fontSize: 20,
       fontWeight: "900",
@@ -571,6 +599,7 @@ function makeStyles(colors: any, typography: any) {
       borderRadius: 16,
       borderWidth: 2,
       borderColor: "#FFD700",
+      backgroundColor: "#FFD70015", // Fondo dorado sutil en lugar de gradiente
     },
     entryCard: {
       flexDirection: "row",
@@ -720,7 +749,7 @@ function makeStyles(colors: any, typography: any) {
       ...typography.h3,
       fontSize: 20,
       fontWeight: "900",
-      color: colors.textPrimary,
+      color: colors.brand,
     },
   });
 }
