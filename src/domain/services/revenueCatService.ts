@@ -1,5 +1,6 @@
 // src/domain/services/revenueCatService.ts
 import { AuthService } from "./authService";
+import { supabase } from "@/data/supabase/supabaseClient";
 import { Platform } from "react-native";
 
 const REVENUECAT_API_KEY = "appl_YefJRBImlNCzKtxjKjWOtrUMsSo";
@@ -88,21 +89,44 @@ export const RevenueCatService = {
       const hasEntitlement =
         customerInfo.entitlements.active[ENTITLEMENT_ID] !== undefined;
 
-      // Actualizar Supabase
-      const result = await AuthService.updateMyProfile({
-        is_premium: hasEntitlement,
-      });
+      // Obtener userId de la sesión actual
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData?.session?.user?.id;
 
-      if (result.ok) {
-        console.log("[RevenueCat] Estado premium sincronizado con Supabase:", {
+      if (!userId) {
+        console.warn("[RevenueCat] No hay userId disponible para sincronizar estado premium");
+        return;
+      }
+
+      // Actualizar Supabase directamente usando supabase client
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ is_premium: hasEntitlement })
+        .eq("id", userId);
+
+      if (updateError) {
+        console.warn(
+          "[RevenueCat] Error al actualizar is_premium en Supabase:",
+          updateError.message,
+        );
+        
+        // Fallback: intentar con AuthService
+        const result = await AuthService.updateMyProfile({
+          is_premium: hasEntitlement,
+        });
+        
+        if (result.ok) {
+          console.log("[RevenueCat] Estado premium sincronizado con Supabase (fallback):", {
+            is_premium: hasEntitlement,
+            entitlement: ENTITLEMENT_ID,
+          });
+        }
+      } else {
+        console.log("[RevenueCat] ✅ Estado premium sincronizado con Supabase:", {
           is_premium: hasEntitlement,
           entitlement: ENTITLEMENT_ID,
+          userId: userId.substring(0, 8) + "...",
         });
-      } else {
-        console.warn(
-          "[RevenueCat] No se pudo sincronizar estado premium con Supabase:",
-          result.message,
-        );
       }
     } catch (error) {
       console.error(
@@ -309,9 +333,21 @@ export const RevenueCatService = {
         };
       }
 
+      // Validar que el package tenga la estructura correcta
+      if (!packageToPurchase) {
+        throw new Error("Package no válido: objeto undefined");
+      }
+
+      const productId = packageToPurchase.product?.identifier || packageToPurchase.storeProduct?.identifier;
+      if (!productId) {
+        throw new Error("Package no válido: no se encontró productId");
+      }
+
       console.log("[RevenueCat] Iniciando compra:", {
         identifier: packageToPurchase.identifier,
-        productId: packageToPurchase.storeProduct.identifier,
+        productId: productId,
+        hasProduct: !!packageToPurchase.product,
+        hasStoreProduct: !!packageToPurchase.storeProduct,
       });
 
       const { customerInfo } = await PurchasesModule.purchasePackage(
