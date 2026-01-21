@@ -59,4 +59,36 @@ export const genericFoodsRepository = {
     if (error) return { ok: false, message: error.message, code: error.code };
     return { ok: true, data: (data as GenericFoodDb[]) ?? [] };
   },
+
+  /**
+   * Buscar alimentos por tags (ej: 'breakfast', 'protein', 'snack', 'fruit', 'dinner')
+   * Retorna alimentos que tengan al menos uno de los tags especificados
+   */
+  async searchByTags(tags: string[], limit: number = 3): Promise<RepoResult<GenericFoodDb[]>> {
+    if (!tags || tags.length === 0) return { ok: true, data: [] };
+
+    // Obtener todos los alimentos y filtrar por tags en el cliente
+    // Esto es más simple que usar operadores complejos de Supabase para arrays
+    const { data, error } = await supabase
+      .from("generic_foods")
+      .select(
+        "id, name_es, name_norm, aliases_search, kcal_100g, protein_100g, carbs_100g, fat_100g, unit_label_es, grams_per_unit, tags, created_at",
+      )
+      .order("created_at", { ascending: false })
+      .limit(50); // Obtener más para filtrar después
+
+    if (error) return { ok: false, message: error.message, code: error.code };
+    
+    // Filtrar en el cliente: alimentos que tengan al menos uno de los tags
+    const filtered = (data as GenericFoodDb[] ?? []).filter((food) => {
+      if (!food.tags || food.tags.length === 0) return false;
+      return tags.some((tag) => 
+        food.tags.some((foodTag) => 
+          foodTag.toLowerCase() === tag.toLowerCase()
+        )
+      );
+    });
+
+    return { ok: true, data: filtered.slice(0, limit) };
+  },
 };

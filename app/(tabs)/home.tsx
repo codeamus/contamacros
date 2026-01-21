@@ -1,11 +1,13 @@
 // app/(tabs)/home.tsx
 import type { MealType } from "@/domain/models/foodLogDb";
+import SmartCoachCard from "@/presentation/components/smartCoach/SmartCoachCard";
 import DonutRing from "@/presentation/components/ui/DonutRing";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import Skeleton from "@/presentation/components/ui/Skeleton";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useTodayMeals } from "@/presentation/hooks/diary/useTodayMeals";
 import { useTodaySummary } from "@/presentation/hooks/diary/useTodaySummary";
+import { isPremiumUser, useSmartCoach } from "@/presentation/hooks/smartCoach/useSmartCoach";
 import { useStaggerAnimation } from "@/presentation/hooks/ui/useStaggerAnimation";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { formatDateToSpanish } from "@/presentation/utils/date";
@@ -94,6 +96,15 @@ export default function HomeScreen() {
   const carbsTarget = profile?.carbs_g ?? 0;
   const fatTarget = profile?.fat_g ?? 0;
 
+  // Smart Coach Premium
+  const isPremium = isPremiumUser(profile);
+  const smartCoach = useSmartCoach(
+    profile,
+    caloriesTarget,
+    totals.calories,
+    isPremium,
+  );
+
   const hasTargets =
     caloriesTarget > 0 && proteinTarget > 0 && carbsTarget > 0 && fatTarget > 0;
 
@@ -178,6 +189,17 @@ export default function HomeScreen() {
             <Feather name="settings" size={18} color={colors.textPrimary} />
           </Pressable>
         </View>
+
+        {/* Smart Coach Premium Card */}
+        {hasTargets && (
+          <View style={{ marginBottom: 8 }}>
+            <SmartCoachCard
+              recommendation={smartCoach.recommendation}
+              loading={smartCoach.loading}
+              isPremium={true}
+            />
+          </View>
+        )}
 
         {/* Missing targets card */}
         {!hasTargets && (
