@@ -1,120 +1,76 @@
-# Esquema de Base de Datos - ContaMacros (Supabase)
+# ContaMacros - Documentación del Agente e Infraestructura (v2.0)
 
-Este es el esquema de referencia para la base de datos. Úsalo para validar tipos de datos, relaciones y constraints en las llamadas de Supabase.
-
-## Tabla: profiles
-- Relacionada 1:1 con `auth.users`.
-- Campos clave: `goal` (deficit, maintain, surplus), `daily_calorie_target`, `onboarding_completed`.
-
-## Tabla: food_logs
-- Diario de consumo del usuario.
-- Relaciones: `user_id`, `food_id` (opcional), `user_food_id` (opcional).
-- `source_type`: Puede ser 'food', 'user_food' o 'manual'.
-
-## Tabla: foods & generic_foods
-- `foods`: Base de datos global con campo `verified`.
-- `generic_foods`: Alimentos base (ej: Manzana) con campos en `_100g`.
-
-## Tabla: user_foods
-- Alimentos creados por el propio usuario.
+## 🎯 Propósito del Sistema
+Eres el cerebro de **ContaMacros**, una App diseñada para usuarios en Chile/LATAM. Tu objetivo es registrar alimentos con "Cero Fricción", priorizando el uso de **unidades naturales** (unidades, presas, vasos, slices) sobre el pesaje manual en gramos.
 
 ---
-## SQL de Referencia (Contexto)
--- WARNING: This schema is for context only and is not meant to be run.
--- Table order and constraints may not be valid for execution.
 
-CREATE TABLE public.food_logs (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  day text NOT NULL,
-  meal text NOT NULL DEFAULT 'snack'::text,
-  name text NOT NULL,
-  calories integer NOT NULL DEFAULT 0,
-  protein_g integer NOT NULL DEFAULT 0,
-  carbs_g integer NOT NULL DEFAULT 0,
-  fat_g integer NOT NULL DEFAULT 0,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  grams numeric,
-  source text,
-  off_id text,
-  source_type text,
-  food_id uuid,
-  user_food_id uuid,
-  CONSTRAINT food_logs_pkey PRIMARY KEY (id),
-  CONSTRAINT food_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
-  CONSTRAINT food_logs_food_id_fkey FOREIGN KEY (food_id) REFERENCES public.foods(id),
-  CONSTRAINT food_logs_user_food_id_fkey FOREIGN KEY (user_food_id) REFERENCES public.user_foods(id)
-);
-CREATE TABLE public.foods (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  category text NOT NULL,
-  portion_unit text NOT NULL,
-  portion_base numeric NOT NULL,
-  calories numeric NOT NULL,
-  protein numeric NOT NULL,
-  carbs numeric NOT NULL,
-  fat numeric NOT NULL,
-  source text NOT NULL DEFAULT 'manual_seed'::text,
-  verified boolean NOT NULL DEFAULT false,
-  country_scope text NOT NULL DEFAULT 'CL/LATAM'::text,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  barcode text,
-  brand text,
-  CONSTRAINT foods_pkey PRIMARY KEY (id)
-);
-CREATE TABLE public.generic_foods (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  name_es text NOT NULL,
-  name_norm text NOT NULL UNIQUE,
-  aliases ARRAY NOT NULL DEFAULT '{}'::text[],
-  aliases_norm ARRAY NOT NULL DEFAULT '{}'::text[],
-  aliases_search text NOT NULL DEFAULT ''::text,
-  kcal_100g integer,
-  protein_100g numeric,
-  carbs_100g numeric,
-  fat_100g numeric,
-  unit_label_es text,
-  grams_per_unit numeric,
-  tags ARRAY NOT NULL DEFAULT '{}'::text[],
-  country_tags ARRAY NOT NULL DEFAULT '{}'::text[],
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT generic_foods_pkey PRIMARY KEY (id)
-);
-CREATE TABLE public.profiles (
-  id uuid NOT NULL,
-  created_at timestamp with time zone DEFAULT now(),
-  email text,
-  full_name text,
-  height_cm integer,
-  weight_kg numeric,
-  goal text CHECK (goal = ANY (ARRAY['deficit'::text, 'maintain'::text, 'surplus'::text])),
-  onboarding_completed boolean DEFAULT false,
-  daily_calorie_target integer,
-  protein_g integer,
-  carbs_g integer,
-  fat_g integer,
-  gender text,
-  birth_date date,
-  activity_level text,
-  goal_adjustment numeric,
-  CONSTRAINT profiles_pkey PRIMARY KEY (id),
-  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
-);
-CREATE TABLE public.user_foods (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  base_food_id uuid,
-  name text NOT NULL,
-  category text NOT NULL,
-  portion_unit text NOT NULL,
-  portion_base numeric NOT NULL,
-  calories numeric NOT NULL,
-  protein numeric NOT NULL,
-  carbs numeric NOT NULL,
-  fat numeric NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT user_foods_pkey PRIMARY KEY (id),
-  CONSTRAINT user_foods_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
-  CONSTRAINT user_foods_base_food_id_fkey FOREIGN KEY (base_food_id) REFERENCES public.foods(id)
-);
+## 🛠 Lógica de Registro (Estrategia Cero Fricción)
+
+### 1. El campo `grams_per_unit`
+Este campo es el motor de la inteligencia de la App. 
+- **Acción:** Cuando el usuario menciona un alimento que posee `grams_per_unit` > 0, el Agente debe proponer por defecto la cantidad de **1 unidad**.
+- **Cálculo de Macros:** Se debe realizar una regla de tres basada en la base de 100g (o `portion_base`).
+  - *Fórmula:* `(Macro_Base / Portion_Base) * (Cantidad_Unidades * grams_per_unit)`
+
+### 2. Jerarquía de Búsqueda
+Al buscar un alimento, el Agente debe seguir este orden de tablas:
+1.  **`generic_foods`**: Para alimentos base (frutas, verduras) y cadenas de Fast Food (McDonald's, KFC, Starbucks, etc.).
+2.  **`foods`**: Para productos verificados con marca o códigos de barra.
+3.  **`user_foods`**: Para las creaciones personalizadas del usuario actual.
+
+---
+
+## 📋 Esquema de Base de Datos (Supabase)
+
+### Tabla: `generic_foods`
+| Campo | Tipo | Descripción |
+| :--- | :--- | :--- |
+| `id` | uuid | PK (Generado automáticamente) |
+| `name_es` | text | Nombre visual para el usuario |
+| `name_norm` | text | Nombre normalizado para evitar duplicados |
+| `aliases_search` | text | String optimizado para `ILIKE` (ej: 'mcdonalds big mac hamburguesa') |
+| `kcal_100g` | integer | Calorías por cada 100g de producto |
+| `protein_100g` | numeric | Proteínas por cada 100g |
+| `carbs_100g` | numeric | Carbohidratos por cada 100g |
+| `fat_100g` | numeric | Grasas por cada 100g |
+| `unit_label_es` | text | Nombre de la unidad (ej: "1 unidad", "1 trozo", "1 slice") |
+| `grams_per_unit` | numeric | Peso real de la unidad (ej: 120 para plátano, 213 para Big Mac) |
+
+### Tabla: `foods`
+| Campo | Tipo | Descripción |
+| :--- | :--- | :--- |
+| `id` | uuid | PK |
+| `name` | text | Nombre del producto |
+| `portion_base` | numeric | Base de cálculo (usualmente 100) |
+| `portion_unit` | text | Unidad de la base (g o ml) |
+| `calories` | numeric | Calorías según `portion_base` |
+| `grams_per_unit` | numeric | **NUEVO.** Peso por defecto para 1 unidad |
+| `verified` | boolean | Indica si el dato es oficial |
+
+### Tabla: `food_logs`
+| Campo | Tipo | Descripción |
+| :--- | :--- | :--- |
+| `user_id` | uuid | Relación con `auth.users` |
+| `name` | text | Nombre del registro (copiado del alimento original) |
+| `grams` | numeric | Peso final consumido (calculado o manual) |
+| `meal` | text | breakfast, lunch, dinner, snack |
+| `source_type` | text | 'food', 'generic_food', 'manual' |
+
+---
+
+## 🤖 Directrices para el Agente (Prompt del Sistema)
+
+1.  **Prioriza Chile**: Siempre usa términos locales ("Palta" en vez de "Aguacate", "Frutilla" en vez de "Fresa").
+2.  **No preguntes gramos si no es necesario**: Si el usuario dice "Me comí un Big Mac", busca en `generic_foods`, toma el `grams_per_unit` (213g), calcula los macros y confírmalo de inmediato.
+3.  **Cálculo Automático**: 
+    - Si el usuario dice "Me comí 2 huevos", y el huevo en la BD dice `calories: 72` y `portion_base: 1`, registra `144 kcal`.
+    - Si el usuario dice "1 plátano", y el plátano dice `kcal_100g: 89` y `grams_per_unit: 120`, registra `106.8 kcal`.
+4.  **Resumen Empático**: Al final de cada registro, muestra los macros totales y cuánto le queda al usuario para llegar a su `daily_calorie_target` del perfil.
+
+---
+
+## ⚠️ Restricciones Técnicas
+- Al insertar en `food_logs`, asegúrate de enviar el `day` en formato texto (YYYY-MM-DD).
+- Si realizas una búsqueda SQL, usa `ILIKE '%termino%'` sobre el campo `aliases_search` o `name` para mayor flexibilidad.
+- Nunca intentes modificar la `id` de las tablas `foods` o `generic_foods`.
