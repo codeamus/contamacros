@@ -36,6 +36,35 @@ function norm(s: string) {
 }
 
 export const genericFoodsRepository = {
+  /**
+   * Verifica si ya existe un alimento con un nombre similar (normalizado)
+   */
+  async checkDuplicate(normalizedName: string): Promise<RepoResult<GenericFoodDb | null>> {
+    try {
+      // Normalizar el nombre para búsqueda
+      const q = norm(normalizedName);
+
+      // Buscar por name_norm (que ya está normalizado en la DB)
+      const { data, error } = await supabase
+        .from("generic_foods")
+        .select("id, name_es, name_norm")
+        .eq("name_norm", q)
+        .maybeSingle();
+
+      if (error && error.code !== "PGRST116") {
+        // PGRST116 = no rows returned, que es esperado si no existe
+        return { ok: false, message: error.message, code: error.code };
+      }
+
+      return { ok: true, data: data as GenericFoodDb | null };
+    } catch (error) {
+      return {
+        ok: false,
+        message: error instanceof Error ? error.message : "Error al verificar duplicados",
+      };
+    }
+  },
+
   async search(query: string): Promise<RepoResult<GenericFoodDb[]>> {
     const qRaw = query.trim();
     if (qRaw.length < 2) return { ok: true, data: [] };

@@ -33,6 +33,7 @@ export type LeaderboardEntry = {
   level: number;
   daily_streak: number;
   rank: number;
+  is_premium?: boolean;
 };
 
 async function getUid(): Promise<RepoResult<string>> {
@@ -47,6 +48,26 @@ function calculateLevel(xp: number): number {
   // Fórmula: nivel = floor(sqrt(xp / 100))
   // Ejemplo: 0-99 XP = nivel 0, 100-399 XP = nivel 1, 400-899 XP = nivel 2, etc.
   return Math.floor(Math.sqrt(xp / 100));
+}
+
+/**
+ * Obtiene el rango del usuario basado en su XP
+ */
+export function getUserRank(xp: number): {
+  name: string;
+  emoji: string;
+  minXP: number;
+  maxXP: number;
+} {
+  if (xp >= 5000) {
+    return { name: "Master Pro", emoji: "👑", minXP: 5000, maxXP: Infinity };
+  } else if (xp >= 2001) {
+    return { name: "Atleta", emoji: "💪", minXP: 2001, maxXP: 4999 };
+  } else if (xp >= 501) {
+    return { name: "Entusiasta", emoji: "🥗", minXP: 501, maxXP: 2000 };
+  } else {
+    return { name: "Novato", emoji: "🥚", minXP: 0, maxXP: 500 };
+  }
 }
 
 function xpForNextLevel(currentLevel: number): number {
@@ -122,8 +143,9 @@ export const GamificationService = {
 
   /**
    * Añade XP al usuario y actualiza el nivel
+   * Retorna información sobre si el usuario subió de rango
    */
-  async addXP(amount: number, reason: string): Promise<RepoResult<UserStats>> {
+  async addXP(amount: number, reason: string): Promise<RepoResult<{ stats: UserStats; rankUp: boolean; newRank: ReturnType<typeof getUserRank> | null }>> {
     try {
       const uidRes = await getUid();
       if (!uidRes.ok) return uidRes;
@@ -134,8 +156,11 @@ export const GamificationService = {
       if (!statsResult.ok) return statsResult;
 
       const currentStats = statsResult.data;
+      const oldRank = getUserRank(currentStats.xp_points);
       const newXP = currentStats.xp_points + amount;
       const newLevel = calculateLevel(newXP);
+      const newRank = getUserRank(newXP);
+      const rankUp = oldRank.name !== newRank.name;
 
       // Actualizar stats
       const { data: updated, error } = await supabase
@@ -158,8 +183,18 @@ export const GamificationService = {
       }
 
       console.log(`[Gamification] +${amount} XP (${reason}). Total: ${newXP} XP, Nivel: ${newLevel}`);
+      if (rankUp) {
+        console.log(`[Gamification] 🎉 ¡Subió de rango! De ${oldRank.name} a ${newRank.name}`);
+      }
 
-      return { ok: true, data: updated as UserStats };
+      return {
+        ok: true,
+        data: {
+          stats: updated as UserStats,
+          rankUp,
+          newRank: rankUp ? newRank : null,
+        },
+      };
     } catch (error) {
       return {
         ok: false,
@@ -217,7 +252,14 @@ export const GamificationService = {
         await this.unlockAchievement("community_chef");
       }
 
+      const oldRank = getUserRank(currentStats.xp_points);
+      const newRank = getUserRank(newXP);
+      const rankUp = oldRank.name !== newRank.name;
+
       console.log(`[Gamification] +50 XP por aporte. Total: ${newXP} XP, Nivel: ${newLevel}`);
+      if (rankUp) {
+        console.log(`[Gamification] 🎉 ¡Subió de rango! De ${oldRank.name} a ${newRank.name}`);
+      }
 
       return { ok: true, data: updated as UserStats };
     } catch (error) {
@@ -396,7 +438,7 @@ export const GamificationService = {
           xp_points,
           level,
           daily_streak,
-          profiles!inner(full_name, email)
+          profiles!inner(full_name, email, is_premium)
         `,
         )
         .order("xp_points", { ascending: false })
@@ -414,6 +456,7 @@ export const GamificationService = {
         level: item.level || 0,
         daily_streak: item.daily_streak || 0,
         rank: index + 1,
+        is_premium: item.profiles?.is_premium || false,
       }));
 
       return { ok: true, data: entries };
@@ -421,6 +464,62 @@ export const GamificationService = {
       return {
         ok: false,
         message: error instanceof Error ? error.message : "Error al obtener leaderboard",
+      };
+    }
+  },
+
+  /**
+   * Obtiene la posición del usuario actual en el ranking
+   */
+  async getUserRankingPosition(): Promise<RepoResult<{ position: number; entry: LeaderboardEntry | null }>> {
+    try {
+      const uidRes = await getUid();
+      if (!uidRes.ok) return uidRes;
+      const uid = uidRes.data;
+
+      // Obtener XP del usuario
+      const statsResult = await this.getUserStats();
+      if (!statsResult.ok) {
+        return { ok: false, message: statsResult.message };
+      }
+
+      const userXP = statsResult.data.xp_points;
+
+      // Contar cuántos usuarios tienen más XP
+      const { count, error } = await supabase
+        .from("user_stats")
+        .select("*", { count: "exact", head: true })
+        .gt("xp_points", userXP);
+
+      if (error) {
+        return { ok: false, message: error.message, code: error.code };
+      }
+
+      const position = (count || 0) + 1;
+
+      // Obtener datos del usuario para el entry
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("full_name, email, is_premium")
+        .eq("id", uid)
+        .maybeSingle();
+
+      const entry: LeaderboardEntry = {
+        user_id: uid,
+        full_name: profileData?.full_name || null,
+        email: profileData?.email || "",
+        xp_points: userXP,
+        level: statsResult.data.level,
+        daily_streak: statsResult.data.daily_streak,
+        rank: position,
+        is_premium: profileData?.is_premium || false,
+      };
+
+      return { ok: true, data: { position, entry } };
+    } catch (error) {
+      return {
+        ok: false,
+        message: error instanceof Error ? error.message : "Error al obtener posición en ranking",
       };
     }
   },

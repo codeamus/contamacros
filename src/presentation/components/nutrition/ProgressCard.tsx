@@ -1,5 +1,5 @@
 // src/presentation/components/nutrition/ProgressCard.tsx
-import { GamificationService, type UserStats } from "@/domain/services/gamificationService";
+import { GamificationService, getUserRank, type UserStats } from "@/domain/services/gamificationService";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
@@ -85,20 +85,30 @@ export default function ProgressCard({ onPressRanking }: ProgressCardProps) {
         </Pressable>
       </View>
 
-      {/* Nivel y XP */}
-      <View style={s.levelContainer}>
-        <View style={s.levelBadge}>
-          <Text style={s.levelText}>Nivel {stats.level}</Text>
-        </View>
-        <View style={s.xpContainer}>
-          <Text style={s.xpText}>
-            {stats.xp_points} XP
+      {/* Rango y Nivel */}
+      <View style={s.rankContainer}>
+        <View style={s.rankBadge}>
+          <Text style={s.rankEmoji}>
+            {getUserRank(stats.xp_points).emoji}
           </Text>
-          {progress.xpRemaining > 0 && (
-            <Text style={s.xpRemainingText}>
-              {progress.xpRemaining} XP para nivel {stats.level + 1}
+          <Text style={s.rankText}>
+            {getUserRank(stats.xp_points).name}
+          </Text>
+        </View>
+        <View style={s.levelContainer}>
+          <View style={s.levelBadge}>
+            <Text style={s.levelText}>Nivel {stats.level}</Text>
+          </View>
+          <View style={s.xpContainer}>
+            <Text style={s.xpText}>
+              {stats.xp_points} XP
             </Text>
-          )}
+            {progress.xpRemaining > 0 && (
+              <Text style={s.xpRemainingText}>
+                {progress.xpRemaining} XP para nivel {stats.level + 1}
+              </Text>
+            )}
+          </View>
         </View>
       </View>
 
@@ -187,6 +197,30 @@ function makeStyles(colors: any, typography: any) {
       ...typography.body,
       fontSize: 13,
       fontWeight: "600",
+      color: colors.brand,
+    },
+    rankContainer: {
+      marginBottom: 16,
+    },
+    rankBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 12,
+      backgroundColor: colors.brand + "15",
+      borderWidth: 1,
+      borderColor: colors.brand + "30",
+      marginBottom: 12,
+    },
+    rankEmoji: {
+      fontSize: 24,
+    },
+    rankText: {
+      ...typography.subtitle,
+      fontSize: 16,
+      fontWeight: "800",
       color: colors.brand,
     },
     levelContainer: {

@@ -1,12 +1,12 @@
 // src/presentation/components/nutrition/CreateFoodModal.tsx
 import { genericFoodsRepository } from "@/data/food/genericFoodsRepository";
-import { GamificationService } from "@/domain/services/gamificationService";
+import { GamificationService, getUserRank } from "@/domain/services/gamificationService";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -49,6 +49,9 @@ export default function CreateFoodModal({
   const [gramsPerUnit, setGramsPerUnit] = useState("");
   const [unitLabel, setUnitLabel] = useState("unidad");
   const [saving, setSaving] = useState(false);
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
+  const [isDuplicate, setIsDuplicate] = useState(false);
+  const [duplicateName, setDuplicateName] = useState<string | null>(null);
 
   // Calcular calorías automáticamente
   const calculatedCalories = useMemo(() => {
@@ -99,9 +102,40 @@ export default function CreateFoodModal({
       name.trim().length >= 2 &&
       parseFloat(portionBase) > 0 &&
       (parseFloat(protein) >= 0 || parseFloat(carbs) >= 0 || parseFloat(fat) >= 0) &&
-      (portionUnit !== "unidad" || (parseFloat(gramsPerUnit) > 0 && unitLabel.trim().length > 0))
+      (portionUnit !== "unidad" || (parseFloat(gramsPerUnit) > 0 && unitLabel.trim().length > 0)) &&
+      !isDuplicate // No permitir guardar si es duplicado
     );
-  }, [name, portionBase, protein, carbs, fat, portionUnit, gramsPerUnit, unitLabel]);
+  }, [name, portionBase, protein, carbs, fat, portionUnit, gramsPerUnit, unitLabel, isDuplicate]);
+
+  // Validar duplicados mientras el usuario escribe (debounced)
+  useEffect(() => {
+    const normalizedName = name.trim().toLowerCase().replace(/\s+/g, " ");
+    
+    if (normalizedName.length < 2) {
+      setIsDuplicate(false);
+      setDuplicateName(null);
+      return;
+    }
+
+    const timeoutId = setTimeout(async () => {
+      setCheckingDuplicate(true);
+      const duplicateCheck = await genericFoodsRepository.checkDuplicate(normalizedName);
+      
+      if (duplicateCheck.ok && duplicateCheck.data) {
+        setIsDuplicate(true);
+        setDuplicateName(duplicateCheck.data.name_es);
+      } else {
+        setIsDuplicate(false);
+        setDuplicateName(null);
+      }
+      setCheckingDuplicate(false);
+    }, 500); // Esperar 500ms después de que el usuario deje de escribir
+
+    return () => {
+      clearTimeout(timeoutId);
+      setCheckingDuplicate(false);
+    };
+  }, [name]);
 
   const handleSave = async () => {
     if (!canSave || saving) return;
@@ -110,6 +144,18 @@ export default function CreateFoodModal({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
+      // Validación final de duplicados (por si acaso)
+      if (isDuplicate) {
+        setSaving(false);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        showToast({
+          message: "Este producto ya existe en la comunidad. ¡Búscalo para registrarlo!",
+          type: "warning",
+          duration: 4000,
+        });
+        return;
+      }
+
       const result = await genericFoodsRepository.create({
         name_es: name.trim(),
         portion_base: parseFloat(portionBase),
@@ -126,14 +172,45 @@ export default function CreateFoodModal({
       }
 
       // Registrar aporte en gamificación (+50 XP)
-      await GamificationService.recordFoodContribution();
+      const contributionResult = await GamificationService.recordFoodContribution();
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showToast({
-        message: "¡Alimento creado! +50 XP ganados 🎉",
-        type: "success",
-        duration: 3000,
-      });
+      
+      // Verificar si subió de rango
+      if (contributionResult.ok) {
+        const statsResult = await GamificationService.getUserStats();
+        if (statsResult.ok) {
+          const currentRank = getUserRank(statsResult.data.xp_points);
+          const previousRank = getUserRank(statsResult.data.xp_points - 50);
+          
+          if (currentRank.name !== previousRank.name) {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            showToast({
+              message: `¡Felicidades! Ahora eres ${currentRank.emoji} ${currentRank.name}`,
+              type: "success",
+              duration: 5000,
+            });
+          } else {
+            showToast({
+              message: "¡Alimento creado! +50 XP ganados 🎉",
+              type: "success",
+              duration: 3000,
+            });
+          }
+        } else {
+          showToast({
+            message: "¡Alimento creado! +50 XP ganados 🎉",
+            type: "success",
+            duration: 3000,
+          });
+        }
+      } else {
+        showToast({
+          message: "¡Alimento creado! +50 XP ganados 🎉",
+          type: "success",
+          duration: 3000,
+        });
+      }
 
       // Resetear formulario
       setName("");
@@ -215,14 +292,51 @@ export default function CreateFoodModal({
                 Ejemplo: "Pastel de Jaiba", "Pollo a la Plancha", "Ensalada
                 César"
               </Text>
-              <TextInput
-                style={s.input}
-                value={name}
-                onChangeText={setName}
-                placeholder="Escribe el nombre del alimento..."
-                placeholderTextColor={colors.textSecondary}
-                autoCapitalize="words"
-              />
+              <View style={s.inputContainer}>
+                <TextInput
+                  style={[
+                    s.input,
+                    isDuplicate && s.inputError,
+                    checkingDuplicate && s.inputChecking,
+                  ]}
+                  value={name}
+                  onChangeText={(text) => {
+                    setName(text);
+                    setIsDuplicate(false); // Resetear al escribir
+                    setDuplicateName(null);
+                  }}
+                  placeholder="Escribe el nombre del alimento..."
+                  placeholderTextColor={colors.textSecondary}
+                  autoCapitalize="words"
+                />
+                {checkingDuplicate && (
+                  <View style={s.checkingIndicator}>
+                    <ActivityIndicator size="small" color={colors.brand} />
+                  </View>
+                )}
+                {isDuplicate && !checkingDuplicate && (
+                  <View style={s.errorIndicator}>
+                    <MaterialCommunityIcons
+                      name="alert-circle"
+                      size={20}
+                      color="#EF4444"
+                    />
+                  </View>
+                )}
+              </View>
+              {isDuplicate && duplicateName && (
+                <View style={s.duplicateWarning}>
+                  <MaterialCommunityIcons
+                    name="information"
+                    size={18}
+                    color="#F59E0B"
+                  />
+                  <Text style={s.duplicateWarningText}>
+                    Este producto ya existe: "{duplicateName}". ¡Búscalo para
+                    registrarlo!
+                  </Text>
+                </View>
+              )}
             </View>
 
             {/* Sección: ¿Cómo quieres medirlo? */}
@@ -500,7 +614,9 @@ export default function CreateFoodModal({
               </Pressable>
               {!canSave && (
                 <Text style={s.saveHint}>
-                  Completa todos los campos marcados con * para continuar
+                  {isDuplicate
+                    ? "Este alimento ya existe. Busca el nombre en la búsqueda principal."
+                    : "Completa todos los campos marcados con * para continuar"}
                 </Text>
               )}
             </View>
@@ -597,16 +713,57 @@ function makeStyles(colors: any, typography: any) {
       marginBottom: 12,
       lineHeight: 18,
     },
+    inputContainer: {
+      position: "relative",
+    },
     input: {
       ...typography.body,
       fontSize: 16,
       color: colors.textPrimary,
       backgroundColor: colors.background,
-      borderWidth: 1,
+      borderWidth: 2,
       borderColor: colors.border,
       borderRadius: 12,
       paddingHorizontal: 16,
       paddingVertical: 12,
+      paddingRight: 48, // Espacio para el indicador
+    },
+    inputError: {
+      borderColor: "#EF4444",
+      backgroundColor: "#EF444415",
+    },
+    inputChecking: {
+      borderColor: colors.brand,
+    },
+    checkingIndicator: {
+      position: "absolute",
+      right: 14,
+      top: "50%",
+      transform: [{ translateY: -10 }],
+    },
+    errorIndicator: {
+      position: "absolute",
+      right: 14,
+      top: "50%",
+      transform: [{ translateY: -10 }],
+    },
+    duplicateWarning: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 8,
+      marginTop: 8,
+      padding: 12,
+      borderRadius: 12,
+      backgroundColor: "#F59E0B15",
+      borderWidth: 1,
+      borderColor: "#F59E0B40",
+    },
+    duplicateWarningText: {
+      ...typography.body,
+      fontSize: 13,
+      color: "#F59E0B",
+      flex: 1,
+      lineHeight: 18,
     },
     row: {
       flexDirection: "row",
