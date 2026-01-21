@@ -35,28 +35,126 @@ function norm(s: string) {
     .trim();
 }
 
+/**
+ * Normaliza el texto removiendo palabras conectoras comunes
+ */
+function normWithoutConnectors(s: string): string {
+  const connectors = ["de", "con", "en", "para", "por", "a", "al", "del", "la", "el", "las", "los", "un", "una", "unos", "unas"];
+  const normalized = norm(s);
+  const words = normalized.split(/\s+/).filter(word => word.length > 0 && !connectors.includes(word));
+  return words.join(" ");
+}
+
+/**
+ * Calcula la distancia de Levenshtein entre dos strings
+ * Retorna un valor entre 0 (idénticos) y max(str1.length, str2.length)
+ */
+function levenshteinDistance(str1: string, str2: string): number {
+  const len1 = str1.length;
+  const len2 = str2.length;
+  const matrix: number[][] = [];
+
+  // Inicializar matriz
+  for (let i = 0; i <= len1; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= len2; j++) {
+    matrix[0][j] = j;
+  }
+
+  // Llenar matriz
+  for (let i = 1; i <= len1; i++) {
+    for (let j = 1; j <= len2; j++) {
+      const cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,      // eliminación
+        matrix[i][j - 1] + 1,      // inserción
+        matrix[i - 1][j - 1] + cost // sustitución
+      );
+    }
+  }
+
+  return matrix[len1][len2];
+}
+
+/**
+ * Calcula la similitud entre dos strings usando Levenshtein
+ * Retorna un valor entre 0 (completamente diferentes) y 1 (idénticos)
+ */
+function calculateSimilarity(str1: string, str2: string): number {
+  const distance = levenshteinDistance(str1, str2);
+  const maxLength = Math.max(str1.length, str2.length);
+  if (maxLength === 0) return 1;
+  return 1 - distance / maxLength;
+}
+
 export const genericFoodsRepository = {
   /**
-   * Verifica si ya existe un alimento con un nombre similar (normalizado)
+   * Verifica si ya existe un alimento con un nombre similar (fuzzy search)
+   * Retorna el alimento más similar si la similitud es > 80%
    */
-  async checkDuplicate(normalizedName: string): Promise<RepoResult<GenericFoodDb | null>> {
+  async checkDuplicate(normalizedName: string): Promise<RepoResult<{ food: GenericFoodDb; similarity: number } | null>> {
     try {
-      // Normalizar el nombre para búsqueda
-      const q = norm(normalizedName);
+      // Normalizar el nombre sin conectores para comparación
+      const normalizedWithoutConnectors = normWithoutConnectors(normalizedName);
+      const normalized = norm(normalizedName);
 
-      // Buscar por name_norm (que ya está normalizado en la DB)
-      const { data, error } = await supabase
+      // Primero buscar coincidencia exacta (más rápido)
+      const { data: exactMatch, error: exactError } = await supabase
         .from("generic_foods")
         .select("id, name_es, name_norm")
-        .eq("name_norm", q)
+        .eq("name_norm", normalized)
         .maybeSingle();
 
-      if (error && error.code !== "PGRST116") {
-        // PGRST116 = no rows returned, que es esperado si no existe
-        return { ok: false, message: error.message, code: error.code };
+      if (exactError && exactError.code !== "PGRST116") {
+        return { ok: false, message: exactError.message, code: exactError.code };
       }
 
-      return { ok: true, data: data as GenericFoodDb | null };
+      if (exactMatch) {
+        return { ok: true, data: { food: exactMatch as GenericFoodDb, similarity: 1.0 } };
+      }
+
+      // Si no hay coincidencia exacta, buscar alimentos similares
+      // Obtener un conjunto de alimentos para comparar (limitar a 100 para no sobrecargar)
+      const { data: allFoods, error: searchError } = await supabase
+        .from("generic_foods")
+        .select("id, name_es, name_norm")
+        .limit(200); // Obtener más alimentos para comparar
+
+      if (searchError) {
+        return { ok: false, message: searchError.message, code: searchError.code };
+      }
+
+      if (!allFoods || allFoods.length === 0) {
+        return { ok: true, data: null };
+      }
+
+      // Calcular similitud con cada alimento
+      let bestMatch: { food: GenericFoodDb; similarity: number } | null = null;
+      const threshold = 0.8; // 80% de similitud
+
+      for (const food of allFoods) {
+        const foodNormalized = norm(food.name_es);
+        const foodNormalizedWithoutConnectors = normWithoutConnectors(food.name_es);
+
+        // Comparar ambas versiones (con y sin conectores)
+        const similarity1 = calculateSimilarity(normalized, foodNormalized);
+        const similarity2 = calculateSimilarity(normalizedWithoutConnectors, foodNormalizedWithoutConnectors);
+        
+        // Usar la mayor similitud
+        const similarity = Math.max(similarity1, similarity2);
+
+        if (similarity >= threshold) {
+          if (!bestMatch || similarity > bestMatch.similarity) {
+            bestMatch = {
+              food: food as GenericFoodDb,
+              similarity,
+            };
+          }
+        }
+      }
+
+      return { ok: true, data: bestMatch };
     } catch (error) {
       return {
         ok: false,

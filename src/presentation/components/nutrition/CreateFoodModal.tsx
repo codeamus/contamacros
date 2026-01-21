@@ -52,6 +52,7 @@ export default function CreateFoodModal({
   const [checkingDuplicate, setCheckingDuplicate] = useState(false);
   const [isDuplicate, setIsDuplicate] = useState(false);
   const [duplicateName, setDuplicateName] = useState<string | null>(null);
+  const [similarity, setSimilarity] = useState<number | null>(null);
 
   // Calcular calorías automáticamente
   const calculatedCalories = useMemo(() => {
@@ -123,10 +124,12 @@ export default function CreateFoodModal({
       
       if (duplicateCheck.ok && duplicateCheck.data) {
         setIsDuplicate(true);
-        setDuplicateName(duplicateCheck.data.name_es);
+        setDuplicateName(duplicateCheck.data.food.name_es);
+        setSimilarity(duplicateCheck.data.similarity);
       } else {
         setIsDuplicate(false);
         setDuplicateName(null);
+        setSimilarity(null);
       }
       setCheckingDuplicate(false);
     }, 500); // Esperar 500ms después de que el usuario deje de escribir
@@ -304,6 +307,7 @@ export default function CreateFoodModal({
                     setName(text);
                     setIsDuplicate(false); // Resetear al escribir
                     setDuplicateName(null);
+                    setSimilarity(null);
                   }}
                   placeholder="Escribe el nombre del alimento..."
                   placeholderTextColor={colors.textSecondary}
@@ -327,14 +331,24 @@ export default function CreateFoodModal({
               {isDuplicate && duplicateName && (
                 <View style={s.duplicateWarning}>
                   <MaterialCommunityIcons
-                    name="information"
+                    name="alert"
                     size={18}
                     color="#F59E0B"
                   />
-                  <Text style={s.duplicateWarningText}>
-                    Este producto ya existe: "{duplicateName}". ¡Búscalo para
-                    registrarlo!
-                  </Text>
+                  <View style={s.duplicateWarningContent}>
+                    <Text style={s.duplicateWarningText}>
+                      ⚠️ Parece que este alimento ya existe como "{duplicateName}".
+                    </Text>
+                    <Text style={s.duplicateWarningSubtext}>
+                      Por favor, verifica si es el mismo antes de crear uno nuevo
+                      para mantener la comunidad limpia.
+                      {similarity && (
+                        <Text style={s.similarityText}>
+                          {" "}(Similitud: {Math.round(similarity * 100)}%)
+                        </Text>
+                      )}
+                    </Text>
+                  </View>
                 </View>
               )}
             </View>
@@ -750,20 +764,38 @@ function makeStyles(colors: any, typography: any) {
     duplicateWarning: {
       flexDirection: "row",
       alignItems: "flex-start",
-      gap: 8,
+      gap: 12,
       marginTop: 8,
-      padding: 12,
+      padding: 14,
       borderRadius: 12,
       backgroundColor: "#F59E0B15",
-      borderWidth: 1,
-      borderColor: "#F59E0B40",
+      borderWidth: 2,
+      borderColor: "#F59E0B60",
+    },
+    duplicateWarningContent: {
+      flex: 1,
+      gap: 4,
     },
     duplicateWarningText: {
-      ...typography.body,
-      fontSize: 13,
+      ...typography.subtitle,
+      fontSize: 14,
+      fontWeight: "700",
       color: "#F59E0B",
-      flex: 1,
+      lineHeight: 20,
+    },
+    duplicateWarningSubtext: {
+      ...typography.body,
+      fontSize: 12,
+      color: "#F59E0B",
       lineHeight: 18,
+      opacity: 0.9,
+    },
+    similarityText: {
+      ...typography.caption,
+      fontSize: 11,
+      fontWeight: "600",
+      color: "#F59E0B",
+      opacity: 0.8,
     },
     row: {
       flexDirection: "row",
