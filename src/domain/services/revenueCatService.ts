@@ -1,4 +1,5 @@
 // src/domain/services/revenueCatService.ts
+import { AuthService } from "./authService";
 import { Platform } from "react-native";
 
 const REVENUECAT_API_KEY = "appl_YefJRBImlNCzKtxjKjWOtrUMsSo";
@@ -77,6 +78,42 @@ export const RevenueCatService = {
   },
 
   /**
+   * Sincroniza el estado de premium con Supabase
+   */
+  async syncPremiumStatusWithSupabase(
+    customerInfo: CustomerInfo,
+  ): Promise<void> {
+    try {
+      // Verificar si el entitlement está activo
+      const hasEntitlement =
+        customerInfo.entitlements.active[ENTITLEMENT_ID] !== undefined;
+
+      // Actualizar Supabase
+      const result = await AuthService.updateMyProfile({
+        is_premium: hasEntitlement,
+      });
+
+      if (result.ok) {
+        console.log("[RevenueCat] Estado premium sincronizado con Supabase:", {
+          is_premium: hasEntitlement,
+          entitlement: ENTITLEMENT_ID,
+        });
+      } else {
+        console.warn(
+          "[RevenueCat] No se pudo sincronizar estado premium con Supabase:",
+          result.message,
+        );
+      }
+    } catch (error) {
+      console.error(
+        "[RevenueCat] Error al sincronizar estado premium con Supabase:",
+        error,
+      );
+      // No lanzar error, solo loguear - esto no debe bloquear el flujo principal
+    }
+  },
+
+  /**
    * Obtiene la información del cliente
    */
   async getCustomerInfo(): Promise<RevenueCatResult<CustomerInfo>> {
@@ -94,6 +131,10 @@ export const RevenueCatService = {
         entitlements: Object.keys(customerInfo.entitlements.active),
         activeSubscriptions: customerInfo.activeSubscriptions,
       });
+
+      // Sincronizar estado con Supabase
+      await this.syncPremiumStatusWithSupabase(customerInfo);
+
       return { ok: true, data: customerInfo };
     } catch (error) {
       console.error("[RevenueCat] Error al obtener customer info:", error);
@@ -126,6 +167,9 @@ export const RevenueCatService = {
         hasEntitlement,
         activeEntitlements: Object.keys(customerInfo.entitlements.active),
       });
+
+      // Sincronizar estado con Supabase cuando se verifica el entitlement
+      await this.syncPremiumStatusWithSupabase(customerInfo);
 
       return { ok: true, data: hasEntitlement };
     } catch (error) {
@@ -256,6 +300,9 @@ export const RevenueCatService = {
         entitlements: Object.keys(customerInfo.entitlements.active),
       });
 
+      // Sincronizar estado con Supabase después de compra exitosa
+      await this.syncPremiumStatusWithSupabase(customerInfo);
+
       return { ok: true, data: customerInfo };
     } catch (error: any) {
       // RevenueCat lanza errores especiales para cancelaciones de usuario
@@ -299,6 +346,9 @@ export const RevenueCatService = {
       console.log("[RevenueCat] Compras restauradas:", {
         entitlements: Object.keys(customerInfo.entitlements.active),
       });
+
+      // Sincronizar estado con Supabase después de restaurar compras
+      await this.syncPremiumStatusWithSupabase(customerInfo);
 
       return { ok: true, data: customerInfo };
     } catch (error) {

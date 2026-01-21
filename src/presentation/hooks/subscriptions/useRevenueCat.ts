@@ -1,4 +1,5 @@
 // src/presentation/hooks/subscriptions/useRevenueCat.ts
+import { AuthService } from "@/domain/services/authService";
 import { RevenueCatService } from "@/domain/services/revenueCatService";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useEffect, useState } from "react";
@@ -49,7 +50,7 @@ type PurchasesPackage = {
 export type SubscriptionStatus = "loading" | "premium" | "free" | "error";
 
 export function useRevenueCat() {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const [isPremium, setIsPremium] = useState<boolean>(false);
   const [status, setStatus] = useState<SubscriptionStatus>("loading");
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
@@ -88,6 +89,14 @@ export function useRevenueCat() {
       const hasEntitlement = entitlementResult.data;
       setIsPremium(hasEntitlement);
       setStatus(hasEntitlement ? "premium" : "free");
+
+      // Sincronizar estado con Supabase (ya se hace en getCustomerInfo y hasProEntitlement)
+      // Refrescar perfil local para obtener el estado actualizado
+      try {
+        await refreshProfile();
+      } catch (error) {
+        console.warn("[useRevenueCat] No se pudo refrescar perfil:", error);
+      }
 
       // Obtener ofertas disponibles
       const offeringsResult = await RevenueCatService.getOfferings();
@@ -139,6 +148,14 @@ export function useRevenueCat() {
       setIsPremium(hasEntitlement);
       setStatus(hasEntitlement ? "premium" : "free");
 
+      // Sincronización con Supabase ya se hizo en purchasePackage del servicio
+      // Refrescar perfil local
+      try {
+        await refreshProfile();
+      } catch (error) {
+        console.warn("[useRevenueCat] No se pudo refrescar perfil después de compra:", error);
+      }
+
       return { ok: true };
     } catch (err) {
       const errorMessage =
@@ -174,6 +191,14 @@ export function useRevenueCat() {
 
       setIsPremium(hasEntitlement);
       setStatus(hasEntitlement ? "premium" : "free");
+
+      // Sincronización con Supabase ya se hizo en restorePurchases del servicio
+      // Refrescar perfil local
+      try {
+        await refreshProfile();
+      } catch (error) {
+        console.warn("[useRevenueCat] No se pudo refrescar perfil después de restaurar:", error);
+      }
 
       return {
         ok: true,
