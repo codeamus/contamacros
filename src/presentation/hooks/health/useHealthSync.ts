@@ -46,33 +46,105 @@ export function useHealthSync(isPremium: boolean) {
         [activeEnergyBurnedId] // toRead: queremos leer calorías activas
       );
 
-      // Obtener fecha de hoy
-      const today = new Date();
-      const startOfDay = new Date(today);
+      // Obtener fecha de hoy en hora local
+      const now = new Date();
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(today);
+      const endOfDay = new Date(startOfDay);
       endOfDay.setHours(23, 59, 59, 999);
 
+      console.log("[useHealthSync] Buscando calorías del día:", {
+        startDate: startOfDay.toISOString(),
+        endDate: endOfDay.toISOString(),
+        startDateLocal: startOfDay.toLocaleString(),
+        endDateLocal: endOfDay.toLocaleString(),
+        nowLocal: now.toLocaleString(),
+      });
+
       // Leer calorías activas del día usando queryQuantitySamples
-      // Usar el mismo identificador completo
+      // IMPORTANTE: La librería espera objetos Date, no strings ISO
+      // Usar ascending: false para obtener muestras más recientes primero
+      // Esto evita que devuelva muestras históricas antiguas
       const samples = await HealthKit.queryQuantitySamples(
         activeEnergyBurnedId,
         {
-          startDate: startOfDay.toISOString(),
-          endDate: endOfDay.toISOString(),
-          ascending: true,
+          startDate: startOfDay, // Objeto Date, no string
+          endDate: now, // Hasta ahora (no endOfDay para obtener datos en tiempo real)
+          ascending: false, // Más recientes primero - IMPORTANTE para evitar muestras históricas
           limit: 1000, // Límite alto para obtener todas las muestras del día
         }
       );
 
-      // Sumar todas las muestras del día
-      // Cada muestra tiene quantity en la unidad especificada (normalmente kcal)
-      const totalCalories = samples.reduce((sum: number, sample: any) => {
-        // sample.quantity ya está en la unidad correcta (kcal)
-        return sum + (sample.quantity || 0);
-      }, 0);
+      console.log("[useHealthSync] Muestras obtenidas de HealthKit:", samples.length);
 
-      console.log("[useHealthSync] Calorías leídas de Apple Health:", totalCalories, "muestras:", samples.length);
+      // Sumar todas las muestras del día
+      // Filtrar agresivamente por fecha local y timestamp para asegurar que solo contamos el día actual
+      let totalCalories = 0;
+      let validSamples = 0;
+      let skippedOldSamples = 0;
+      
+      // Filtrar solo muestras del día actual
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const startOfDayTimestamp = startOfDay.getTime();
+      const endOfDayTimestamp = endOfDay.getTime();
+      
+      // Procesar muestras (ahora están en orden descendente - más recientes primero)
+      for (let index = 0; index < samples.length; index++) {
+        const sample = samples[index];
+        if (!sample.startDate) continue;
+        
+        const sampleDate = new Date(sample.startDate);
+        const sampleTimestamp = sampleDate.getTime();
+        const sampleDateStr = `${sampleDate.getFullYear()}-${String(sampleDate.getMonth() + 1).padStart(2, '0')}-${String(sampleDate.getDate()).padStart(2, '0')}`;
+        const sampleCalories = sample.quantity || 0;
+        
+        // Filtrar por timestamp Y fecha local para máxima precisión
+        const isInTimestampRange = sampleTimestamp >= startOfDayTimestamp && sampleTimestamp <= endOfDayTimestamp;
+        const isTodayByDate = sampleDateStr === todayStr;
+        
+        // Si la muestra es más antigua que el inicio del día, podemos parar (están ordenadas descendente)
+        if (sampleTimestamp < startOfDayTimestamp) {
+          skippedOldSamples = samples.length - index;
+          console.log(`[useHealthSync] Parando procesamiento: muestra ${index + 1} es anterior al día actual`);
+          break;
+        }
+        
+        // Solo contar muestras del día actual
+        if (isTodayByDate && isInTimestampRange) {
+          totalCalories += sampleCalories;
+          validSamples++;
+          
+          if (validSamples <= 3) {
+            console.log(`[useHealthSync] ✅ Muestra válida ${validSamples}:`, {
+              fecha: sampleDateStr,
+              calorias: sampleCalories,
+              hora: sampleDate.toLocaleTimeString(),
+              timestamp: sampleTimestamp,
+            });
+          }
+        } else if (index < 5) {
+          console.log(`[useHealthSync] ❌ Muestra ${index + 1} fuera de rango:`, {
+            fechaMuestra: sampleDateStr,
+            fechaBuscada: todayStr,
+            calorias: sampleCalories,
+            timestamp: sampleTimestamp,
+            startOfDayTimestamp,
+            endOfDayTimestamp,
+            isInTimestampRange,
+            isTodayByDate,
+          });
+        }
+      }
+
+      console.log("[useHealthSync] Resumen:", {
+        totalMuestras: samples.length,
+        muestrasValidas: validSamples,
+        muestrasOmitidas: skippedOldSamples,
+        caloriasTotales: Math.round(totalCalories),
+        fechaBuscada: todayStr,
+        rangoTimestamp: `${startOfDayTimestamp} - ${endOfDayTimestamp}`,
+      });
+
       return Math.round(totalCalories);
     } catch (err) {
       console.error("[useHealthSync] Error al leer Apple Health:", err);
@@ -182,6 +254,16 @@ export function useHealthSync(isPremium: boolean) {
       }
 
       setCaloriesBurned(calories);
+      
+      // Recargar desde la base de datos para asegurar consistencia
+      await loadTodayCalories();
+      
+      console.log("[useHealthSync] ✅ Sincronización completada:", {
+        caloriasObtenidas: calories,
+        caloriasGuardadas: caloriesBurned,
+        dia: day,
+      });
+      
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       const errorMessage =
