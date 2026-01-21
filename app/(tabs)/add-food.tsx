@@ -264,6 +264,7 @@ export default function AddFoodScreen() {
   const reqIdRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastUserInputRef = useRef<{ mode: "grams" | "units"; value: number } | null>(null);
+  const isInitializingRef = useRef(false);
 
   // Cargar historial y recetas al montar
   useEffect(() => {
@@ -453,11 +454,17 @@ export default function AddFoodScreen() {
   useEffect(() => {
     if (!selected) return;
     
+    // Marcar que estamos inicializando para evitar que otros efectos interfieran
+    isInitializingRef.current = true;
+    
     if (hasUnits) {
       // Tiene unidades: priorizar modo unidades
+      // Establecer primero el modo para evitar que el efecto de conversión interfiera
       setInputMode("units");
       setUnitsStr("1");
-      setGramsStr(selected.grams_per_unit!.toString());
+      // Establecer los gramos basados en 1 unidad desde el principio
+      const gramsForOneUnit = selected.grams_per_unit!;
+      setGramsStr(gramsForOneUnit.toFixed(1));
       lastUserInputRef.current = null; // Reset ref
     } else {
       // Sin unidades: modo gramos
@@ -466,11 +473,19 @@ export default function AddFoodScreen() {
       setUnitsStr("1");
       lastUserInputRef.current = null; // Reset ref
     }
+    
+    // Permitir que otros efectos se ejecuten después de que la inicialización termine
+    setTimeout(() => {
+      isInitializingRef.current = false;
+    }, 0);
   }, [selected?.key, hasUnits]); // Solo cuando cambia el alimento o sus unidades
 
   // Sincronizar unidades y gramos cuando cambia el modo o el valor
   useEffect(() => {
     if (!selected || !hasUnits || !selected.grams_per_unit) return;
+    
+    // No ejecutar durante la inicialización
+    if (isInitializingRef.current) return;
 
     if (inputMode === "units" && Number.isFinite(unitsNum) && unitsNum > 0) {
       // Convertir unidades a gramos
@@ -485,6 +500,9 @@ export default function AddFoodScreen() {
 
   useEffect(() => {
     if (!selected || !hasUnits || !selected.grams_per_unit) return;
+    
+    // No ejecutar durante la inicialización
+    if (isInitializingRef.current) return;
 
     if (inputMode === "grams" && Number.isFinite(gramsNum) && gramsNum > 0) {
       // Convertir gramos a unidades
@@ -1153,7 +1171,7 @@ export default function AddFoodScreen() {
                   />
                   <Text style={s.fastFoodBadgeText}>
                     {inputMode === "units" && hasUnits
-                      ? `${unitsNum} ${unitsNum === 1 ? (selected.unit_label_es || "unidad") : (selected.unit_label_es || "unidad") + "s"} = ${Math.round(gramsNum)}g`
+                      ? `${unitsNum === 1 ? (selected.unit_label_es || "unidad") : (selected.unit_label_es || "unidad") + "s"} = ${Math.round(gramsNum)}g`
                       : `Peso total: ${Math.round(gramsNum)}g`}
                   </Text>
                 </View>
