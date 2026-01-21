@@ -1,5 +1,6 @@
 // src/presentation/components/premium/PremiumPaywall.tsx
 import { AuthService } from "@/domain/services/authService";
+import { RevenueCatService } from "@/domain/services/revenueCatService";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useRevenueCat } from "@/presentation/hooks/subscriptions/useRevenueCat";
 import { useToast } from "@/presentation/hooks/ui/useToast";
@@ -13,14 +14,16 @@ import {
   Dimensions,
   Linking,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import Purchases, { PurchasesOffering } from "react-native-purchases";
 
-// Tipo local para evitar importar react-native-purchases en tiempo de carga
+// Tipo local para PurchasesPackage con storeProduct
 type PurchasesPackage = {
   identifier: string;
   packageType: string;
@@ -80,28 +83,103 @@ export default function PremiumPaywall({
 }: PremiumPaywallProps) {
   const { theme } = useTheme();
   const { colors, typography } = theme;
-  const { profile, refreshProfile } = useAuth();
+  const { refreshProfile } = useAuth();
   const { showToast } = useToast();
-  const {
-    offerings,
-    purchasePackage,
-    restorePurchases,
-    reload,
-    status,
-  } = useRevenueCat();
+  const { reload } = useRevenueCat();
   const s = makeStyles(colors, typography);
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [currentOffering, setCurrentOffering] = useState<PurchasesOffering | null>(null);
+  const [loadingPrices, setLoadingPrices] = useState(true);
+  const [errorLoadingPrices, setErrorLoadingPrices] = useState<string | null>(null);
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
+  // Obtener offerings usando RevenueCatService
+  useEffect(() => {
+    const fetchOfferings = async () => {
+      // Solo intentar obtener offerings en plataformas nativas
+      if (Platform.OS !== "ios" && Platform.OS !== "android") {
+        setLoadingPrices(false);
+        setErrorLoadingPrices("RevenueCat no está disponible en esta plataforma");
+        return;
+      }
+
+      try {
+        setLoadingPrices(true);
+        setErrorLoadingPrices(null);
+        
+        const result = await RevenueCatService.getOfferings();
+
+        if (!result.ok) {
+          console.error("[PremiumPaywall] Error al obtener ofertas:", result.message);
+          
+          // Mensaje más amigable para errores de configuración
+          let errorMessage = result.message || "Error al cargar los planes";
+          if (result.code === "CONFIGURATION_ERROR") {
+            errorMessage = "Los productos no están disponibles. Para desarrollo, configura StoreKit Configuration en Xcode. Ver consola para más detalles.";
+          }
+          
+          setErrorLoadingPrices(errorMessage);
+          setCurrentOffering(null);
+        } else if (!result.data) {
+          console.warn("[PremiumPaywall] No hay ofertas disponibles (offerings vacío)");
+          console.log("[PremiumPaywall] Debug - Resultado de getOfferings:", {
+            ok: result.ok,
+            data: result.data,
+          });
+          setErrorLoadingPrices("No hay planes disponibles en este momento");
+          setCurrentOffering(null);
+        } else {
+          const offering = result.data;
+          console.log("[PremiumPaywall] Ofertas obtenidas:", {
+            identifier: offering.identifier,
+            availablePackages: offering.availablePackages.length,
+            packages: (offering.availablePackages as any[])
+              .filter((pkg: any) => pkg.storeProduct != null)
+              .map((pkg: any) => ({
+                identifier: pkg.identifier,
+                productId: pkg.storeProduct?.identifier,
+                storeProductPrice: pkg.storeProduct?.priceString,
+                productPrice: pkg.product?.priceString,
+              })),
+          });
+          setCurrentOffering(offering);
+        }
+      } catch (error) {
+        console.error("[PremiumPaywall] Error al obtener ofertas:", error);
+        setErrorLoadingPrices(
+          error instanceof Error ? error.message : "Error al cargar los planes"
+        );
+        setCurrentOffering(null);
+      } finally {
+        setLoadingPrices(false);
+      }
+    };
+
+    if (visible) {
+      fetchOfferings();
+    }
+  }, [visible]);
+
   // Mapear packages de RevenueCat a planes locales
   const planPackages = useMemo(() => {
-    if (!offerings?.availablePackages) return null;
+    if (!currentOffering?.availablePackages) return null;
+
+    // Filtrar packages con product válido (product o storeProduct)
+    // En algunos casos storeProduct puede ser null pero product tiene los datos
+    const validPackages = (currentOffering.availablePackages as any[]).filter(
+      (pkg: any) => pkg.product != null || pkg.storeProduct != null
+    ) as PurchasesPackage[];
+
+    if (validPackages.length === 0) {
+      console.warn("[PremiumPaywall] No hay packages válidos (sin product ni storeProduct)");
+      return null;
+    }
 
     const packages: Record<string, PurchasesPackage> = {};
-    for (const pkg of offerings.availablePackages) {
+    for (const pkg of validPackages) {
       // RevenueCat usa identificadores como "monthly", "annual", "lifetime"
       // o "$rc_monthly", "$rc_annual", etc.
       const identifier = pkg.identifier.toLowerCase();
@@ -122,18 +200,14 @@ export default function PremiumPaywall({
     }
 
     // Si no encontramos packages con esos nombres, usar los primeros disponibles
-    if (Object.keys(packages).length === 0 && offerings.availablePackages.length > 0) {
-      packages.monthly = offerings.availablePackages[0];
-      if (offerings.availablePackages.length > 1) {
-        packages.annual = offerings.availablePackages[1];
-      }
-      if (offerings.availablePackages.length > 2) {
-        packages.lifetime = offerings.availablePackages[2];
-      }
+    if (Object.keys(packages).length === 0 && validPackages.length > 0) {
+      if (validPackages[0]) packages.monthly = validPackages[0];
+      if (validPackages[1]) packages.annual = validPackages[1];
+      if (validPackages[2]) packages.lifetime = validPackages[2];
     }
 
     return packages;
-  }, [offerings]);
+  }, [currentOffering]);
 
   // Determinar plan inicial basado en packages disponibles
   const initialPlan = useMemo<PremiumPlan>(() => {
@@ -152,27 +226,29 @@ export default function PremiumPaywall({
     setSelectedPlan(initialPlan);
   }, [initialPlan]);
 
-  // Obtener información de planes desde RevenueCat
+  // Obtener información de planes desde RevenueCat con precios dinámicos
   const plansData = useMemo(() => {
     if (!planPackages) {
-      // Fallback a precios hardcodeados si no hay packages disponibles
       return {
         monthly: {
-          price: 9.99,
+          price: 0,
+          priceString: "—",
           period: "mes",
           label: "Plan Mensual",
           package: null,
         },
         annual: {
-          price: 49.99,
+          price: 0,
+          priceString: "—",
           period: "año",
           label: "Plan Anual",
-          savings: 50,
+          savings: 0,
           popular: true,
           package: null,
         },
         lifetime: {
-          price: 99.99,
+          price: 0,
+          priceString: "—",
           period: "única vez",
           label: "Plan de por vida",
           package: null,
@@ -184,33 +260,59 @@ export default function PremiumPaywall({
     const annualPkg = planPackages.annual;
     const lifetimePkg = planPackages.lifetime;
 
+    // Obtener precios dinámicos desde product (preferido) o storeProduct (fallback)
+    // Los precios se muestran automáticamente según la región del usuario
+    // Si el usuario está en Chile, los precios se mostrarán en CLP automáticamente
+    // cuando estén configurados en App Store Connect para esa región
+    const monthlyPrice = monthlyPkg?.product?.price ?? monthlyPkg?.storeProduct?.price ?? 0;
+    const monthlyPriceString = monthlyPkg?.product?.priceString ?? monthlyPkg?.storeProduct?.priceString ?? "—";
+    const monthlyCurrency = monthlyPkg?.product?.currencyCode ?? monthlyPkg?.storeProduct?.currencyCode;
+    
+    const annualPrice = annualPkg?.product?.price ?? annualPkg?.storeProduct?.price ?? 0;
+    const annualPriceString = annualPkg?.product?.priceString ?? annualPkg?.storeProduct?.priceString ?? "—";
+    const annualCurrency = annualPkg?.product?.currencyCode ?? annualPkg?.storeProduct?.currencyCode;
+    
+    const lifetimePrice = lifetimePkg?.product?.price ?? lifetimePkg?.storeProduct?.price ?? 0;
+    const lifetimePriceString = lifetimePkg?.product?.priceString ?? lifetimePkg?.storeProduct?.priceString ?? "—";
+    const lifetimeCurrency = lifetimePkg?.product?.currencyCode ?? lifetimePkg?.storeProduct?.currencyCode;
+
+    // Log para debugging: ver qué moneda está usando
+    if (monthlyCurrency || annualCurrency) {
+      console.log("[PremiumPaywall] Monedas detectadas:", {
+        monthly: monthlyCurrency,
+        annual: annualCurrency,
+        lifetime: lifetimeCurrency,
+      });
+    }
+
+    // Calcular ahorro del plan anual comparado con el mensual
+    let annualSavings = 0;
+    if (monthlyPkg && annualPkg && monthlyPrice > 0 && annualPrice > 0) {
+      const monthlyYearlyCost = monthlyPrice * 12;
+      const savingsAmount = monthlyYearlyCost - annualPrice;
+      annualSavings = Math.round((savingsAmount / monthlyYearlyCost) * 100);
+    }
+
     return {
       monthly: {
-        price: monthlyPkg?.storeProduct.price ?? 9.99,
-        priceString: monthlyPkg?.storeProduct.priceString ?? "$9.99",
+        price: monthlyPrice,
+        priceString: monthlyPriceString,
         period: "mes",
         label: "Plan Mensual",
         package: monthlyPkg ?? null,
       },
       annual: {
-        price: annualPkg?.storeProduct.price ?? 49.99,
-        priceString: annualPkg?.storeProduct.priceString ?? "$49.99",
+        price: annualPrice,
+        priceString: annualPriceString,
         period: "año",
         label: "Plan Anual",
-        savings: annualPkg
-          ? Math.round(
-              ((monthlyPkg?.storeProduct.price ?? 9.99) * 12 -
-                (annualPkg.storeProduct.price ?? 49.99)) /
-                ((monthlyPkg?.storeProduct.price ?? 9.99) * 12) *
-                100,
-            )
-          : 50,
+        savings: annualSavings,
         popular: true,
         package: annualPkg ?? null,
       },
       lifetime: {
-        price: lifetimePkg?.storeProduct.price ?? 99.99,
-        priceString: lifetimePkg?.storeProduct.priceString ?? "$99.99",
+        price: lifetimePrice,
+        priceString: lifetimePriceString,
         period: "única vez",
         label: "Plan de por vida",
         package: lifetimePkg ?? null,
@@ -259,22 +361,35 @@ export default function PremiumPaywall({
       return;
     }
 
+    // Solo permitir compras en plataformas nativas
+    if (Platform.OS !== "ios" && Platform.OS !== "android") {
+      showToast({
+        message: "Las compras no están disponibles en esta plataforma",
+        type: "error",
+      });
+      return;
+    }
+
     setIsProcessing(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      console.log("[PremiumPaywall] Procesando suscripción:", selectedPlan);
+      console.log("[PremiumPaywall] Procesando suscripción:", {
+        plan: selectedPlan,
+        packageIdentifier: selectedPackage.identifier,
+        productId: selectedPackage.storeProduct?.identifier,
+        price: selectedPackage.storeProduct?.priceString,
+      });
 
-      // Comprar package con RevenueCat
-      const result = await purchasePackage(selectedPackage);
+      // Comprar package directamente con Purchases
+      // Hacer cast al tipo de RevenueCat
+      const { customerInfo } = await Purchases.purchasePackage(
+        selectedPackage as any
+      );
 
-      if (!result.ok) {
-        if (result.message === "Compra cancelada") {
-          // No mostrar error si el usuario canceló
-          return;
-        }
-        throw new Error(result.message || "Error al procesar la compra");
-      }
+      console.log("[PremiumPaywall] Compra exitosa:", {
+        entitlements: Object.keys(customerInfo.entitlements.active),
+      });
 
       // Recargar estado de RevenueCat
       await reload();
@@ -300,14 +415,23 @@ export default function PremiumPaywall({
 
       onSuccess?.();
       onClose();
-    } catch (error) {
-      console.error("[PremiumPaywall] Error:", error);
+    } catch (error: any) {
+      // RevenueCat lanza errores especiales para cancelaciones de usuario
+      // Esto es normal y esperado - no es un error real
+      if (error.userCancelled || error.code === "USER_CANCELLED") {
+        console.log("[PremiumPaywall] ℹ️ Compra cancelada por el usuario (comportamiento normal)");
+        // No mostrar error al usuario, simplemente cerrar el estado de procesamiento
+        setIsProcessing(false);
+        return;
+      }
+
+      // Solo mostrar error si NO es una cancelación
+      console.error("[PremiumPaywall] ❌ Error real al procesar compra:", error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       showToast({
         message: error instanceof Error ? error.message : "Error al procesar la suscripción",
         type: "error",
       });
-    } finally {
       setIsProcessing(false);
     }
   };
@@ -315,21 +439,34 @@ export default function PremiumPaywall({
   const handleRestore = async () => {
     if (isProcessing) return;
 
+    // Solo permitir restaurar en plataformas nativas
+    if (Platform.OS !== "ios" && Platform.OS !== "android") {
+      showToast({
+        message: "Restaurar compras no está disponible en esta plataforma",
+        type: "error",
+      });
+      return;
+    }
+
     setIsProcessing(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     try {
-      const result = await restorePurchases();
+      console.log("[PremiumPaywall] Restaurando compras...");
+      const customerInfo = await Purchases.restorePurchases();
 
-      if (!result.ok) {
-        throw new Error(result.message || "Error al restaurar compras");
-      }
+      console.log("[PremiumPaywall] Compras restauradas:", {
+        entitlements: Object.keys(customerInfo.entitlements.active),
+      });
+
+      // Verificar si hay una suscripción activa
+      const hasActiveSubscription =
+        Object.keys(customerInfo.entitlements.active).length > 0;
 
       // Recargar estado
       await reload();
 
       // Actualizar perfil si se restauró una suscripción activa
-      const hasActiveSubscription = result.message?.includes("exitosamente");
       if (hasActiveSubscription) {
         try {
           await AuthService.updateMyProfile({
@@ -347,7 +484,9 @@ export default function PremiumPaywall({
           : Haptics.NotificationFeedbackType.Warning,
       );
       showToast({
-        message: result.message || "Compras restauradas",
+        message: hasActiveSubscription
+          ? "Compras restauradas exitosamente"
+          : "No se encontraron compras para restaurar",
         type: hasActiveSubscription ? "success" : "info",
         duration: 3000,
       });
@@ -377,10 +516,17 @@ export default function PremiumPaywall({
   };
 
   const selectedPlanData = plansData[selectedPlan];
-  const monthlyPrice =
-    selectedPlan === "annual" && plansData.monthly.price
-      ? (plansData.annual.price / 12).toFixed(2)
-      : plansData.monthly.price?.toFixed(2) ?? "9.99";
+  
+  // Calcular precio mensual equivalente dinámicamente
+  const monthlyPrice = useMemo(() => {
+    if (selectedPlan === "annual" && plansData.annual.price > 0) {
+      return (plansData.annual.price / 12).toFixed(2);
+    }
+    if (plansData.monthly.price > 0) {
+      return plansData.monthly.price.toFixed(2);
+    }
+    return "—";
+  }, [selectedPlan, plansData]);
 
   return (
     <Modal
@@ -445,7 +591,7 @@ export default function PremiumPaywall({
 
             {/* Beneficios */}
             <View style={s.benefitsContainer}>
-              {BENEFITS.map((benefit, index) => (
+              {BENEFITS.map((benefit) => (
                 <Animated.View
                   key={benefit.icon}
                   style={[
@@ -482,7 +628,28 @@ export default function PremiumPaywall({
             <View style={s.plansContainer}>
               <Text style={s.plansTitle}>Elige tu plan</Text>
               
-              {!planPackages && (
+              {/* Indicador de carga mientras se obtienen los precios */}
+              {loadingPrices && (
+                <View style={s.loadingContainer}>
+                  <ActivityIndicator size="large" color={colors.brand} />
+                  <Text style={s.loadingText}>Cargando planes disponibles...</Text>
+                </View>
+              )}
+
+              {/* Mensaje de error si falla la carga */}
+              {!loadingPrices && errorLoadingPrices && (
+                <View style={s.errorContainer}>
+                  <MaterialCommunityIcons
+                    name="alert-circle"
+                    size={24}
+                    color={colors.cta}
+                  />
+                  <Text style={s.errorText}>{errorLoadingPrices}</Text>
+                </View>
+              )}
+
+              {/* Mensaje si no hay packages disponibles */}
+              {!loadingPrices && !errorLoadingPrices && !planPackages && (
                 <View style={s.errorContainer}>
                   <MaterialCommunityIcons
                     name="alert-circle"
@@ -563,9 +730,11 @@ export default function PremiumPaywall({
                           </View>
                         )}
                       </View>
-                      <Text style={s.planMonthlyEquivalent}>
-                        ${monthlyPrice} / mes
-                      </Text>
+                      {monthlyPrice !== "—" && (
+                        <Text style={s.planMonthlyEquivalent}>
+                          ${monthlyPrice} / mes
+                        </Text>
+                      )}
                     </View>
                     {selectedPlan === "annual" && (
                       <View style={s.radioSelected}>
@@ -614,33 +783,48 @@ export default function PremiumPaywall({
             </View>
 
             {/* Prueba Gratuita */}
-            <View style={s.trialContainer}>
-              <MaterialCommunityIcons
-                name="gift"
-                size={20}
-                color={colors.brand}
-              />
-              <Text style={s.trialText}>
-                Pruébalo <Text style={s.trialBold}>GRATIS</Text> por 7 días. Luego {plansData.annual.priceString}/año. Cancela cuando quieras.
-              </Text>
-            </View>
+            {plansData.annual.priceString !== "—" && (
+              <View style={s.trialContainer}>
+                <MaterialCommunityIcons
+                  name="gift"
+                  size={20}
+                  color={colors.brand}
+                />
+                <Text style={s.trialText}>
+                  Pruébalo <Text style={s.trialBold}>GRATIS</Text> por 7 días. Luego{" "}
+                  {plansData.annual.priceString}/año. Cancela cuando quieras.
+                </Text>
+              </View>
+            )}
 
             {/* CTA Principal */}
             <Pressable
               onPress={handleSubscribe}
-              disabled={isProcessing || !planPackages || !selectedPlanData?.package}
+              disabled={
+                isProcessing ||
+                loadingPrices ||
+                !planPackages ||
+                !selectedPlanData?.package ||
+                !!errorLoadingPrices
+              }
               style={({ pressed }) => [
                 s.ctaButton,
-                (pressed || isProcessing || !planPackages || !selectedPlanData?.package) && s.ctaButtonPressed,
+                (pressed ||
+                  isProcessing ||
+                  loadingPrices ||
+                  !planPackages ||
+                  !selectedPlanData?.package ||
+                  !!errorLoadingPrices) &&
+                  s.ctaButtonPressed,
               ]}
             >
-              {isProcessing ? (
+              {isProcessing || loadingPrices ? (
                 <ActivityIndicator size="small" color={colors.onCta} />
               ) : (
                 <>
                   <Text style={s.ctaButtonText}>
-                    {selectedPlan === "lifetime" 
-                      ? "Comprar ahora" 
+                    {selectedPlan === "lifetime"
+                      ? "Comprar ahora"
                       : "Comenzar mi semana gratuita"}
                   </Text>
                   <MaterialCommunityIcons
@@ -653,16 +837,29 @@ export default function PremiumPaywall({
             </Pressable>
 
             {/* Botón Restaurar Compras */}
-            <Pressable
-              onPress={handleRestore}
-              disabled={isProcessing}
-              style={({ pressed }) => [
-                s.restoreButton,
-                (pressed || isProcessing) && s.restoreButtonPressed,
-              ]}
-            >
-              <Text style={s.restoreButtonText}>Restaurar compras</Text>
-            </Pressable>
+            <View style={s.restoreContainer}>
+              <Pressable
+                onPress={handleRestore}
+                disabled={isProcessing}
+                style={({ pressed }) => [
+                  s.restoreButton,
+                  (pressed || isProcessing) && s.restoreButtonPressed,
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="download"
+                  size={18}
+                  color={colors.textSecondary}
+                />
+                <Text style={s.restoreButtonText}>
+                  ¿Ya compraste antes? Restaurar suscripción
+                </Text>
+              </Pressable>
+              <Text style={s.restoreHelperText}>
+                Si ya compraste una suscripción en otro dispositivo o reinstalaste la app, 
+                presiona aquí para recuperar tu acceso premium.
+              </Text>
+            </View>
 
             {/* Pie de página */}
             <View style={s.footer}>
@@ -966,6 +1163,19 @@ function makeStyles(colors: any, typography: any) {
       fontSize: 11,
       color: colors.textSecondary,
     },
+    loadingContainer: {
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 32,
+      gap: 12,
+      marginBottom: 16,
+    },
+    loadingText: {
+      ...typography.body,
+      fontSize: 14,
+      color: colors.textSecondary,
+      textAlign: "center",
+    },
     errorContainer: {
       flexDirection: "row",
       alignItems: "center",
@@ -983,16 +1193,21 @@ function makeStyles(colors: any, typography: any) {
       color: colors.textPrimary,
       flex: 1,
     },
+    restoreContainer: {
+      marginBottom: 16,
+    },
     restoreButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
       paddingVertical: 12,
       paddingHorizontal: 16,
       borderRadius: 12,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: 16,
+      marginBottom: 8,
     },
     restoreButtonPressed: {
       opacity: 0.7,
@@ -1002,6 +1217,15 @@ function makeStyles(colors: any, typography: any) {
       fontSize: 14,
       fontWeight: "600",
       color: colors.textPrimary,
+      textAlign: "center",
+    },
+    restoreHelperText: {
+      ...typography.caption,
+      fontSize: 11,
+      color: colors.textSecondary,
+      textAlign: "center",
+      lineHeight: 16,
+      paddingHorizontal: 8,
     },
     closeButton: {
       position: "absolute",

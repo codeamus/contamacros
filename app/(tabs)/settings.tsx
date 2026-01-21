@@ -200,6 +200,7 @@ export default function SettingsScreen() {
   const [updating, setUpdating] = useState(false);
   const [weightInput, setWeightInput] = useState("");
   const [showPaywall, setShowPaywall] = useState(false);
+  const [showCustomerCenter, setShowCustomerCenter] = useState(false);
 
   const handleThemeChange = useCallback(
     async (mode: ThemeMode) => {

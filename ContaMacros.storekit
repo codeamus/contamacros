@@ -1,0 +1,94 @@
+{
+  "identifier" : "ContaMacros",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "4.990",
+      "familyShareable" : false,
+      "internalID" : "6734567890",
+      "localizations" : [
+        {
+          "description" : "Suscripción mensual a ContaMacros Pro",
+          "displayName" : "Plan Mensual",
+          "locale" : "es_CL"
+        }
+      ],
+      "productID" : "contamacros_month",
+      "recurringSubscriptionPeriod" : "P1M",
+      "referenceName" : "Plan Mensual",
+      "subscriptionGroupID" : "21482001",
+      "type" : "SUBSCRIPTION"
+    },
+    {
+      "displayPrice" : "39.990",
+      "familyShareable" : false,
+      "internalID" : "6734567891",
+      "localizations" : [
+        {
+          "description" : "Suscripción anual a ContaMacros Pro",
+          "displayName" : "Plan Anual",
+          "locale" : "es_CL"
+        }
+      ],
+      "productID" : "contamacros_yearly",
+      "recurringSubscriptionPeriod" : "P1Y",
+      "referenceName" : "Plan Anual",
+      "subscriptionGroupID" : "21482001",
+      "type" : "SUBSCRIPTION"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_storeKitErrors" : [
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Purchase"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Verification"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Store Sync"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Subscription Status"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Transaction"
+      }
+    ],
+    "_storeKitErrorsEnabled" : false
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21482001",
+      "localizations" : [
+        {
+          "name" : "ContaMacros Pro",
+          "locale" : "es_CL"
+        }
+      ],
+      "name" : "ContaMacros Pro"
+    }
+  ],
+  "version" : {
+    "major" : 1,
+    "minor" : 0
+  }
+}

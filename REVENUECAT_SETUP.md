@@ -9,9 +9,18 @@ Este documento explica cómo configurar RevenueCat en el dashboard y en la app.
 #### iOS (App Store Connect):
 1. Ve a **App Store Connect** → Tu app → **Subscriptions**
 2. Crea los siguientes productos de suscripción:
-   - **monthly**: Plan Mensual (recurring, mensual)
-   - **yearly**: Plan Anual (recurring, anual)
-   - **lifetime**: Plan de por vida (non-consumable, una sola vez)
+   - **contamacros_month**: Plan Mensual (recurring, mensual)
+   - **contamacros_yearly**: Plan Anual (recurring, anual)
+   - **lifetime**: Plan de por vida (non-consumable, una sola vez) - opcional
+
+3. **⚠️ IMPORTANTE: Configurar Precios para Chile (CLP)**:
+   - Para cada producto, ve a la sección **Pricing**
+   - Selecciona **Chile** en la lista de países
+   - Configura los precios:
+     - **contamacros_month**: $4.990 CLP (mensual)
+     - **contamacros_yearly**: $39.990 CLP (anual)
+   - Los precios se mostrarán automáticamente en CLP cuando el usuario esté en Chile
+   - App Store Connect también te permitirá configurar precios para otros países si lo deseas
 
 #### Android (Google Play Console):
 1. Ve a **Google Play Console** → Tu app → **Monetización** → **Productos**
@@ -113,10 +122,39 @@ const REVENUECAT_API_KEY = "tu_api_key_de_produccion";
 
 ## 🧪 Testing
 
-### Sandbox Testing (iOS):
+### Desarrollo Local con StoreKit Configuration (iOS):
+
+Para desarrollo local sin necesidad de productos aprobados en App Store Connect:
+
+1. **Genera el proyecto nativo iOS**:
+   ```bash
+   npx expo prebuild --platform ios
+   ```
+
+2. **Abre el proyecto en Xcode**:
+   ```bash
+   open ios/ContaMacros.xcworkspace
+   ```
+
+3. **Configura StoreKit Configuration**:
+   - En Xcode, ve a **Product** → **Scheme** → **Edit Scheme**
+   - Selecciona **Run** en el lado izquierdo
+   - Ve a la pestaña **Options**
+   - En **StoreKit Configuration**, selecciona `ContaMacros.storekit` (el archivo ya está incluido en el proyecto)
+   - Guarda los cambios
+
+4. **Ejecuta la app desde Xcode**:
+   - Las compras ahora usarán el archivo StoreKit Configuration local
+   - No necesitas productos aprobados en App Store Connect
+   - Los productos `contamacros_month` y `contamacros_yearly` estarán disponibles
+
+**Nota**: El archivo `ContaMacros.storekit` ya está incluido en el proyecto con los productos configurados.
+
+### Sandbox Testing (iOS - Producción):
 1. Crea una cuenta de prueba en App Store Connect
 2. Configura el dispositivo con la cuenta de prueba
 3. Las compras se procesarán en modo sandbox
+4. Requiere productos aprobados en App Store Connect
 
 ### Testing (Android):
 1. Crea una cuenta de prueba en Google Play Console
@@ -189,8 +227,27 @@ import CustomerCenter from "@/presentation/components/premium/CustomerCenter";
 
 ## 🚀 Próximos Pasos
 
-1. Configurar productos en App Store Connect / Google Play Console
-2. Configurar RevenueCat Dashboard con los productos
-3. Probar compras en modo sandbox/testing
-4. Cambiar a API key de producción antes del lanzamiento
-5. Monitorear métricas en RevenueCat Dashboard
+1. **Para desarrollo local**: Usa StoreKit Configuration (ver sección Testing arriba)
+2. **Para producción**: Configurar productos en App Store Connect / Google Play Console
+3. Configurar RevenueCat Dashboard con los productos
+4. Probar compras en modo sandbox/testing
+5. Cambiar a API key de producción antes del lanzamiento
+6. Monitorear métricas en RevenueCat Dashboard
+
+## 🔧 Solución de Problemas
+
+### Error: "None of the products registered in the RevenueCat dashboard could be fetched"
+
+Este error ocurre cuando RevenueCat no puede obtener los productos desde App Store Connect. Soluciones:
+
+1. **Para desarrollo local**: Usa StoreKit Configuration (ver sección Testing)
+2. **Para producción**: 
+   - Verifica que los productos estén aprobados en App Store Connect
+   - Verifica que los Product IDs coincidan exactamente entre RevenueCat y App Store Connect
+   - Verifica que la API Key de RevenueCat sea correcta
+   - Espera unos minutos después de crear productos en App Store Connect (pueden tardar en sincronizarse)
+
+3. **Verifica los Product IDs**:
+   - En RevenueCat Dashboard: `contamacros_month`, `contamacros_yearly`
+   - En App Store Connect: Deben coincidir exactamente
+   - En StoreKit Configuration: Ya están configurados correctamente

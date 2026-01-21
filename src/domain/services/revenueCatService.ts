@@ -151,29 +151,79 @@ export const RevenueCatService = {
       }
 
       const offerings = await PurchasesModule.getOfferings();
-      const currentOffering = offerings.current;
+      
+      // Log detallado para debug si offerings viene vacío
+      console.log("[RevenueCat] Offerings completo:", {
+        allOfferings: Object.keys(offerings.all || {}),
+        currentOfferingId: offerings.current?.identifier,
+        defaultOfferingId: offerings.all?.["default"]?.identifier,
+        offeringsObject: JSON.stringify(offerings, null, 2),
+      });
 
-      if (!currentOffering) {
-        console.warn("[RevenueCat] No hay ofertas disponibles");
+      // Buscar específicamente el offering 'default'
+      const defaultOffering = offerings.all?.["default"] || offerings.current;
+
+      if (!defaultOffering) {
+        console.warn("[RevenueCat] No hay ofertas disponibles (default o current)");
+        console.log("[RevenueCat] Debug - Estado de offerings:", {
+          hasAll: !!offerings.all,
+          allKeys: Object.keys(offerings.all || {}),
+          hasCurrent: !!offerings.current,
+          currentId: offerings.current?.identifier,
+        });
         return { ok: true, data: null };
       }
 
+      // Filtrar paquetes que tienen un product válido (product o storeProduct)
+      // En algunos casos storeProduct puede ser null pero product tiene los datos
+      const validPackages = defaultOffering.availablePackages.filter(
+        (pkg: any) => pkg.product != null || pkg.storeProduct != null
+      );
+
       console.log("[RevenueCat] Ofertas obtenidas:", {
-        availablePackages: currentOffering.availablePackages.length,
-        packages: currentOffering.availablePackages.map((pkg) => ({
+        offeringIdentifier: defaultOffering.identifier,
+        availablePackages: defaultOffering.availablePackages.length,
+        validPackages: validPackages.length,
+        packages: validPackages.map((pkg: any) => ({
           identifier: pkg.identifier,
-          productId: pkg.storeProduct.identifier,
-          price: pkg.storeProduct.priceString,
+          productId: pkg.product?.identifier || pkg.storeProduct?.identifier,
+          price: pkg.product?.priceString || pkg.storeProduct?.priceString,
+          currencyCode: pkg.product?.currencyCode || pkg.storeProduct?.currencyCode,
+          hasProduct: !!pkg.product,
+          hasStoreProduct: !!pkg.storeProduct,
         })),
       });
 
-      return { ok: true, data: currentOffering };
-    } catch (error) {
+      return { ok: true, data: defaultOffering };
+    } catch (error: any) {
+      // Manejar error específico de configuración de productos
+      const errorMessage = error?.message || "Error al obtener ofertas";
+      const isConfigurationError = 
+        errorMessage.includes("configuration") ||
+        errorMessage.includes("could not be fetched") ||
+        errorMessage.includes("StoreKit Configuration");
+
+      if (isConfigurationError) {
+        console.error("[RevenueCat] ⚠️ Error de configuración de productos:", errorMessage);
+        console.log("[RevenueCat] 💡 Para desarrollo en iOS, necesitas:");
+        console.log("[RevenueCat] 1. Crear un archivo StoreKit Configuration (.storekit)");
+        console.log("[RevenueCat] 2. Ejecutar 'expo prebuild' para generar proyecto nativo");
+        console.log("[RevenueCat] 3. Abrir proyecto en Xcode y configurar StoreKit Configuration");
+        console.log("[RevenueCat] 4. O usar productos reales aprobados en App Store Connect");
+        console.log("[RevenueCat] 📖 Más info: https://rev.cat/why-are-offerings-empty");
+        
+        return {
+          ok: false,
+          message: `Error de configuración: Los productos no se pueden obtener desde App Store Connect. Para desarrollo, configura un archivo StoreKit Configuration. Ver logs para más detalles.`,
+          code: "CONFIGURATION_ERROR",
+        };
+      }
+
       console.error("[RevenueCat] Error al obtener ofertas:", error);
       return {
         ok: false,
-        message:
-          error instanceof Error ? error.message : "Error al obtener ofertas",
+        message: errorMessage,
+        code: error?.code,
       };
     }
   },
@@ -209,8 +259,9 @@ export const RevenueCatService = {
       return { ok: true, data: customerInfo };
     } catch (error: any) {
       // RevenueCat lanza errores especiales para cancelaciones de usuario
-      if (error.userCancelled) {
-        console.log("[RevenueCat] Compra cancelada por el usuario");
+      // Esto es normal y esperado - no es un error real
+      if (error.userCancelled || error.code === "USER_CANCELLED") {
+        console.log("[RevenueCat] ℹ️ Compra cancelada por el usuario (comportamiento normal)");
         return {
           ok: false,
           message: "Compra cancelada",
@@ -218,7 +269,8 @@ export const RevenueCatService = {
         };
       }
 
-      console.error("[RevenueCat] Error al comprar:", error);
+      // Solo loguear como error si NO es una cancelación
+      console.error("[RevenueCat] ❌ Error real al comprar:", error);
       return {
         ok: false,
         message:
