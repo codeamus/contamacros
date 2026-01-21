@@ -337,8 +337,8 @@ export default function SmartCoachPro({
                         {caloriesBurned > 0 
                           ? `Sincronizar (${caloriesBurned} kcal)` 
                           : Platform.OS === "ios" 
-                            ? "Conectar Apple Health" 
-                            : "Conectar Health Connect"}
+                            ? "Sincronizar Apple Health" 
+                            : "Sincronizar Health Connect"}
                       </Text>
                     </>
                   )}
