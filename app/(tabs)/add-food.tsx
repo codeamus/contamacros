@@ -50,6 +50,15 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
+// Helper para obtener grams_per_unit como número de forma segura
+function getGramsPerUnit(food: ExtendedFoodSearchItem | null): number | null {
+  if (!food?.grams_per_unit) return null;
+  const value = typeof food.grams_per_unit === 'string'
+    ? parseFloat(food.grams_per_unit)
+    : food.grams_per_unit;
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
 function toFloatSafe(s: string) {
   const normalized = s.replace(",", ".").replace(/[^\d.]/g, "");
   const n = parseFloat(normalized);
@@ -432,8 +441,12 @@ export default function AddFoodScreen() {
   }, [query]);
 
   // Detectar si el alimento tiene unidades disponibles
+  // Verifica que tenga grams_per_unit válido (> 0, finito) y unit_label_es
   const hasUnits = useMemo(() => {
-    return selected?.grams_per_unit && selected.grams_per_unit > 0;
+    if (!selected) return false;
+    const gramsPerUnit = getGramsPerUnit(selected);
+    const hasUnitLabel = selected.unit_label_es != null && selected.unit_label_es.trim() !== "";
+    return gramsPerUnit != null && hasUnitLabel;
   }, [selected]);
 
   // Detectar si es fast food
@@ -450,7 +463,8 @@ export default function AddFoodScreen() {
     return isFastFood && hasUnits;
   }, [isFastFood, hasUnits]);
 
-  // Auto-seleccionar modo unidades si tiene grams_per_unit
+  // Auto-seleccionar modo unidades si tiene grams_per_unit y unit_label_es
+  // Esto asegura que alimentos como "Plátano" y "Doble Cuarto" usen unidades por defecto
   useEffect(() => {
     if (!selected) return;
     
@@ -461,15 +475,15 @@ export default function AddFoodScreen() {
       // Tiene unidades: priorizar modo unidades
       // Establecer primero el modo para evitar que el efecto de conversión interfiera
       setInputMode("units");
-      setUnitsStr("1");
+      setUnitsStr("1"); // Establecer cantidad en "1" unidad
       // Establecer los gramos basados en 1 unidad desde el principio
-      const gramsForOneUnit = selected.grams_per_unit!;
+      const gramsForOneUnit = getGramsPerUnit(selected)!;
       setGramsStr(gramsForOneUnit.toFixed(1));
       lastUserInputRef.current = null; // Reset ref
     } else {
-      // Sin unidades: modo gramos
+      // Sin unidades: modo gramos por defecto
       setInputMode("grams");
-      setGramsStr("100");
+      setGramsStr("100"); // Establecer cantidad en "100" gramos
       setUnitsStr("1");
       lastUserInputRef.current = null; // Reset ref
     }
@@ -481,39 +495,46 @@ export default function AddFoodScreen() {
   }, [selected?.key, hasUnits]); // Solo cuando cambia el alimento o sus unidades
 
   // Sincronizar unidades y gramos cuando cambia el modo o el valor
+  // Fórmula: gramos_totales = unidades * grams_per_unit
   useEffect(() => {
-    if (!selected || !hasUnits || !selected.grams_per_unit) return;
+    if (!selected || !hasUnits) return;
+    const gramsPerUnit = getGramsPerUnit(selected);
+    if (!gramsPerUnit) return;
     
     // No ejecutar durante la inicialización
     if (isInitializingRef.current) return;
 
     if (inputMode === "units" && Number.isFinite(unitsNum) && unitsNum > 0) {
-      // Convertir unidades a gramos
-      const calculatedGrams = unitsNum * selected.grams_per_unit;
+      // Convertir unidades a gramos usando: gramos = unidades * grams_per_unit
+      const calculatedGrams = unitsNum * gramsPerUnit;
       const currentGrams = gramsNum;
       // Solo actualizar si hay diferencia significativa para evitar loops
       if (Math.abs(calculatedGrams - currentGrams) > 0.5) {
         setGramsStr(calculatedGrams.toFixed(1));
       }
     }
-  }, [inputMode, unitsNum, selected, hasUnits]);
+  }, [inputMode, unitsNum, selected, hasUnits, gramsNum]);
 
+  // Sincronizar gramos a unidades cuando el usuario cambia los gramos
+  // Fórmula: unidades = gramos_totales / grams_per_unit
   useEffect(() => {
-    if (!selected || !hasUnits || !selected.grams_per_unit) return;
+    if (!selected || !hasUnits) return;
+    const gramsPerUnit = getGramsPerUnit(selected);
+    if (!gramsPerUnit) return;
     
     // No ejecutar durante la inicialización
     if (isInitializingRef.current) return;
 
     if (inputMode === "grams" && Number.isFinite(gramsNum) && gramsNum > 0) {
-      // Convertir gramos a unidades
-      const calculatedUnits = gramsNum / selected.grams_per_unit;
+      // Convertir gramos a unidades usando: unidades = gramos / grams_per_unit
+      const calculatedUnits = gramsNum / gramsPerUnit;
       const currentUnits = unitsNum;
       // Solo actualizar si hay diferencia significativa para evitar loops
       if (Math.abs(calculatedUnits - currentUnits) > 0.01) {
         setUnitsStr(calculatedUnits.toFixed(1));
       }
     }
-  }, [inputMode, gramsNum, selected, hasUnits]);
+  }, [inputMode, gramsNum, selected, hasUnits, unitsNum]);
 
   const gramsError = useMemo(() => {
     if (inputMode === "units") {
@@ -1182,7 +1203,7 @@ export default function AddFoodScreen() {
                 <View style={s.portionHint}>
                   <Text style={s.portionHintText}>
                     {inputMode === "units"
-                      ? `1 ${selected.unit_label_es || "unidad"} = ${selected.grams_per_unit}g`
+                      ? `1 ${selected.unit_label_es || "unidad"} = ${getGramsPerUnit(selected) ?? 0}g`
                       : `${Math.round(unitsNum * 10) / 10} ${(selected.unit_label_es || "unidad") + (unitsNum !== 1 ? "s" : "")} = ${Math.round(gramsNum)}g`}
                   </Text>
                 </View>
