@@ -21,6 +21,7 @@ import type { FoodLogDb, MealType } from "@/domain/models/foodLogDb";
 import DateHeader from "@/presentation/components/ui/DateHeader";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
+import { useHealthSync } from "@/presentation/hooks/health/useHealthSync";
 import { useStaggerAnimation } from "@/presentation/hooks/ui/useStaggerAnimation";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { todayStrLocal } from "@/presentation/utils/date";
@@ -326,6 +327,11 @@ export default function DiaryScreen() {
   const { profile } = useAuth();
   const { theme } = useTheme();
   const { colors, typography } = theme;
+  
+  // Health Sync (Premium) - Solo para el día de hoy
+  const isPremium = profile?.is_premium ?? false;
+  const isToday = !params.day || params.day === todayStrLocal();
+  const { caloriesBurned } = useHealthSync(isPremium && isToday);
 
   // Si hay un parámetro 'day' explícito en la navegación, usarlo
   // Si no, siempre usar el día de hoy (no persistir días anteriores)
@@ -440,9 +446,19 @@ export default function DiaryScreen() {
   const targetC = profile?.carbs_g ?? null;
   const targetF = profile?.fat_g ?? null;
 
-  const kcalPct = targetKcal ? clamp01(totals.calories / targetKcal) : 0;
-  const kcalRemaining = targetKcal
-    ? Math.max(targetKcal - totals.calories, 0)
+  // Calcular target efectivo: target base + calorías quemadas (solo para premium y día de hoy)
+  const effectiveTargetKcal = useMemo(() => {
+    if (!targetKcal || targetKcal <= 0) return null;
+    // Si es premium, es el día de hoy y tiene actividad registrada, agregar las calorías quemadas como margen
+    if (isPremium && isToday && caloriesBurned > 0) {
+      return targetKcal + caloriesBurned;
+    }
+    return targetKcal;
+  }, [targetKcal, isPremium, isToday, caloriesBurned]);
+
+  const kcalPct = effectiveTargetKcal ? clamp01(totals.calories / effectiveTargetKcal) : 0;
+  const kcalRemaining = effectiveTargetKcal
+    ? Math.max(effectiveTargetKcal - totals.calories, 0)
     : null;
 
   const s = makeStyles(colors, typography);
@@ -632,7 +648,11 @@ export default function DiaryScreen() {
             {targetKcal && (
               <View style={s.smallChip}>
                 <Feather name="flag" size={14} color={colors.textSecondary} />
-                <Text style={s.smallChipText}>{targetKcal} kcal</Text>
+                <Text style={s.smallChipText}>
+                  {isPremium && isToday && caloriesBurned > 0
+                    ? `${targetKcal} + ${caloriesBurned} kcal`
+                    : `${targetKcal} kcal`}
+                </Text>
               </View>
             )}
           </View>
@@ -665,7 +685,9 @@ export default function DiaryScreen() {
             <Text style={s.hintText}>
               {kcalRemaining === null
                 ? "Define tu objetivo para ver restantes"
-                : `${Math.round(kcalRemaining)} kcal restantes`}
+                : isPremium && isToday && caloriesBurned > 0
+                  ? `${Math.round(kcalRemaining)} kcal restantes (incluye ${caloriesBurned} kcal de actividad)`
+                  : `${Math.round(kcalRemaining)} kcal restantes`}
             </Text>
           </View>
 
