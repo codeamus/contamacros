@@ -119,26 +119,54 @@ async function getUid(): Promise<string | null> {
   return data.session?.user?.id ?? null;
 }
 
+// Función para normalizar texto eliminando tildes y caracteres especiales
+function normalizeSearch(query: string): string {
+  return query
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // quita tildes
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 async function searchLocalFoods(q: string): Promise<ExtendedFoodSearchItem[]> {
   const uid = await getUid();
 
+  // Normalizar query para búsqueda más flexible (sin tildes)
+  const normalizedQ = normalizeSearch(q);
+  const originalQ = q.trim().toLowerCase();
+
+  // Para user_foods y foods, necesitamos filtrar después porque
+  // las tablas no tienen campos normalizados como generic_foods
+  // Obtenemos más resultados y filtramos por coincidencia normalizada
+  const searchTerms = originalQ === normalizedQ 
+    ? [originalQ] 
+    : [originalQ, normalizedQ];
+
+  // Construir condiciones para buscar ambas versiones (con y sin tildes)
+  const orConditions = searchTerms.map(term => `name.ilike.%${term}%`).join(",");
+
+  // Obtener resultados de user_foods y foods
   const userFoodsPromise = uid
     ? supabase
         .from("user_foods")
         .select("id, name, calories, protein, carbs, fat")
         .eq("user_id", uid)
-        .ilike("name", `%${q}%`)
+        .or(orConditions)
         .order("created_at", { ascending: false })
-        .limit(25)
+        .limit(50) // Obtener más para filtrar después
     : Promise.resolve({ data: [], error: null } as any);
 
   const foodsPromise = supabase
     .from("foods")
     .select("id, name, calories, protein, carbs, fat, verified, source, brand")
-    .ilike("name", `%${q}%`)
+    .or(orConditions)
     .order("verified", { ascending: false })
-    .limit(50);
+    .limit(100); // Obtener más para filtrar después
 
+  // generic_foods ya normaliza internamente
   const genericPromise = genericFoodsRepository.search(q);
 
   const [ufRes, fRes, gRes] = await Promise.all([
@@ -152,9 +180,24 @@ async function searchLocalFoods(q: string): Promise<ExtendedFoodSearchItem[]> {
   if (fRes.error) throw new Error(fRes.error.message);
   if (!gRes.ok) throw new Error(gRes.message);
 
+  // Filtrar resultados normalizando nombres para permitir búsqueda sin tildes
+  const normalizeForSearch = (text: string) => normalizeSearch(text);
+  
+  const filteredUserFoods = (ufRes.data ?? []).filter((item: any) => {
+    const nameNorm = normalizeForSearch(item.name);
+    return nameNorm.includes(normalizedQ) || 
+           item.name.toLowerCase().includes(originalQ);
+  }).slice(0, 25); // Limitar después del filtro
+
+  const filteredFoods = (fRes.data ?? []).filter((item: any) => {
+    const nameNorm = normalizeForSearch(item.name);
+    return nameNorm.includes(normalizedQ) || 
+           item.name.toLowerCase().includes(originalQ);
+  }).slice(0, 50); // Limitar después del filtro
+
   // Usar mappers para transformar datos
-  const userFoods = mapUserFoodDbArrayToSearchItems(ufRes.data ?? []);
-  const foods = mapFoodDbArrayToSearchItems(fRes.data ?? []);
+  const userFoods = mapUserFoodDbArrayToSearchItems(filteredUserFoods);
+  const foods = mapFoodDbArrayToSearchItems(filteredFoods);
   const generics = mapGenericFoodDbArrayToSearchItems(gRes.data ?? []);
 
   return [...userFoods, ...foods, ...generics];
@@ -220,6 +263,7 @@ export default function AddFoodScreen() {
 
   const reqIdRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const lastUserInputRef = useRef<{ mode: "grams" | "units"; value: number } | null>(null);
 
   // Cargar historial y recetas al montar
   useEffect(() => {
@@ -329,17 +373,7 @@ export default function AddFoodScreen() {
       setSelected(it);
       setQuery(res.data.name);
       setResults([]);
-      
-      // Detectar si tiene unidades y inicializar con 1 unidad
-      if (it.grams_per_unit && it.grams_per_unit > 0) {
-        setInputMode("units");
-        setUnitsStr("1");
-        setGramsStr(it.grams_per_unit.toString());
-      } else {
-        setInputMode("grams");
-        setGramsStr("100");
-        setUnitsStr("1");
-      }
+      // La inicialización se hará automáticamente en useEffect
     })();
 
     return () => {
@@ -401,6 +435,39 @@ export default function AddFoodScreen() {
     return selected?.grams_per_unit && selected.grams_per_unit > 0;
   }, [selected]);
 
+  // Detectar si es fast food
+  const isFastFood = useMemo(() => {
+    return selected?.tags?.some(tag => 
+      tag.toLowerCase().includes("fastfood") || 
+      tag.toLowerCase().includes("fast_food") ||
+      tag.toLowerCase().includes("fast-food")
+    ) ?? false;
+  }, [selected]);
+
+  // Si es Fast Food, bloquear gramos (solo unidades permitidas)
+  const isFastFoodLocked = useMemo(() => {
+    return isFastFood && hasUnits;
+  }, [isFastFood, hasUnits]);
+
+  // Auto-seleccionar modo unidades si tiene grams_per_unit
+  useEffect(() => {
+    if (!selected) return;
+    
+    if (hasUnits) {
+      // Tiene unidades: priorizar modo unidades
+      setInputMode("units");
+      setUnitsStr("1");
+      setGramsStr(selected.grams_per_unit!.toString());
+      lastUserInputRef.current = null; // Reset ref
+    } else {
+      // Sin unidades: modo gramos
+      setInputMode("grams");
+      setGramsStr("100");
+      setUnitsStr("1");
+      lastUserInputRef.current = null; // Reset ref
+    }
+  }, [selected?.key, hasUnits]); // Solo cuando cambia el alimento o sus unidades
+
   // Sincronizar unidades y gramos cuando cambia el modo o el valor
   useEffect(() => {
     if (!selected || !hasUnits || !selected.grams_per_unit) return;
@@ -459,15 +526,6 @@ export default function AddFoodScreen() {
       g,
     );
   }, [selected, gramsNum]);
-
-  // Detectar si es fast food
-  const isFastFood = useMemo(() => {
-    return selected?.tags?.some(tag => 
-      tag.toLowerCase().includes("fastfood") || 
-      tag.toLowerCase().includes("fast_food") ||
-      tag.toLowerCase().includes("fast-food")
-    ) ?? false;
-  }, [selected]);
 
   const canShowSearchMore = useMemo(
     () =>
@@ -798,7 +856,7 @@ export default function AddFoodScreen() {
                       onPress={() => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         setSelected(recipe);
-                        setGramsStr("100");
+                        // La inicialización se hará automáticamente en useEffect
                       }}
                       style={({ pressed }) => [
                         s.historyItem,
@@ -909,16 +967,7 @@ export default function AddFoodScreen() {
                   ]}
                   onPress={() => {
                     setSelected(it);
-                    // Detectar si tiene unidades y inicializar con 1 unidad
-                    if (it.grams_per_unit && it.grams_per_unit > 0) {
-                      setInputMode("units");
-                      setUnitsStr("1");
-                      setGramsStr(it.grams_per_unit.toString());
-                    } else {
-                      setInputMode("grams");
-                      setGramsStr("100");
-                      setUnitsStr("1");
-                    }
+                    // La inicialización se hará automáticamente en useEffect
                   }}
                 >
                   <View style={s.resultIcon}>
@@ -1031,26 +1080,28 @@ export default function AddFoodScreen() {
                         {selected.unit_label_es || "unidad"}
                       </Text>
                     </Pressable>
-                    <Pressable
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        setInputMode("grams");
-                      }}
-                      style={({ pressed }) => [
-                        s.modeToggleBtn,
-                        inputMode === "grams" && s.modeToggleBtnActive,
-                        pressed && { opacity: 0.7 },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          s.modeToggleText,
-                          inputMode === "grams" && s.modeToggleTextActive,
+                    {!isFastFoodLocked && (
+                      <Pressable
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          setInputMode("grams");
+                        }}
+                        style={({ pressed }) => [
+                          s.modeToggleBtn,
+                          inputMode === "grams" && s.modeToggleBtnActive,
+                          pressed && { opacity: 0.7 },
                         ]}
                       >
-                        Gramos
-                      </Text>
-                    </Pressable>
+                        <Text
+                          style={[
+                            s.modeToggleText,
+                            inputMode === "grams" && s.modeToggleTextActive,
+                          ]}
+                        >
+                          Gramos
+                        </Text>
+                      </Pressable>
+                    )}
                   </View>
                 )}
               </View>
@@ -1066,8 +1117,18 @@ export default function AddFoodScreen() {
                   onChangeText={(text) => {
                     if (inputMode === "units") {
                       setUnitsStr(text);
+                      // Marcar que el usuario está editando unidades
+                      const num = toFloatSafe(text);
+                      if (Number.isFinite(num)) {
+                        lastUserInputRef.current = { mode: "units", value: num };
+                      }
                     } else {
                       setGramsStr(text);
+                      // Marcar que el usuario está editando gramos
+                      const num = toFloatSafe(text);
+                      if (Number.isFinite(num)) {
+                        lastUserInputRef.current = { mode: "grams", value: num };
+                      }
                     }
                   }}
                   keyboardType="decimal-pad"
@@ -1091,7 +1152,20 @@ export default function AddFoodScreen() {
                     color={colors.cta}
                   />
                   <Text style={s.fastFoodBadgeText}>
-                    Peso total: {Math.round(gramsNum)}g
+                    {inputMode === "units" && hasUnits
+                      ? `${unitsNum} ${unitsNum === 1 ? (selected.unit_label_es || "unidad") : (selected.unit_label_es || "unidad") + "s"} = ${Math.round(gramsNum)}g`
+                      : `Peso total: ${Math.round(gramsNum)}g`}
+                  </Text>
+                </View>
+              )}
+              
+              {/* Información de la porción para ingredientes base */}
+              {hasUnits && !isFastFood && (
+                <View style={s.portionHint}>
+                  <Text style={s.portionHintText}>
+                    {inputMode === "units"
+                      ? `1 ${selected.unit_label_es || "unidad"} = ${selected.grams_per_unit}g`
+                      : `${Math.round(unitsNum * 10) / 10} ${(selected.unit_label_es || "unidad") + (unitsNum !== 1 ? "s" : "")} = ${Math.round(gramsNum)}g`}
                   </Text>
                 </View>
               )}
@@ -1663,6 +1737,18 @@ function makeStyles(colors: any, typography: any) {
     portionInfoText: {
       fontFamily: typography.body?.fontFamily,
       fontSize: 12,
+      color: colors.textSecondary,
+    },
+    portionHint: {
+      marginTop: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 10,
+      backgroundColor: colors.background,
+    },
+    portionHintText: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 11,
       color: colors.textSecondary,
     },
 

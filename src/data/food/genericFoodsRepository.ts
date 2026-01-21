@@ -39,6 +39,9 @@ export const genericFoodsRepository = {
     const qRaw = query.trim();
     if (qRaw.length < 2) return { ok: true, data: [] };
 
+    // Normalizar la query para quitar tildes y caracteres especiales
+    // Esto es lo importante: SIEMPRE buscar con la versión normalizada
+    // porque name_norm y aliases_search están normalizados en la DB
     const q = norm(qRaw);
 
     const { data, error } = await supabase
@@ -46,7 +49,9 @@ export const genericFoodsRepository = {
       .select(
         "id, name_es, name_norm, aliases_search, kcal_100g, protein_100g, carbs_100g, fat_100g, unit_label_es, grams_per_unit, tags, created_at",
       )
-      // ✅ busca por normalizados
+      // Buscar SOLO en los campos normalizados (name_norm y aliases_search)
+      // Estos campos ya tienen el texto sin tildes, por lo que funcionan
+      // tanto si buscas "platano" como "plátano"
       .or(`name_norm.ilike.%${q}%,aliases_search.ilike.%${q}%`)
       .order("created_at", { ascending: false })
       .limit(25);
