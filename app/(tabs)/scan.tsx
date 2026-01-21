@@ -3,7 +3,7 @@ import type { MealType } from "@/domain/models/foodLogDb";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { Feather } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import React, { useCallback, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -25,6 +25,15 @@ export default function ScanScreen() {
 
   // Evita dobles lecturas (iOS puede disparar 2 veces)
   const lockRef = useRef(false);
+
+  // Resetear el estado cuando la pantalla recibe foco (para permitir escanear de nuevo)
+  useFocusEffect(
+    useCallback(() => {
+      console.log("[ScanScreen] 🔄 Pantalla enfocada, reseteando estado de escaneo");
+      setScanned(false);
+      lockRef.current = false;
+    }, [])
+  );
 
   const onBarcodeScanned = useCallback(
     ({ data }: { data: string }) => {

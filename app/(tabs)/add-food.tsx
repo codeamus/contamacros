@@ -277,6 +277,8 @@ export default function AddFoodScreen() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastUserInputRef = useRef<{ mode: "grams" | "units"; value: number } | null>(null);
   const isInitializingRef = useRef(false);
+  const isBarcodeSearchRef = useRef(false); // Ref para rastrear si hay búsqueda de barcode en curso
+  const justProcessedBarcodeRef = useRef(false); // Ref para rastrear si acabamos de procesar un barcode exitosamente
 
   // Cargar historial y recetas al montar
   useEffect(() => {
@@ -305,26 +307,55 @@ export default function AddFoodScreen() {
         hasBarcode,
         barcode: params.barcode,
         currentSelected: !!selected,
+        isSearchingMore,
       });
       
-      if (!hasBarcode) {
-        // Solo limpiar si NO hay barcode pendiente
-        setSelected(null);
-        setQuery("");
+      // NO cancelar si hay una búsqueda de barcode en curso
+      // Esto evita que useFocusEffect cancele la búsqueda que acaba de iniciar el useEffect del barcode
+      // Usamos el ref porque el estado puede no estar actualizado aún en el closure
+      if (isBarcodeSearchRef.current || (isSearchingMore && hasBarcode)) {
+        console.log("[AddFoodScreen] ⏸️ Búsqueda de barcode en curso (ref o estado), no limpiando ni cancelando");
+        return;
+      }
+      
+      // NO limpiar selected si acabamos de procesar un barcode exitosamente
+      // Esto evita que se limpie el alimento que acabamos de seleccionar
+      if (justProcessedBarcodeRef.current && selected) {
+        console.log("[AddFoodScreen] ⏸️ Acabamos de procesar barcode exitosamente, no limpiando selected");
+        // NO resetear el flag aquí, lo haremos después de un delay para proteger múltiples ejecuciones de useFocusEffect
+        // Solo limpiar otros estados, pero mantener selected
+        if (!query) {
+          setQuery(selected.name || "");
+        }
         setResults([]);
         setErr(null);
-        setGramsStr("100");
-        setUnitsStr("1");
-        setInputMode("grams");
-        setIsSearchingLocal(false);
-        setIsSearchingMore(false);
+        return;
+      }
+      
+      if (!hasBarcode) {
+        // Solo limpiar si NO hay barcode pendiente Y no acabamos de procesar un barcode
+        // Esto evita que se limpie el alimento inmediatamente después de escanear
+        if (!justProcessedBarcodeRef.current) {
+          setSelected(null);
+          setQuery("");
+          setResults([]);
+          setErr(null);
+          setGramsStr("100");
+          setUnitsStr("1");
+          setInputMode("grams");
+          setIsSearchingLocal(false);
+          setIsSearchingMore(false);
+        } else {
+          console.log("[AddFoodScreen] ⏸️ No limpiando porque acabamos de procesar barcode, protegiendo selected");
+        }
       } else {
         console.log("[AddFoodScreen] ⏸️ No limpiando estado porque hay barcode pendiente");
       }
       setIsInputFocused(false);
       
-      // Solo invalidar requests si NO hay barcode pendiente
-      if (!hasBarcode) {
+      // Solo invalidar requests si NO hay barcode pendiente Y no hay búsqueda en curso
+      // Usamos el ref para verificar si hay búsqueda de barcode
+      if (!hasBarcode && !isSearchingMore && !isBarcodeSearchRef.current) {
         reqIdRef.current += 1; // ✅ invalida requests anteriores
 
         // Cancelar cualquier búsqueda pendiente solo si no hay barcode
@@ -333,18 +364,22 @@ export default function AddFoodScreen() {
           abortControllerRef.current = null;
         }
       } else {
-        console.log("[AddFoodScreen] ⏸️ No cancelando búsquedas porque hay barcode pendiente");
+        console.log("[AddFoodScreen] ⏸️ No cancelando búsquedas porque hay barcode pendiente o búsqueda en curso");
       }
 
       return () => {
         // (opcional) al salir también
-        reqIdRef.current += 1;
-        if (abortControllerRef.current) {
-          abortControllerRef.current.abort();
-          abortControllerRef.current = null;
+        // NO cancelar si hay una búsqueda de barcode en curso
+        const hasBarcodeOnExit = typeof params.barcode === "string" && params.barcode.trim().length > 0;
+        if (!hasBarcodeOnExit && !isSearchingMore && !isBarcodeSearchRef.current) {
+          reqIdRef.current += 1;
+          if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            abortControllerRef.current = null;
+          }
         }
       };
-    }, []),
+    }, [params.barcode, selected, isSearchingMore]),
   );
 
   useEffect(() => {
@@ -381,6 +416,7 @@ export default function AddFoodScreen() {
     (async () => {
       try {
         console.log("[AddFoodScreen] 🔄 Iniciando búsqueda por barcode:", barcode);
+        isBarcodeSearchRef.current = true; // Marcar que hay búsqueda de barcode en curso
         setErr(null);
         setIsSearchingMore(true);
 
@@ -400,13 +436,16 @@ export default function AddFoodScreen() {
         // Verificar si la request fue cancelada
         if (myReqId !== reqIdRef.current || abortController.signal.aborted) {
           console.log("[AddFoodScreen] ⚠️ Request cancelada o reemplazada");
+          isBarcodeSearchRef.current = false; // Limpiar el flag
           return;
         }
 
         setIsSearchingMore(false);
+        isBarcodeSearchRef.current = false; // Limpiar el flag cuando termine
 
         if (!res.ok) {
           console.error("[AddFoodScreen] ❌ Error en búsqueda:", res.message);
+          isBarcodeSearchRef.current = false; // Limpiar el flag en caso de error
           // No mostrar error si fue cancelado
           if (res.message !== "Búsqueda cancelada.") {
             setErr(res.message);
@@ -416,6 +455,7 @@ export default function AddFoodScreen() {
 
         if (!res.data) {
           console.error("[AddFoodScreen] ❌ Respuesta OK pero sin datos");
+          isBarcodeSearchRef.current = false; // Limpiar el flag en caso de error
           setErr("Producto no encontrado");
           return;
         }
@@ -444,8 +484,22 @@ export default function AddFoodScreen() {
         setSelected(it);
         setQuery(res.data.name);
         setResults([]);
+        isBarcodeSearchRef.current = false; // Limpiar el flag cuando se complete exitosamente
+        justProcessedBarcodeRef.current = true; // Marcar que acabamos de procesar un barcode exitosamente
         
-        console.log("[AddFoodScreen] ✅ Estado actualizado: selected establecido, query actualizado");
+        // Limpiar el barcode de los params para evitar que se busque de nuevo al volver
+        // Esto permite escanear un nuevo código sin problemas
+        // Usamos setTimeout con delay más largo para proteger contra múltiples ejecuciones de useFocusEffect
+        setTimeout(() => {
+          router.setParams({ barcode: undefined });
+          // Resetear el flag después de un delay adicional para asegurar que useFocusEffect no limpie el estado
+          setTimeout(() => {
+            justProcessedBarcodeRef.current = false;
+            console.log("[AddFoodScreen] 🔄 Flag justProcessedBarcode reseteado");
+          }, 500);
+        }, 200);
+        
+        console.log("[AddFoodScreen] ✅ Estado actualizado: selected establecido, query actualizado, params se limpiarán en breve");
         // La inicialización se hará automáticamente en useEffect
       } catch (error: any) {
         console.error("[AddFoodScreen] 💥 Excepción en búsqueda por barcode:", {
@@ -455,6 +509,7 @@ export default function AddFoodScreen() {
         });
         
         setIsSearchingMore(false);
+        isBarcodeSearchRef.current = false; // Limpiar el flag en caso de excepción
         
         if (error?.name !== "AbortError" && !abortController.signal.aborted) {
           setErr(error?.message || "Error al buscar producto");
