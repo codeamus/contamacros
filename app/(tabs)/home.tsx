@@ -103,9 +103,19 @@ export default function HomeScreen() {
 
   // Smart Coach Pro
   const isPremium = profile?.is_premium ?? false;
+  
+  // Calcular target efectivo para Smart Coach (incluye calorías quemadas si es premium)
+  const effectiveTargetForCoach = useMemo(() => {
+    if (caloriesTarget <= 0) return caloriesTarget;
+    if (isPremium && caloriesBurned > 0) {
+      return caloriesTarget + caloriesBurned;
+    }
+    return caloriesTarget;
+  }, [caloriesTarget, isPremium, caloriesBurned]);
+  
   const smartCoach = useSmartCoachPro(
     profile,
-    caloriesTarget,
+    effectiveTargetForCoach,
     totals.calories,
     totals.protein,
     totals.carbs,
@@ -121,18 +131,31 @@ export default function HomeScreen() {
 
   // Summary
   const caloriesConsumed = totals.calories;
-  const remaining =
-    caloriesTarget > 0 ? Math.max(caloriesTarget - caloriesConsumed, 0) : 0;
+  
+  // Calcular target efectivo: target base + calorías quemadas (solo para premium)
+  const effectiveCaloriesTarget = useMemo(() => {
+    if (caloriesTarget <= 0) return 0;
+    // Si es premium y tiene actividad registrada, agregar las calorías quemadas como margen
+    if (isPremium && caloriesBurned > 0) {
+      return caloriesTarget + caloriesBurned;
+    }
+    return caloriesTarget;
+  }, [caloriesTarget, isPremium, caloriesBurned]);
+  
+  const remaining = useMemo(() => {
+    if (effectiveCaloriesTarget <= 0) return 0;
+    return Math.max(effectiveCaloriesTarget - caloriesConsumed, 0);
+  }, [effectiveCaloriesTarget, caloriesConsumed]);
 
   const caloriesPct = useMemo(() => {
-    if (!caloriesTarget || caloriesTarget <= 0) return 0;
-    return Math.min((caloriesConsumed / caloriesTarget) * 100, 100);
-  }, [caloriesConsumed, caloriesTarget]);
+    if (!effectiveCaloriesTarget || effectiveCaloriesTarget <= 0) return 0;
+    return Math.min((caloriesConsumed / effectiveCaloriesTarget) * 100, 100);
+  }, [caloriesConsumed, effectiveCaloriesTarget]);
 
   const caloriesProgress = useMemo(() => {
-    if (!caloriesTarget || caloriesTarget <= 0) return 0;
-    return clamp01(caloriesConsumed / caloriesTarget);
-  }, [caloriesConsumed, caloriesTarget]);
+    if (!effectiveCaloriesTarget || effectiveCaloriesTarget <= 0) return 0;
+    return clamp01(caloriesConsumed / effectiveCaloriesTarget);
+  }, [caloriesConsumed, effectiveCaloriesTarget]);
 
   const protein = { value: totals.protein, target: proteinTarget };
   const carbs = { value: totals.carbs, target: carbsTarget };
@@ -514,7 +537,11 @@ export default function HomeScreen() {
             <View style={s.chip}>
               <Feather name="flag" size={14} color={colors.textSecondary} />
               <Text style={s.chipText}>
-                {caloriesTarget ? `${caloriesTarget} kcal` : "Sin objetivo"}
+                {caloriesTarget 
+                  ? isPremium && caloriesBurned > 0
+                    ? `${caloriesTarget} + ${caloriesBurned} kcal`
+                    : `${caloriesTarget} kcal`
+                  : "Sin objetivo"}
               </Text>
             </View>
           </View>
