@@ -27,17 +27,20 @@ export function useTodaySummary() {
   const totals = useMemo(() => sumLogs(logs), [logs]);
 
   const load = useCallback(async () => {
+    console.log("[useTodaySummary] Cargando datos para el día:", day);
     setLoading(true);
     setErr(null);
 
     const res = await foodLogRepository.listByDay(day);
     if (!res.ok) {
+      console.error("[useTodaySummary] Error al cargar:", res.message);
       setErr(res.message);
       setLogs([]);
       setLoading(false);
       return;
     }
 
+    console.log("[useTodaySummary] Datos cargados:", res.data.length, "registros");
     setLogs(res.data);
     setLoading(false);
   }, [day]);

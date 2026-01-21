@@ -175,6 +175,22 @@ export default function HomeScreen() {
     setRefreshing(false);
   }, [reloadSummary, reloadMeals]);
 
+  // Función para refrescar después de agregar comida desde Smart Coach
+  // Debe funcionar exactamente igual que pull to refresh
+  const handleFoodAdded = useCallback(async () => {
+    console.log("[Home] ========== INICIO handleFoodAdded ==========");
+    
+    // Refrescar ambos hooks en paralelo (igual que pull to refresh)
+    // El Smart Coach se actualizará automáticamente cuando cambien los totals
+    console.log("[Home] Ejecutando reloadSummary() y reloadMeals()...");
+    await Promise.all([reloadSummary(), reloadMeals()]);
+    console.log("[Home] Hooks refrescados correctamente");
+    
+    // No necesitamos hacer nada más - el Smart Coach se actualizará automáticamente
+    // cuando los totals cambien debido a las dependencias en useSmartCoachPro
+    console.log("[Home] ========== FIN handleFoodAdded ==========");
+  }, [reloadSummary, reloadMeals]);
+
   return (
     <SafeAreaView style={s.safe}>
       <ScrollView
@@ -224,6 +240,7 @@ export default function HomeScreen() {
               recommendation={smartCoach.recommendation}
               loading={smartCoach.loading}
               isPremium={isPremium}
+              onFoodAdded={handleFoodAdded}
             />
           </View>
         )}

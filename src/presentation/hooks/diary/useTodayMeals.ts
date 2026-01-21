@@ -40,17 +40,20 @@ export function useTodayMeals(dayParam?: string) {
   const meals = useMemo(() => group(logs), [logs]);
 
   const load = useCallback(async () => {
+    console.log("[useTodayMeals] Cargando datos para el día:", day);
     setLoading(true);
     setErr(null);
 
     const res = await foodLogRepository.listByDay(day);
     if (!res.ok) {
+      console.error("[useTodayMeals] Error al cargar:", res.message);
       setErr(res.message);
       setLogs([]);
       setLoading(false);
       return;
     }
 
+    console.log("[useTodayMeals] Datos cargados:", res.data.length, "registros");
     setLogs(res.data);
     setLoading(false);
   }, [day]);

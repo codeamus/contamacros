@@ -2,6 +2,7 @@
 import { foodLogRepository } from "@/data/food/foodLogRepository";
 import type { SmartCoachRecommendation } from "@/domain/models/smartCoach";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
+import { useToast } from "@/presentation/hooks/ui/useToast";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useCallback, useState } from "react";
@@ -39,6 +40,7 @@ type SmartCoachProProps = {
   loading: boolean;
   isPremium: boolean;
   onUpgrade?: () => void;
+  onFoodAdded?: () => void;
 };
 
 export default function SmartCoachPro({
@@ -46,18 +48,31 @@ export default function SmartCoachPro({
   loading,
   isPremium,
   onUpgrade,
+  onFoodAdded,
 }: SmartCoachProProps) {
   const { theme } = useTheme();
   const { colors, typography } = theme;
   const s = makeStyles(colors, typography);
+  const { showToast } = useToast();
   const [isAdding, setIsAdding] = useState(false);
 
   const handleQuickAdd = useCallback(async () => {
-    if (!recommendation || recommendation.type === "exercise") return;
+    console.log("[SmartCoachPro] handleQuickAdd llamado");
+    if (!recommendation || recommendation.type === "exercise") {
+      console.log("[SmartCoachPro] No hay recomendación o es ejercicio, retornando");
+      return;
+    }
 
     const food = recommendation.recommendedFood;
     const day = todayStrLocal();
     const meal = getMealByHour();
+
+    console.log("[SmartCoachPro] Preparando comida para agregar:", {
+      name: food.name,
+      grams: food.recommendedAmount,
+      day,
+      meal,
+    });
 
     const grams = food.recommendedAmount;
     const factor = grams / 100;
@@ -66,8 +81,16 @@ export default function SmartCoachPro({
     const carbs = Math.round(food.carbs_100g * factor);
     const fat = Math.round(food.fat_100g * factor);
 
+    console.log("[SmartCoachPro] Valores calculados:", {
+      calories,
+      protein,
+      carbs,
+      fat,
+    });
+
     setIsAdding(true);
     try {
+      console.log("[SmartCoachPro] Creando registro en food_logs...");
       const res = await foodLogRepository.create({
         day,
         meal,
@@ -84,17 +107,57 @@ export default function SmartCoachPro({
         user_food_id: null,
       });
 
+      console.log("[SmartCoachPro] Resultado de create:", {
+        ok: res.ok,
+        message: res.ok ? "Éxito" : res.message,
+        data: res.ok ? res.data : null,
+      });
+
       if (res.ok) {
+        console.log("[SmartCoachPro] Comida agregada exitosamente, mostrando toast...");
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        showToast({
+          message: `¡${food.name} agregado!`,
+          type: "success",
+        });
+        
+        // Pequeño delay para asegurar que la base de datos haya procesado la inserción
+        console.log("[SmartCoachPro] Esperando 300ms antes de refrescar...");
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        
+        // Refrescar el home después de agregar la comida
+        console.log("[SmartCoachPro] Llamando a onFoodAdded callback...");
+        try {
+          if (onFoodAdded) {
+            console.log("[SmartCoachPro] onFoodAdded existe, ejecutando...");
+            await onFoodAdded();
+            console.log("[SmartCoachPro] onFoodAdded completado");
+          } else {
+            console.warn("[SmartCoachPro] onFoodAdded no está definido");
+          }
+        } catch (error) {
+          console.error("[SmartCoachPro] Error al refrescar después de agregar comida:", error);
+        }
       } else {
+        console.error("[SmartCoachPro] Error al agregar comida:", res.message);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        showToast({
+          message: `Error: ${res.message}`,
+          type: "error",
+        });
       }
     } catch (err) {
+      console.error("[SmartCoachPro] Excepción al agregar comida:", err);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      showToast({
+        message: "Error al agregar la comida",
+        type: "error",
+      });
     } finally {
       setIsAdding(false);
+      console.log("[SmartCoachPro] handleQuickAdd completado, isAdding = false");
     }
-  }, [recommendation]);
+  }, [recommendation, onFoodAdded, showToast]);
 
   function getMealByHour(): "breakfast" | "lunch" | "dinner" | "snack" {
     const hour = new Date().getHours();
