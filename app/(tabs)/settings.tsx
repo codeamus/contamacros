@@ -23,8 +23,10 @@ import {
 import { computeMacroTargets } from "@/domain/services/macroTargets";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useToast } from "@/presentation/hooks/ui/useToast";
+import { useHealthSync } from "@/presentation/hooks/health/useHealthSync";
 import { useTheme, type ThemeMode } from "@/presentation/theme/ThemeProvider";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Platform } from "react-native";
 
 type SettingItemProps = {
   icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
@@ -178,6 +180,8 @@ export default function SettingsScreen() {
   const { theme, themeMode, setThemeMode } = useTheme();
   const { colors, typography } = theme;
   const { showToast } = useToast();
+  const isPremium = profile?.is_premium ?? false;
+  const { syncCalories, isSyncing, caloriesBurned, error: healthError } = useHealthSync(isPremium);
   const insets = useSafeAreaInsets();
   const s = makeStyles(colors, typography, insets);
 
@@ -631,6 +635,52 @@ export default function SettingsScreen() {
       </View>
 
         {/* App Section */}
+        {/* Salud Section - Solo para Premium */}
+        {isPremium && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Salud</Text>
+            <View style={s.sectionContent}>
+              <SettingItem
+                icon={Platform.OS === "ios" ? "apple" : "google"}
+                label={Platform.OS === "ios" ? "Apple Health" : "Health Connect"}
+                value={caloriesBurned > 0 
+                  ? `${caloriesBurned} kcal sincronizadas hoy`
+                  : "No conectado"}
+                onPress={async () => {
+                  try {
+                    await syncCalories();
+                    showToast({
+                      message: Platform.OS === "ios" 
+                        ? "Sincronizado con Apple Health" 
+                        : "Sincronizado con Health Connect",
+                      type: "success",
+                    });
+                  } catch (error) {
+                    showToast({
+                      message: error instanceof Error ? error.message : "Error al sincronizar",
+                      type: "error",
+                    });
+                  }
+                }}
+                rightElement={
+                  isSyncing ? (
+                    <ActivityIndicator size="small" color={colors.brand} />
+                  ) : undefined
+                }
+                colors={colors}
+                typography={typography}
+              />
+              {healthError && (
+                <View style={{ marginTop: 8, paddingHorizontal: 16 }}>
+                  <Text style={{ fontSize: 12, color: "#EF4444" }}>
+                    {healthError}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
         <View style={s.section}>
           <Text style={s.sectionTitle}>App</Text>
           <View style={s.sectionContent}>

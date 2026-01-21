@@ -8,19 +8,6 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "icon": "./assets/images/adaptive-icon.png",
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.codeamusdev2.contamacro"
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#E6F4FE"
-      },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
-      "package": "com.codeamusdev2.contamacro"
-    },
     "web": {
       "output": "static",
       "favicon": "./assets/images/adaptive-icon.png"
@@ -38,8 +25,35 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "healthSharePermission": "Esta app necesita acceso a tus datos de salud para sincronizar las calorías quemadas.",
+          "healthUpdatePermission": "Esta app necesita acceso para actualizar tus datos de salud."
+        }
       ]
     ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.codeamusdev2.contamacro",
+      "infoPlist": {
+        "NSHealthShareUsageDescription": "Esta app necesita acceso a tus datos de salud para sincronizar las calorías quemadas y mejorar las recomendaciones del Coach Pro.",
+        "NSHealthUpdateUsageDescription": "Esta app necesita acceso para actualizar tus datos de salud."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#E6F4FE"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.codeamusdev2.contamacro",
+      "permissions": [
+        "android.permission.health.READ_ACTIVE_CALORIES_BURNED"
+      ]
+    },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true

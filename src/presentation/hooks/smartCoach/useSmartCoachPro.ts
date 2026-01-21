@@ -1,4 +1,5 @@
 // src/presentation/hooks/smartCoach/useSmartCoachPro.ts
+import { activityLogRepository } from "@/data/activity/activityLogRepository";
 import { exercisesRepository } from "@/data/exercise/exercisesRepository";
 import { foodLogRepository } from "@/data/food/foodLogRepository";
 import { genericFoodsRepository } from "@/data/food/genericFoodsRepository";
@@ -10,6 +11,7 @@ import type {
 } from "@/domain/models/smartCoach";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useFocusEffect } from "expo-router";
+import { todayStrLocal } from "@/presentation/utils/date";
 
 /**
  * Calcula los minutos necesarios para quemar calorías usando MET
@@ -391,6 +393,31 @@ export function useSmartCoachPro(
       if (excessCalories > 0) {
         console.log("[SmartCoach] EXCESO DETECTADO - excessCalories:", excessCalories, "consumed:", consumed, "target:", target);
         
+        // Si es premium, obtener calorías de actividad y restarlas del exceso
+        let activityCaloriesBurned = 0;
+        let remainingExcess = excessCalories;
+        if (isPremium) {
+          try {
+            const activityRes = await activityLogRepository.getTodayCalories(todayStrLocal());
+            if (activityRes.ok && activityRes.data > 0) {
+              activityCaloriesBurned = activityRes.data;
+              remainingExcess = Math.max(0, excessCalories - activityCaloriesBurned);
+              console.log("[SmartCoach] Calorías de actividad:", activityCaloriesBurned, "Exceso antes:", excessCalories, "Exceso después:", remainingExcess);
+            }
+          } catch (err) {
+            console.warn("[SmartCoach] Error al obtener calorías de actividad:", err);
+          }
+        }
+
+        // Si la actividad ya compensó todo el exceso, no recomendar ejercicio
+        if (remainingExcess <= 0 && activityCaloriesBurned > 0) {
+          console.log("[SmartCoach] El exceso fue completamente compensado por actividad física");
+          setRecommendation(null);
+          setLoading(false);
+          isProcessingRef.current = false;
+          return;
+        }
+        
         const exercisesRes = await exercisesRepository.listAll();
         
         if (!exercisesRes.ok) {
@@ -464,7 +491,7 @@ export function useSmartCoachPro(
         
         const exercises = exercisesToRecommend.map((exercise) => {
           const minutesNeeded = calculateMinutesToBurnCalories(
-            excessCalories,
+            remainingExcess, // Usar el exceso restante después de restar actividad
             exercise.met_value,
             profile.weight_kg ?? 70, // Fallback si weight_kg es null
           );
@@ -505,19 +532,32 @@ export function useSmartCoachPro(
         const hourNow = new Date().getHours();
         let message = "";
 
-        if (hourNow >= 5 && hourNow < 12) {
-          message = `Te pasaste por ${Math.round(excessCalories)} kcal. ${firstExercise.exercise.name_es} por ${Math.round(firstExercise.minutesNeeded)} minutos te ayudará a equilibrar.`;
-        } else if (hourNow >= 12 && hourNow < 20) {
-          message = `Has consumido ${Math.round(excessCalories)} kcal extra. ¿Qué tal ${firstExercise.exercise.name_es} por ${Math.round(firstExercise.minutesNeeded)} minutos?`;
+        // Mensaje personalizado según hora y si hay actividad registrada
+        if (activityCaloriesBurned > 0) {
+          if (hourNow >= 5 && hourNow < 12) {
+            message = `Te pasaste por ${Math.round(excessCalories)} kcal hoy. Ya quemaste ${Math.round(activityCaloriesBurned)} kcal con actividad física. ${firstExercise.exercise.name_es} por ${Math.round(firstExercise.minutesNeeded)} minutos completará el equilibrio.`;
+          } else if (hourNow >= 12 && hourNow < 20) {
+            message = `Has consumido ${Math.round(excessCalories)} kcal extra. Ya quemaste ${Math.round(activityCaloriesBurned)} kcal con actividad física. ¿Qué tal ${firstExercise.exercise.name_es} por ${Math.round(firstExercise.minutesNeeded)} minutos?`;
+          } else {
+            message = `Te pasaste por ${Math.round(excessCalories)} kcal hoy. Ya quemaste ${Math.round(activityCaloriesBurned)} kcal con actividad física. Una caminata suave de ${Math.round(firstExercise.minutesNeeded)} minutos completará el equilibrio.`;
+          }
         } else {
-          message = `Te pasaste por ${Math.round(excessCalories)} kcal. Una caminata suave de ${Math.round(firstExercise.minutesNeeded)} minutos te ayudará a equilibrar.`;
+          if (hourNow >= 5 && hourNow < 12) {
+            message = `Te pasaste por ${Math.round(excessCalories)} kcal. ${firstExercise.exercise.name_es} por ${Math.round(firstExercise.minutesNeeded)} minutos te ayudará a equilibrar.`;
+          } else if (hourNow >= 12 && hourNow < 20) {
+            message = `Has consumido ${Math.round(excessCalories)} kcal extra. ¿Qué tal ${firstExercise.exercise.name_es} por ${Math.round(firstExercise.minutesNeeded)} minutos?`;
+          } else {
+            message = `Te pasaste por ${Math.round(excessCalories)} kcal. Una caminata suave de ${Math.round(firstExercise.minutesNeeded)} minutos te ayudará a equilibrar.`;
+          }
         }
 
         setRecommendation({
           type: "exercise",
           message,
           exercises,
-          excessCalories: Math.round(excessCalories),
+          excessCalories: Math.round(excessCalories), // Exceso original
+          activityCaloriesBurned: activityCaloriesBurned > 0 ? Math.round(activityCaloriesBurned) : undefined,
+          remainingExcess: remainingExcess > 0 ? Math.round(remainingExcess) : undefined,
         });
         setLoading(false);
         isProcessingRef.current = false;

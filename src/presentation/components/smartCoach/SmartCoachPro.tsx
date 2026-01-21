@@ -3,11 +3,13 @@ import { foodLogRepository } from "@/data/food/foodLogRepository";
 import type { SmartCoachRecommendation } from "@/domain/models/smartCoach";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { useToast } from "@/presentation/hooks/ui/useToast";
+import { useHealthSync } from "@/presentation/hooks/health/useHealthSync";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -54,6 +56,7 @@ export default function SmartCoachPro({
   const { colors, typography } = theme;
   const s = makeStyles(colors, typography);
   const { showToast } = useToast();
+  const { syncCalories, isSyncing, caloriesBurned } = useHealthSync(isPremium);
   const [isAdding, setIsAdding] = useState(false);
 
   const handleQuickAdd = useCallback(async () => {
@@ -179,14 +182,14 @@ export default function SmartCoachPro({
             <View style={[s.iconContainer, s.premiumIconContainer]}>
               <MaterialCommunityIcons
                 name="lock"
-                size={28}
+                size={32}
                 color={colors.brand}
               />
             </View>
             <View style={s.premiumTextContainer}>
               <Text style={s.premiumTitle}>Coach Pro 💎</Text>
               <Text style={s.premiumBody}>
-                Desbloquea recomendaciones personalizadas de macros y ejercicio con Coach Pro
+                Tu Coach Pro está analizando tus datos... Suscríbete para ver el plan de acción personalizado basado en tu historial, macros y actividad física.
               </Text>
             </View>
             <Pressable
@@ -200,7 +203,7 @@ export default function SmartCoachPro({
                 pressed && s.upgradeButtonPressed,
               ]}
             >
-              <Text style={s.upgradeButtonText}>Desbloquear Coach Pro</Text>
+              <Text style={s.upgradeButtonText}>Pasar a Pro 💎</Text>
               <MaterialCommunityIcons
                 name="arrow-right"
                 size={18}
@@ -247,6 +250,74 @@ export default function SmartCoachPro({
             <View style={s.textContainer}>
               <Text style={s.title}>Coach Pro</Text>
               <Text style={s.message}>{recommendation.message}</Text>
+              
+              {/* Mostrar información de actividad si está disponible */}
+              {recommendation.activityCaloriesBurned && recommendation.activityCaloriesBurned > 0 && (
+                <View style={s.activityInfo}>
+                  <MaterialCommunityIcons
+                    name="heart-pulse"
+                    size={16}
+                    color={colors.textSecondary}
+                  />
+                  <Text style={s.activityInfoText}>
+                    Ya quemaste {recommendation.activityCaloriesBurned} kcal hoy con actividad física
+                  </Text>
+                </View>
+              )}
+              
+              {/* Botón para sincronizar con apps de salud */}
+              {isPremium && (
+                <Pressable
+                  onPress={async () => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    try {
+                      await syncCalories();
+                      showToast({
+                        message: Platform.OS === "ios" 
+                          ? "Sincronizado con Apple Health" 
+                          : "Sincronizado con Health Connect",
+                        type: "success",
+                      });
+                      // Recargar después de sincronizar
+                      if (onFoodAdded) {
+                        setTimeout(() => {
+                          onFoodAdded();
+                        }, 500);
+                      }
+                    } catch (error) {
+                      showToast({
+                        message: error instanceof Error ? error.message : "Error al sincronizar",
+                        type: "error",
+                      });
+                    }
+                  }}
+                  disabled={isSyncing}
+                  style={({ pressed }) => [
+                    s.syncButton,
+                    (pressed || isSyncing) && s.syncButtonPressed,
+                  ]}
+                >
+                  {isSyncing ? (
+                    <ActivityIndicator size="small" color={colors.brand} />
+                  ) : (
+                    <>
+                      <MaterialCommunityIcons
+                        name={Platform.OS === "ios" ? "apple" : "google"}
+                        size={18}
+                        color={colors.brand}
+                      />
+                      <Text style={s.syncButtonText}>
+                        {caloriesBurned > 0 
+                          ? `Sincronizar (${caloriesBurned} kcal)` 
+                          : Platform.OS === "ios" 
+                            ? "Conectar Apple Health" 
+                            : "Conectar Health Connect"}
+                      </Text>
+                    </>
+                  )}
+                </Pressable>
+              )}
+              
               <View style={s.exercisesContainer}>
                 {recommendation.exercises.map(({ exercise, minutesNeeded }) => (
                   <View key={exercise.id} style={s.exerciseItem}>
@@ -503,6 +574,44 @@ function makeStyles(colors: any, typography: any) {
       fontSize: 14,
       color: colors.textPrimary,
       fontWeight: "500",
+    },
+    activityInfo: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginTop: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 8,
+      backgroundColor: colors.surface,
+    },
+    activityInfoText: {
+      ...typography.caption,
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontStyle: "italic",
+    },
+    syncButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      marginTop: 12,
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.brand + "40",
+    },
+    syncButtonPressed: {
+      opacity: 0.7,
+    },
+    syncButtonText: {
+      ...typography.caption,
+      fontSize: 13,
+      fontWeight: "600",
+      color: colors.brand,
     },
     premiumTitle: {
       ...typography.subtitle,

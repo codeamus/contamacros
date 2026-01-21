@@ -76,6 +76,8 @@ export type ExerciseRecommendation = {
     minutesNeeded: number;
   }>;
   excessCalories: number;
+  activityCaloriesBurned?: number; // Calorías ya quemadas desde Apple Health/Health Connect
+  remainingExcess?: number; // Exceso restante después de restar actividad
 };
 
 export type SmartCoachState = {
