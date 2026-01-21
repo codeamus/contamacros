@@ -34,15 +34,17 @@ export function useHealthSync(isPremium: boolean) {
         throw new Error("HealthKit no está disponible en este dispositivo");
       }
 
+      // Usar el identificador completo de HealthKit
+      const activeEnergyBurnedId = "HKQuantityTypeIdentifierActiveEnergyBurned";
+
       // Solicitar permisos
-      const permissions = {
-        read: ["activeEnergyBurned"],
-      };
-      
-      const authorized = await HealthKit.requestAuthorization(permissions);
-      if (!authorized) {
-        throw new Error("Permisos de HealthKit denegados");
-      }
+      // En versión 10.1.0, requestAuthorization espera 2 argumentos separados:
+      // 1. toShare (array de tipos para escribir)
+      // 2. toRead (array de tipos para leer)
+      await HealthKit.requestAuthorization(
+        [], // toShare: no necesitamos escribir datos
+        [activeEnergyBurnedId] // toRead: queremos leer calorías activas
+      );
 
       // Obtener fecha de hoy
       const today = new Date();
@@ -51,19 +53,26 @@ export function useHealthSync(isPremium: boolean) {
       const endOfDay = new Date(today);
       endOfDay.setHours(23, 59, 59, 999);
 
-      // Leer calorías activas del día
-      const samples = await HealthKit.getActiveEnergyBurned({
-        startDate: startOfDay.toISOString(),
-        endDate: endOfDay.toISOString(),
-        unit: "kilocalorie",
-      });
+      // Leer calorías activas del día usando queryQuantitySamples
+      // Usar el mismo identificador completo
+      const samples = await HealthKit.queryQuantitySamples(
+        activeEnergyBurnedId,
+        {
+          startDate: startOfDay.toISOString(),
+          endDate: endOfDay.toISOString(),
+          ascending: true,
+          limit: 1000, // Límite alto para obtener todas las muestras del día
+        }
+      );
 
       // Sumar todas las muestras del día
+      // Cada muestra tiene quantity en la unidad especificada (normalmente kcal)
       const totalCalories = samples.reduce((sum: number, sample: any) => {
+        // sample.quantity ya está en la unidad correcta (kcal)
         return sum + (sample.quantity || 0);
       }, 0);
 
-      console.log("[useHealthSync] Calorías leídas de Apple Health:", totalCalories);
+      console.log("[useHealthSync] Calorías leídas de Apple Health:", totalCalories, "muestras:", samples.length);
       return Math.round(totalCalories);
     } catch (err) {
       console.error("[useHealthSync] Error al leer Apple Health:", err);

@@ -21,12 +21,13 @@ import {
   type GoalType,
 } from "@/domain/services/calorieGoals";
 import { computeMacroTargets } from "@/domain/services/macroTargets";
+import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
-import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useHealthSync } from "@/presentation/hooks/health/useHealthSync";
-import { useTheme, type ThemeMode } from "@/presentation/theme/ThemeProvider";
+import { useToast } from "@/presentation/hooks/ui/useToast";
+import { useTheme } from "@/presentation/theme/ThemeProvider";
+import type { ThemeMode } from "@/presentation/theme/colors";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import { Platform } from "react-native";
 
 type SettingItemProps = {
   icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
@@ -191,6 +192,7 @@ export default function SettingsScreen() {
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [weightInput, setWeightInput] = useState("");
+  const [showPaywall, setShowPaywall] = useState(false);
 
   const handleThemeChange = useCallback(
     async (mode: ThemeMode) => {
@@ -634,7 +636,26 @@ export default function SettingsScreen() {
           </View>
       </View>
 
-        {/* App Section */}
+        {/* Premium Section - Solo si NO es premium */}
+        {!isPremium && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Premium</Text>
+            <View style={s.sectionContent}>
+              <SettingItem
+                icon="diamond-stone"
+                label="Coach Pro"
+                value="Desbloquea todas las funciones premium"
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  setShowPaywall(true);
+                }}
+                colors={colors}
+                typography={typography}
+              />
+            </View>
+          </View>
+        )}
+
         {/* Salud Section - Solo para Premium */}
         {isPremium && (
           <View style={s.section}>
@@ -1029,6 +1050,20 @@ export default function SettingsScreen() {
           </KeyboardAvoidingView>
         </Pressable>
       </Modal>
+
+      {/* Premium Paywall Modal */}
+      <PremiumPaywall
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        onSuccess={() => {
+          // El perfil se actualiza automáticamente vía refreshProfile
+          showToast({
+            message: "¡Bienvenido a Coach Pro! 💎",
+            type: "success",
+            duration: 3000,
+          });
+        }}
+      />
     </SafeAreaView>
   );
 }

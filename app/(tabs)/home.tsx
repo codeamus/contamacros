@@ -1,6 +1,7 @@
 // app/(tabs)/home.tsx
 import type { MealType } from "@/domain/models/foodLogDb";
 import SmartCoachPro from "@/presentation/components/smartCoach/SmartCoachPro";
+import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
 import DonutRing from "@/presentation/components/ui/DonutRing";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import Skeleton from "@/presentation/components/ui/Skeleton";
@@ -137,6 +138,9 @@ export default function HomeScreen() {
   // Pull to refresh
   const [refreshing, setRefreshing] = useState(false);
 
+  // Premium Paywall
+  const [paywallVisible, setPaywallVisible] = useState(false);
+
   // Animaciones de entrada escalonadas para las cards
   const cardAnimations = useStaggerAnimation(5, 80, 100);
 
@@ -241,6 +245,7 @@ export default function HomeScreen() {
               loading={smartCoach.loading}
               isPremium={isPremium}
               onFoodAdded={handleFoodAdded}
+              onShowPaywall={() => setPaywallVisible(true)}
             />
           </View>
         )}
@@ -677,6 +682,16 @@ export default function HomeScreen() {
         {/* bottom spacer for FAB */}
         <View style={{ height: 96 }} />
       </ScrollView>
+
+      {/* Premium Paywall Modal */}
+      <PremiumPaywall
+        visible={paywallVisible}
+        onClose={() => setPaywallVisible(false)}
+        onSuccess={() => {
+          // El perfil se actualiza automáticamente vía refreshProfile
+          // El Smart Coach se actualizará automáticamente cuando cambie isPremium
+        }}
+      />
 
       {/* Bottom CTA -> sheet con animación */}
       <Animated.View

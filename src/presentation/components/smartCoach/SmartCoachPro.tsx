@@ -43,6 +43,7 @@ type SmartCoachProProps = {
   isPremium: boolean;
   onUpgrade?: () => void;
   onFoodAdded?: () => void;
+  onShowPaywall?: () => void;
 };
 
 export default function SmartCoachPro({
@@ -51,6 +52,7 @@ export default function SmartCoachPro({
   isPremium,
   onUpgrade,
   onFoodAdded,
+  onShowPaywall,
 }: SmartCoachProProps) {
   const { theme } = useTheme();
   const { colors, typography } = theme;
@@ -195,8 +197,8 @@ export default function SmartCoachPro({
             <Pressable
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                onShowPaywall?.();
                 onUpgrade?.();
-                router.push("/(tabs)/settings");
               }}
               style={({ pressed }) => [
                 s.upgradeButton,
