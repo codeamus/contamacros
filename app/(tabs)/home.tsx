@@ -196,7 +196,7 @@ export default function HomeScreen() {
             <SmartCoachCard
               recommendation={smartCoach.recommendation}
               loading={smartCoach.loading}
-              isPremium={true}
+              isPremium={isPremium}
             />
           </View>
         )}

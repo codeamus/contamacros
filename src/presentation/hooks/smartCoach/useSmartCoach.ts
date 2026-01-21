@@ -163,5 +163,5 @@ export function isPremiumUser(profile: ProfileDb | null): boolean {
   // TODO: Implementar lógica real de suscripción cuando esté disponible en ProfileDb
   // Por ahora retornamos false como default
   // Esto se puede actualizar cuando se agregue el campo subscription/is_premium a ProfileDb
-  return false;
+  return true;
 }
