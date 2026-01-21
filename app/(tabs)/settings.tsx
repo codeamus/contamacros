@@ -498,56 +498,62 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Progreso Section */}
-        <View style={s.section}>
-          <ProgressCard
-            onPressRanking={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push("/(tabs)/ranking");
-            }}
-          />
-        </View>
-
-        {/* Achievements Section */}
-        <View style={s.section}>
-          <AchievementsList showHeader={true} />
-        </View>
-
-        {/* Accesos Rápidos - Comunidad */}
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>Comunidad</Text>
-          <View style={s.sectionContent}>
-            <SettingItem
-              icon="podium"
-              label="Ranking"
-              value="Ver los mejores usuarios"
-              onPress={() => {
+        {/* Progreso Section - Solo Premium */}
+        {isPremium && (
+          <View style={s.section}>
+            <ProgressCard
+              onPressRanking={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push("/(tabs)/ranking");
               }}
-              colors={colors}
-              typography={typography}
-            />
-            <View style={{ height: 10 }} />
-            <SettingItem
-              icon="medal"
-              label="Mis Medallas"
-              value="Ver todos tus logros y achievements"
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                // Las medallas ya están visibles arriba en la misma pantalla
-                // El usuario puede hacer scroll hacia arriba para verlas
-                showToast({
-                  message: "Haz scroll hacia arriba para ver tus medallas",
-                  type: "info",
-                  duration: 2000,
-                });
-              }}
-              colors={colors}
-              typography={typography}
             />
           </View>
-        </View>
+        )}
+
+        {/* Achievements Section - Solo Premium */}
+        {isPremium && (
+          <View style={s.section}>
+            <AchievementsList showHeader={true} />
+          </View>
+        )}
+
+        {/* Accesos Rápidos - Comunidad - Solo Premium */}
+        {isPremium && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Comunidad</Text>
+            <View style={s.sectionContent}>
+              <SettingItem
+                icon="podium"
+                label="Ranking"
+                value="Ver los mejores usuarios"
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push("/(tabs)/ranking");
+                }}
+                colors={colors}
+                typography={typography}
+              />
+              <View style={{ height: 10 }} />
+              <SettingItem
+                icon="medal"
+                label="Mis Medallas"
+                value="Ver todos tus logros y achievements"
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  // Las medallas ya están visibles arriba en la misma pantalla
+                  // El usuario puede hacer scroll hacia arriba para verlas
+                  showToast({
+                    message: "Haz scroll hacia arriba para ver tus medallas",
+                    type: "info",
+                    duration: 2000,
+                  });
+                }}
+                colors={colors}
+                typography={typography}
+              />
+            </View>
+          </View>
+        )}
 
         {/* Perfil Section */}
         <View style={s.section}>
