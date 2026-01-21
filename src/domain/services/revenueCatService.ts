@@ -196,25 +196,38 @@ export const RevenueCatService = {
 
       const offerings = await PurchasesModule.getOfferings();
       
-      // Log detallado para debug si offerings viene vacío
-      console.log("[RevenueCat] Offerings completo:", {
+      // Log detallado para debug
+      console.log("[RevenueCat] Offerings obtenidos del SDK:", {
         allOfferings: Object.keys(offerings.all || {}),
         currentOfferingId: offerings.current?.identifier,
         defaultOfferingId: offerings.all?.["default"]?.identifier,
-        offeringsObject: JSON.stringify(offerings, null, 2),
+        hasCurrent: !!offerings.current,
+        hasDefault: !!offerings.all?.["default"],
       });
+      
+      // Log más detallado solo si no hay offerings (para debugging)
+      if (!offerings.current && !offerings.all?.["default"]) {
+        console.log("[RevenueCat] 🔍 Debug completo de offerings:", JSON.stringify(offerings, null, 2));
+      }
 
       // Buscar específicamente el offering 'default'
       const defaultOffering = offerings.all?.["default"] || offerings.current;
 
       if (!defaultOffering) {
-        console.warn("[RevenueCat] No hay ofertas disponibles (default o current)");
-        console.log("[RevenueCat] Debug - Estado de offerings:", {
+        console.warn("[RevenueCat] ⚠️ No hay ofertas disponibles (default o current)");
+        console.log("[RevenueCat] ℹ️ Verificando productos del StoreKit local...");
+        console.log("[RevenueCat] 📋 Estado de offerings:", {
           hasAll: !!offerings.all,
           allKeys: Object.keys(offerings.all || {}),
           hasCurrent: !!offerings.current,
           currentId: offerings.current?.identifier,
+          platform: Platform.OS,
         });
+        console.log("[RevenueCat] 💡 Solución:");
+        console.log("[RevenueCat]   1. Asegúrate de que el archivo ContaMacros.storekit esté en el proyecto");
+        console.log("[RevenueCat]   2. En Xcode: Product → Scheme → Edit Scheme → Run → Options");
+        console.log("[RevenueCat]   3. Selecciona 'ContaMacros.storekit' en StoreKit Configuration");
+        console.log("[RevenueCat]   4. Ejecuta la app desde Xcode (no desde Expo CLI)");
         return { ok: true, data: null };
       }
 
@@ -235,6 +248,9 @@ export const RevenueCatService = {
           currencyCode: pkg.product?.currencyCode || pkg.storeProduct?.currencyCode,
           hasProduct: !!pkg.product,
           hasStoreProduct: !!pkg.storeProduct,
+          // Verificar si coincide con los IDs esperados
+          isContamacrosMonth: (pkg.product?.identifier || pkg.storeProduct?.identifier) === "contamacros_month",
+          isContamacrosYearly: (pkg.product?.identifier || pkg.storeProduct?.identifier) === "contamacros_yearly",
         })),
       });
 
@@ -249,16 +265,22 @@ export const RevenueCatService = {
 
       if (isConfigurationError) {
         console.error("[RevenueCat] ⚠️ Error de configuración de productos:", errorMessage);
-        console.log("[RevenueCat] 💡 Para desarrollo en iOS, necesitas:");
-        console.log("[RevenueCat] 1. Crear un archivo StoreKit Configuration (.storekit)");
-        console.log("[RevenueCat] 2. Ejecutar 'expo prebuild' para generar proyecto nativo");
-        console.log("[RevenueCat] 3. Abrir proyecto en Xcode y configurar StoreKit Configuration");
-        console.log("[RevenueCat] 4. O usar productos reales aprobados en App Store Connect");
+        console.log("[RevenueCat] 🔧 Pasos para solucionar:");
+        console.log("[RevenueCat]   1. Verifica que el archivo 'ContaMacros.storekit' esté en la raíz del proyecto");
+        console.log("[RevenueCat]   2. Ejecuta: npx expo prebuild --platform ios");
+        console.log("[RevenueCat]   3. Abre el proyecto en Xcode: open ios/ContaMacros.xcworkspace");
+        console.log("[RevenueCat]   4. En Xcode: Product → Scheme → Edit Scheme (⌘<)");
+        console.log("[RevenueCat]   5. Selecciona 'Run' → pestaña 'Options'");
+        console.log("[RevenueCat]   6. En 'StoreKit Configuration', selecciona 'ContaMacros.storekit'");
+        console.log("[RevenueCat]   7. Ejecuta la app desde Xcode (⌘R), NO desde Expo CLI");
+        console.log("[RevenueCat] 📋 Product IDs esperados:");
+        console.log("[RevenueCat]   - contamacros_month (Plan Mensual)");
+        console.log("[RevenueCat]   - contamacros_yearly (Plan Anual)");
         console.log("[RevenueCat] 📖 Más info: https://rev.cat/why-are-offerings-empty");
         
         return {
           ok: false,
-          message: `Error de configuración: Los productos no se pueden obtener desde App Store Connect. Para desarrollo, configura un archivo StoreKit Configuration. Ver logs para más detalles.`,
+          message: `Error de configuración: Los productos no se pueden obtener. Para desarrollo, configura StoreKit Configuration en Xcode. Ver consola para instrucciones detalladas.`,
           code: "CONFIGURATION_ERROR",
         };
       }

@@ -21,7 +21,7 @@ import {
   Text,
   View,
 } from "react-native";
-import Purchases, { PurchasesOffering } from "react-native-purchases";
+import type { PurchasesOffering } from "react-native-purchases";
 
 // Tipo local para PurchasesPackage con storeProduct
 type PurchasesPackage = {
@@ -118,18 +118,21 @@ export default function PremiumPaywall({
           // Mensaje más amigable para errores de configuración
           let errorMessage = result.message || "Error al cargar los planes";
           if (result.code === "CONFIGURATION_ERROR") {
-            errorMessage = "Los productos no están disponibles. Para desarrollo, configura StoreKit Configuration en Xcode. Ver consola para más detalles.";
+            errorMessage = "Configuración requerida: Para desarrollo, configura StoreKit Configuration en Xcode. Revisa la consola para instrucciones paso a paso.";
           }
           
           setErrorLoadingPrices(errorMessage);
           setCurrentOffering(null);
         } else if (!result.data) {
-          console.warn("[PremiumPaywall] No hay ofertas disponibles (offerings vacío)");
-          console.log("[PremiumPaywall] Debug - Resultado de getOfferings:", {
-            ok: result.ok,
-            data: result.data,
-          });
-          setErrorLoadingPrices("No hay planes disponibles en este momento");
+          console.warn("[PremiumPaywall] ⚠️ No hay ofertas disponibles (offerings vacío)");
+          console.log("[PremiumPaywall] ℹ️ Verificando productos del StoreKit local...");
+          console.log("[PremiumPaywall] 💡 Para desarrollo local:");
+          console.log("[PremiumPaywall]   1. Ejecuta: npx expo prebuild --platform ios");
+          console.log("[PremiumPaywall]   2. Abre: open ios/ContaMacros.xcworkspace");
+          console.log("[PremiumPaywall]   3. En Xcode: Product → Scheme → Edit Scheme → Run → Options");
+          console.log("[PremiumPaywall]   4. Selecciona 'ContaMacros.storekit' en StoreKit Configuration");
+          console.log("[PremiumPaywall]   5. Ejecuta desde Xcode (⌘R)");
+          setErrorLoadingPrices("No hay planes disponibles. Para desarrollo, configura StoreKit Configuration en Xcode.");
           setCurrentOffering(null);
         } else {
           const offering = result.data;
@@ -137,12 +140,12 @@ export default function PremiumPaywall({
             identifier: offering.identifier,
             availablePackages: offering.availablePackages.length,
             packages: (offering.availablePackages as any[])
-              .filter((pkg: any) => pkg.storeProduct != null)
+              .filter((pkg: any) => pkg.product != null || pkg.storeProduct != null)
               .map((pkg: any) => ({
                 identifier: pkg.identifier,
-                productId: pkg.storeProduct?.identifier,
-                storeProductPrice: pkg.storeProduct?.priceString,
-                productPrice: pkg.product?.priceString,
+                productId: pkg.product?.identifier || pkg.storeProduct?.identifier,
+                productPrice: pkg.product?.priceString || pkg.storeProduct?.priceString,
+                currencyCode: pkg.product?.currencyCode || pkg.storeProduct?.currencyCode,
               })),
           });
           setCurrentOffering(offering);
@@ -180,9 +183,11 @@ export default function PremiumPaywall({
 
     const packages: Record<string, PurchasesPackage> = {};
     for (const pkg of validPackages) {
-      // RevenueCat usa identificadores como "monthly", "annual", "lifetime"
-      // o "$rc_monthly", "$rc_annual", etc.
+      // Mapear por identifier del package y también por productId
       const identifier = pkg.identifier.toLowerCase();
+      const productId = (pkg.product?.identifier || pkg.storeProduct?.identifier || "").toLowerCase();
+      
+      // Mapear por identifier del package (RevenueCat usa "$rc_monthly", "$rc_annual", etc.)
       if (identifier.includes("monthly") || identifier.includes("$rc_monthly")) {
         packages.monthly = pkg;
       } else if (
@@ -195,6 +200,15 @@ export default function PremiumPaywall({
         identifier.includes("lifetime") ||
         identifier.includes("$rc_lifetime")
       ) {
+        packages.lifetime = pkg;
+      }
+      
+      // También mapear por productId (contamacros_month, contamacros_yearly)
+      if (productId === "contamacros_month" || productId.includes("month")) {
+        packages.monthly = pkg;
+      } else if (productId === "contamacros_yearly" || productId.includes("yearly") || productId.includes("annual")) {
+        packages.annual = pkg;
+      } else if (productId.includes("lifetime")) {
         packages.lifetime = pkg;
       }
     }
@@ -377,33 +391,36 @@ export default function PremiumPaywall({
       console.log("[PremiumPaywall] Procesando suscripción:", {
         plan: selectedPlan,
         packageIdentifier: selectedPackage.identifier,
-        productId: selectedPackage.storeProduct?.identifier,
-        price: selectedPackage.storeProduct?.priceString,
+        productId: selectedPackage.product?.identifier || selectedPackage.storeProduct?.identifier,
+        price: selectedPackage.product?.priceString || selectedPackage.storeProduct?.priceString,
+        currencyCode: selectedPackage.product?.currencyCode || selectedPackage.storeProduct?.currencyCode,
       });
 
-      // Comprar package directamente con Purchases
-      // Hacer cast al tipo de RevenueCat
-      const { customerInfo } = await Purchases.purchasePackage(
+      // Comprar package usando RevenueCatService (maneja sincronización automática)
+      const purchaseResult = await RevenueCatService.purchasePackage(
         selectedPackage as any
       );
 
+      if (!purchaseResult.ok) {
+        throw new Error(purchaseResult.message || "Error al procesar la compra");
+      }
+
+      const customerInfo = purchaseResult.data;
       console.log("[PremiumPaywall] Compra exitosa:", {
         entitlements: Object.keys(customerInfo.entitlements.active),
+        hasProEntitlement: customerInfo.entitlements.active["ContaMacros Pro"] !== undefined,
       });
 
       // Recargar estado de RevenueCat
       await reload();
 
-      // Actualizar perfil en Supabase para mantener consistencia
-      // (RevenueCat es la fuente de verdad, pero actualizamos Supabase para compatibilidad)
+      // La sincronización con Supabase ya se hizo automáticamente en purchasePackage
+      // Solo refrescamos el perfil local para obtener el estado actualizado
       try {
-        await AuthService.updateMyProfile({
-          is_premium: true,
-        });
         await refreshProfile();
       } catch (profileError) {
-        console.warn("[PremiumPaywall] Error al actualizar perfil (no crítico):", profileError);
-        // No fallar si esto falla, RevenueCat ya tiene el estado correcto
+        console.warn("[PremiumPaywall] Error al refrescar perfil (no crítico):", profileError);
+        // No fallar si esto falla, RevenueCat ya tiene el estado correcto y Supabase ya está sincronizado
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
