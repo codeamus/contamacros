@@ -28,5 +28,6 @@ export type ProfileDb = {
   protein_g: number | null;
   carbs_g: number | null;
   fat_g: number | null;
+  is_premium: boolean | null;
   created_at: string | null;
 };
