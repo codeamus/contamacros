@@ -1,7 +1,7 @@
 // src/domain/services/revenueCatService.ts
 import { Platform } from "react-native";
 
-const REVENUECAT_API_KEY = "test_NRNZSuygVnpFpUiNUIGeCryumjI";
+const REVENUECAT_API_KEY = "appl_YefJRBImlNCzKtxjKjWOtrUMsSo";
 const ENTITLEMENT_ID = "ContaMacros Pro";
 
 // Importación lazy de RevenueCat para evitar errores en web/desarrollo

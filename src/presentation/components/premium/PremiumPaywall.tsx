@@ -453,8 +453,13 @@ export default function PremiumPaywall({
 
     try {
       console.log("[PremiumPaywall] Restaurando compras...");
-      const customerInfo = await Purchases.restorePurchases();
+      const result = await RevenueCatService.restorePurchases();
 
+      if (!result.ok) {
+        throw new Error(result.message || "Error al restaurar compras");
+      }
+
+      const customerInfo = result.data;
       console.log("[PremiumPaywall] Compras restauradas:", {
         entitlements: Object.keys(customerInfo.entitlements.active),
       });

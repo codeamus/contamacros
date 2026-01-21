@@ -1,13 +1,15 @@
 // src/presentation/components/premium/CustomerCenter.tsx
 import { useRevenueCat } from "@/presentation/hooks/subscriptions/useRevenueCat";
+import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import React, { useState } from "react";
-import { Platform } from "react-native";
 import {
   ActivityIndicator,
+  Linking,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -26,6 +28,7 @@ export default function CustomerCenter({
   const { theme } = useTheme();
   const { colors, typography } = theme;
   const { customerInfo, restorePurchases, reload } = useRevenueCat();
+  const { showToast } = useToast();
   const [isRestoring, setIsRestoring] = useState(false);
   const s = makeStyles(colors, typography);
 
@@ -38,6 +41,7 @@ export default function CustomerCenter({
       await reload();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
+      console.error("[CustomerCenter] Error al restaurar:", error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setIsRestoring(false);
@@ -58,11 +62,61 @@ export default function CustomerCenter({
       }
     } catch (error) {
       console.error("[CustomerCenter] Error al abrir UI:", error);
+      showToast({
+        message: "Error al abrir la gestión de suscripciones",
+        type: "error",
+        duration: 2000,
+      });
+    }
+  };
+
+  const handleManageSubscriptionInAppStore = async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      if (Platform.OS === "ios") {
+        const url = "https://apps.apple.com/account/subscriptions";
+        const canOpen = await Linking.canOpenURL(url);
+        if (canOpen) {
+          await Linking.openURL(url);
+          showToast({
+            message: "Abriendo configuración de suscripciones",
+            type: "info",
+            duration: 2000,
+          });
+        } else {
+          showToast({
+            message: "No se pudo abrir la configuración de suscripciones",
+            type: "error",
+            duration: 2000,
+          });
+        }
+      } else {
+        showToast({
+          message: "Disponible solo en iOS",
+          type: "info",
+          duration: 2000,
+        });
+      }
+    } catch (error) {
+      console.error("[CustomerCenter] Error al abrir suscripciones:", error);
+      showToast({
+        message: "Error al abrir la configuración de suscripciones",
+        type: "error",
+        duration: 2000,
+      });
     }
   };
 
   const hasActiveSubscription =
     customerInfo?.entitlements.active["ContaMacros Pro"] !== undefined;
+
+  // Debug: Log para verificar el estado
+  console.log("[CustomerCenter] Estado:", {
+    hasActiveSubscription,
+    platform: Platform.OS,
+    customerInfo: customerInfo ? "presente" : "null",
+  });
 
   return (
     <Modal
@@ -116,6 +170,29 @@ export default function CustomerCenter({
                     Gestionar suscripción
                   </Text>
                 </Pressable>
+
+                {Platform.OS === "ios" && (
+                  <>
+                    <View style={{ height: 8 }} />
+                    <Pressable
+                      onPress={handleManageSubscriptionInAppStore}
+                      style={({ pressed }) => [
+                        s.actionButton,
+                        s.actionButtonSecondary,
+                        pressed && s.actionButtonPressed,
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        name="credit-card-outline"
+                        size={20}
+                        color={colors.brand}
+                      />
+                      <Text style={[s.actionButtonText, s.actionButtonTextSecondary]}>
+                        Gestionar en App Store
+                      </Text>
+                    </Pressable>
+                  </>
+                )}
               </>
             ) : (
               <>
@@ -155,12 +232,35 @@ export default function CustomerCenter({
                     </>
                   )}
                 </Pressable>
+
+                {Platform.OS === "ios" && (
+                  <>
+                    <View style={{ height: 8 }} />
+                    <Pressable
+                      onPress={handleManageSubscriptionInAppStore}
+                      style={({ pressed }) => [
+                        s.actionButton,
+                        s.actionButtonSecondary,
+                        pressed && s.actionButtonPressed,
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        name="credit-card-outline"
+                        size={20}
+                        color={colors.brand}
+                      />
+                      <Text style={[s.actionButtonText, s.actionButtonTextSecondary]}>
+                        Gestionar en App Store
+                      </Text>
+                    </Pressable>
+                  </>
+                )}
               </>
             )}
 
             <View style={s.infoContainer}>
               <Text style={s.infoText}>
-                Para cancelar o modificar tu suscripción, usa el botón "Gestionar suscripción" o
+                Para cancelar o modificar tu suscripción, usa el botón Gestionar suscripción o
                 ve a la configuración de tu dispositivo.
               </Text>
             </View>
