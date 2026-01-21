@@ -28,7 +28,7 @@ export type UserAchievement = {
 
 export type LeaderboardEntry = {
   user_id: string;
-  full_name: string | null;
+  full_name: string; // Obligatorio para evitar valores por defecto
   email: string;
   xp_points: number;
   level: number;
@@ -446,8 +446,7 @@ export const GamificationService = {
    */
   async getLeaderboard(limit: number = 10): Promise<RepoResult<LeaderboardEntry[]>> {
     try {
-      console.log("[GamificationService] 🔍 Obteniendo leaderboard...");
-      
+      // La relación es a través de la columna id (user_stats.id -> profiles.id)
       const { data, error } = await supabase
         .from("user_stats")
         .select(
@@ -455,9 +454,8 @@ export const GamificationService = {
           id,
           xp_points,
           contribution_count,
-          profiles:id (
+          profiles (
             full_name,
-            email,
             is_premium
           )
         `,
@@ -465,38 +463,64 @@ export const GamificationService = {
         .order("contribution_count", { ascending: false })
         .limit(limit);
 
-      console.log("[GamificationService] 📊 Resultado de getLeaderboard:", {
-        hasData: !!data,
-        dataLength: data?.length || 0,
-        error: error ? { message: error.message, code: error.code } : null,
-        sampleData: data?.[0] || null,
-      });
-
       if (error) {
         console.error("[GamificationService] ❌ Error en getLeaderboard:", error);
         return { ok: false, message: error.message, code: error.code };
       }
 
-      const entries: LeaderboardEntry[] = (data || []).map((item: any, index: number) => {
-        // profiles:id puede devolver un objeto o array dependiendo de la relación
-        // Si es una relación one-to-one, será un objeto; si es one-to-many, será un array
-        const profile = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles;
-        const xp = item.xp_points || 0;
-        
-        return {
-          user_id: item.id, // Usar id como user_id para mantener compatibilidad con el tipo LeaderboardEntry
-          full_name: profile?.full_name || null,
-          email: profile?.email || "",
-          xp_points: xp,
-          level: calculateLevel(xp), // Calcular nivel dinámicamente basado en XP
-          daily_streak: 0, // No se almacena en la consulta, se puede obtener por separado si es necesario
-          contribution_count: item.contribution_count || 0,
-          rank: index + 1,
-          is_premium: profile?.is_premium || false,
-        };
+      console.log("[GamificationService] 📦 Datos brutos de Supabase:", {
+        totalItems: data?.length || 0,
+        firstItemRaw: data?.[0] ? JSON.stringify(data[0], null, 2) : null,
+        firstItemStructure: data?.[0] ? {
+          has_id: !!data[0].id,
+          has_xp_points: !!data[0].xp_points,
+          has_contribution_count: !!data[0].contribution_count,
+          has_profiles: !!data[0].profiles,
+          profiles_type: typeof data[0].profiles,
+          profiles_is_array: Array.isArray(data[0].profiles),
+          profiles_value: data[0].profiles,
+        } : null,
       });
 
-      console.log("[GamificationService] ✅ Entradas procesadas:", entries.length);
+      const entries: LeaderboardEntry[] = (data || []).map((item: any, index: number) => {
+        // Extracción robusta del perfil que maneja tanto objetos como arrays de Supabase
+        const profileData = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles;
+        
+        console.log(`[GamificationService] 🔍 Mapeo item ${index + 1}:`, {
+          item_id: item.id,
+          raw_profiles: item.profiles,
+          profiles_type: typeof item.profiles,
+          profiles_is_array: Array.isArray(item.profiles),
+          profileData_extracted: profileData,
+          profileData_type: typeof profileData,
+          profileData_full_name: profileData?.full_name,
+          profileData_is_premium: profileData?.is_premium,
+          final_full_name: profileData?.full_name || "Usuario Anónimo",
+        });
+        
+        // Mapeo limpio de la entrada
+        const mappedEntry = {
+          user_id: item.id,
+          full_name: profileData?.full_name || "Usuario Anónimo",
+          is_premium: profileData?.is_premium ?? false,
+          xp_points: item.xp_points || 0,
+          contribution_count: item.contribution_count || 0,
+          level: calculateLevel(item.xp_points || 0),
+          rank: index + 1,
+          daily_streak: 0,
+          email: "", // No incluimos email en el SELECT
+        };
+        
+        console.log(`[GamificationService] ✅ Entry mapeada ${index + 1}:`, mappedEntry);
+        
+        return mappedEntry;
+      });
+
+      console.log("[GamificationService] 📊 Todas las entries finales:", entries.map(e => ({
+        user_id: e.user_id,
+        full_name: e.full_name,
+        contribution_count: e.contribution_count,
+      })));
       return { ok: true, data: entries };
     } catch (error) {
       console.error("[GamificationService] 💥 Excepción en getLeaderboard:", error);
@@ -513,8 +537,6 @@ export const GamificationService = {
    */
   async getUserRankingPosition(): Promise<RepoResult<{ position: number; entry: LeaderboardEntry }>> {
     try {
-      console.log("[GamificationService] 🔍 Obteniendo posición del usuario...");
-      
       const uidRes = await getUid();
       if (!uidRes.ok) return uidRes;
       const uid = uidRes.data;
@@ -537,12 +559,21 @@ export const GamificationService = {
         return { ok: false, message: "No se encontraron estadísticas del usuario" };
       }
 
-      // Obtener datos del usuario para el entry usando la relación profiles:id
+      // Obtener datos del usuario para el entry
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("full_name, email, is_premium")
         .eq("id", uid)
         .maybeSingle();
+
+      console.log("[GamificationService] 👤 Datos del perfil del usuario actual:", {
+        uid: uid,
+        profileData: profileData,
+        profileError: profileError ? { message: profileError.message, code: profileError.code } : null,
+        full_name: profileData?.full_name,
+        email: profileData?.email,
+        is_premium: profileData?.is_premium,
+      });
 
       if (profileError) {
         console.error("[GamificationService] ❌ Error obteniendo perfil:", profileError);
@@ -561,23 +592,18 @@ export const GamificationService = {
       const contributionPosition = (contributionCount || 0) + 1;
       const userXP = userStats.xp_points || 0;
 
+      // Mapeo consistente usando profileData?.full_name
       const entry: LeaderboardEntry = {
-        user_id: userStats.id, // Usar id como user_id para mantener compatibilidad
-        full_name: profileData?.full_name || null,
+        user_id: userStats.id,
+        full_name: profileData?.full_name || "Usuario Anónimo",
         email: profileData?.email || "",
         xp_points: userXP,
-        level: calculateLevel(userXP), // Calcular nivel dinámicamente basado en XP
-        daily_streak: 0, // No se almacena en la consulta, se puede obtener por separado si es necesario
+        level: calculateLevel(userXP),
+        daily_streak: 0,
         contribution_count: userStats.contribution_count || 0,
-        rank: contributionPosition, // Posición basada en aportes
-        is_premium: profileData?.is_premium || false,
+        rank: contributionPosition,
+        is_premium: profileData?.is_premium ?? false,
       };
-
-      console.log("[GamificationService] ✅ Posición del usuario:", {
-        position: contributionPosition,
-        contribution_count: entry.contribution_count,
-        xp_points: entry.xp_points,
-      });
 
       return { ok: true, data: { position: contributionPosition, entry } };
     } catch (error) {

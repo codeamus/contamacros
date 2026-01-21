@@ -41,6 +41,11 @@ export default function RankingScreen() {
         dataLength: leaderboardResult.ok ? leaderboardResult.data.length : 0,
         message: leaderboardResult.ok ? null : leaderboardResult.message,
         firstEntry: leaderboardResult.ok && leaderboardResult.data.length > 0 ? leaderboardResult.data[0] : null,
+        allEntries: leaderboardResult.ok ? leaderboardResult.data.map(e => ({
+          user_id: e.user_id,
+          full_name: e.full_name,
+          contribution_count: e.contribution_count,
+        })) : null,
       },
       position: {
         ok: positionResult.ok,
@@ -50,7 +55,15 @@ export default function RankingScreen() {
     });
 
     if (leaderboardResult.ok) {
-      console.log("[RankingScreen] ✅ Leaderboard cargado:", leaderboardResult.data);
+      console.log("[RankingScreen] ✅ Leaderboard cargado:", {
+        total: leaderboardResult.data.length,
+        entries: leaderboardResult.data.map(e => ({
+          user_id: e.user_id,
+          full_name: e.full_name,
+          contribution_count: e.contribution_count,
+          is_premium: e.is_premium,
+        })),
+      });
       setLeaderboard(leaderboardResult.data);
     } else {
       console.error("[RankingScreen] ❌ Error cargando leaderboard:", leaderboardResult.message);
