@@ -91,4 +91,20 @@ export const genericFoodsRepository = {
 
     return { ok: true, data: filtered.slice(0, limit) };
   },
+
+  /**
+   * Obtiene todos los alimentos genéricos para búsqueda inteligente
+   */
+  async getAllForSmartSearch(): Promise<RepoResult<GenericFoodDb[]>> {
+    const { data, error } = await supabase
+      .from("generic_foods")
+      .select(
+        "id, name_es, name_norm, aliases_search, kcal_100g, protein_100g, carbs_100g, fat_100g, unit_label_es, grams_per_unit, tags, created_at",
+      )
+      .order("created_at", { ascending: false })
+      .limit(200); // Limitar para no sobrecargar
+
+    if (error) return { ok: false, message: error.message, code: error.code };
+    return { ok: true, data: (data as GenericFoodDb[]) ?? [] };
+  },
 };

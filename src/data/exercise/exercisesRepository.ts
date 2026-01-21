@@ -19,13 +19,26 @@ export const exercisesRepository = {
    * Obtener todos los ejercicios disponibles
    */
   async listAll(): Promise<RepoResult<ExerciseDb[]>> {
-    const { data, error } = await supabase
-      .from("exercises")
-      .select("*")
-      .order("name_es", { ascending: true });
+    try {
+      const { data, error, count } = await supabase
+        .from("exercises")
+        .select("*", { count: "exact" })
+        .order("name_es", { ascending: true });
 
-    if (error) return { ok: false, message: error.message, code: error.code };
-    return { ok: true, data: (data as ExerciseDb[]) ?? [] };
+      console.log("[exercisesRepository] Query result - error:", error?.message, "data length:", data?.length, "count:", count);
+
+      if (error) {
+        console.log("[exercisesRepository] Error details:", { message: error.message, code: error.code, details: error.details, hint: error.hint });
+        return { ok: false, message: error.message, code: error.code };
+      }
+      
+      const exercises = (data as ExerciseDb[]) ?? [];
+      console.log("[exercisesRepository] Returning exercises:", exercises.length, "first:", exercises[0]?.name_es);
+      return { ok: true, data: exercises };
+    } catch (e) {
+      console.log("[exercisesRepository] Exception:", e);
+      return { ok: false, message: e instanceof Error ? e.message : "Error desconocido" };
+    }
   },
 
   /**

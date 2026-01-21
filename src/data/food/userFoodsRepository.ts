@@ -93,4 +93,21 @@ export const userFoodsRepository = {
     if (error) return { ok: false, message: error.message, code: error.code };
     return { ok: true, data: undefined };
   },
+
+  /**
+   * Obtiene todos los alimentos del usuario para búsqueda inteligente
+   */
+  async getAllForSmartSearch(): Promise<RepoResult<UserFoodDb[]>> {
+    const uidRes = await getUid();
+    if (!uidRes.ok) return uidRes;
+
+    const { data, error } = await supabase
+      .from("user_foods")
+      .select("*")
+      .eq("user_id", uidRes.data)
+      .order("created_at", { ascending: false });
+
+    if (error) return { ok: false, message: error.message, code: error.code };
+    return { ok: true, data: (data as UserFoodDb[]) ?? [] };
+  },
 };

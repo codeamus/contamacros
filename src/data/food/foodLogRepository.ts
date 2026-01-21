@@ -44,6 +44,248 @@ export const foodLogRepository = {
     }
   },
 
+  /**
+   * Busca alimentos frecuentes del historial del usuario en los últimos 30 días
+   * que sean altos en un macro específico
+   */
+  async findFrequentFoodsByMacro(
+    macro: "protein" | "carbs" | "fat",
+    limit: number = 5,
+  ): Promise<
+    RepoResult<
+      Array<{
+        name: string;
+        protein_g: number;
+        carbs_g: number;
+        fat_g: number;
+        calories: number;
+        lastEaten: string;
+        timesEaten: number;
+      }>
+    >
+  > {
+    try {
+      const uidRes = await getUid();
+      if (!uidRes.ok) return uidRes;
+      const uid = uidRes.data;
+
+      // Calcular fecha hace 30 días
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split("T")[0];
+
+      // Buscar alimentos del historial
+      const { data, error } = await supabase
+        .from("food_logs")
+        .select("name, protein_g, carbs_g, fat_g, calories, day, created_at")
+        .eq("user_id", uid)
+        .gte("day", thirtyDaysAgoStr)
+        .order("day", { ascending: false });
+
+      if (error) return { ok: false, message: error.message, code: error.code };
+
+      // Agrupar por nombre y calcular frecuencia
+      const foodMap = new Map<
+        string,
+        {
+          name: string;
+          protein_g: number;
+          carbs_g: number;
+          fat_g: number;
+          calories: number;
+          lastEaten: string;
+          timesEaten: number;
+          macroValue: number;
+        }
+      >();
+
+      for (const log of data || []) {
+        const name = log.name;
+        const macroValue =
+          macro === "protein"
+            ? log.protein_g
+            : macro === "carbs"
+              ? log.carbs_g
+              : log.fat_g;
+
+        if (macroValue <= 0) continue; // Ignorar alimentos sin el macro
+
+        const existing = foodMap.get(name);
+        if (!existing) {
+          // Calcular valores por 100g (asumiendo ~100g por porción promedio)
+          foodMap.set(name, {
+            name,
+            protein_g: log.protein_g,
+            carbs_g: log.carbs_g,
+            fat_g: log.fat_g,
+            calories: log.calories,
+            lastEaten: log.day,
+            timesEaten: 1,
+            macroValue: macroValue,
+          });
+        } else {
+          existing.timesEaten++;
+          // Actualizar última vez que se comió (más reciente)
+          if (log.day > existing.lastEaten) {
+            existing.lastEaten = log.day;
+            existing.protein_g = log.protein_g;
+            existing.carbs_g = log.carbs_g;
+            existing.fat_g = log.fat_g;
+            existing.calories = log.calories;
+            existing.macroValue = macroValue;
+          }
+        }
+      }
+
+      // Convertir a array y normalizar a valores por 100g
+      // Asumimos una porción promedio de 100g para normalizar
+      const foods = Array.from(foodMap.values())
+        .map((food) => ({
+          name: food.name,
+          protein_100g: food.protein_g, // Ya está normalizado aproximadamente
+          carbs_100g: food.carbs_g,
+          fat_100g: food.fat_g,
+          kcal_100g: food.calories,
+          lastEaten: food.lastEaten,
+          timesEaten: food.timesEaten,
+        }))
+        // Filtrar por macro relevante y ordenar por frecuencia y macro value
+        .filter((food) => {
+          const macroValue =
+            macro === "protein"
+              ? food.protein_100g
+              : macro === "carbs"
+                ? food.carbs_100g
+                : food.fat_100g;
+          return macroValue > 0;
+        })
+        .sort((a, b) => {
+          const aMacro =
+            macro === "protein"
+              ? a.protein_100g
+              : macro === "carbs"
+                ? a.carbs_100g
+                : a.fat_100g;
+          const bMacro =
+            macro === "protein"
+              ? b.protein_100g
+              : macro === "carbs"
+                ? b.carbs_100g
+                : b.fat_100g;
+
+          // Priorizar frecuencia, luego valor del macro
+          if (b.timesEaten !== a.timesEaten) {
+            return b.timesEaten - a.timesEaten;
+          }
+          return bMacro - aMacro;
+        })
+        .slice(0, limit);
+
+      return { ok: true, data: foods };
+    } catch (e) {
+      return { ok: false, ...mapError(e) };
+    }
+  },
+
+  /**
+   * Obtiene alimentos únicos del historial del usuario para búsqueda inteligente
+   * Agrupa por nombre y toma los valores promedio de macros
+   */
+  async getUniqueFoodsFromHistory(limit: number = 50): Promise<
+    RepoResult<
+      Array<{
+        name: string;
+        protein_g: number;
+        carbs_g: number;
+        fat_g: number;
+        calories: number;
+        timesEaten: number;
+        lastEaten: string;
+      }>
+    >
+  > {
+    try {
+      const uidRes = await getUid();
+      if (!uidRes.ok) return uidRes;
+      const uid = uidRes.data;
+
+      // Calcular fecha hace 60 días para tener más opciones
+      const sixtyDaysAgo = new Date();
+      sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+      const sixtyDaysAgoStr = sixtyDaysAgo.toISOString().split("T")[0];
+
+      const { data, error } = await supabase
+        .from("food_logs")
+        .select("name, protein_g, carbs_g, fat_g, calories, day")
+        .eq("user_id", uid)
+        .gte("day", sixtyDaysAgoStr)
+        .order("day", { ascending: false });
+
+      if (error) return { ok: false, message: error.message, code: error.code };
+
+      // Agrupar por nombre y calcular promedios
+      const foodMap = new Map<
+        string,
+        {
+          name: string;
+          protein_g: number[];
+          carbs_g: number[];
+          fat_g: number[];
+          calories: number[];
+          lastEaten: string;
+          timesEaten: number;
+        }
+      >();
+
+      for (const log of data || []) {
+        const name = log.name;
+        const existing = foodMap.get(name);
+        if (!existing) {
+          foodMap.set(name, {
+            name,
+            protein_g: [log.protein_g],
+            carbs_g: [log.carbs_g],
+            fat_g: [log.fat_g],
+            calories: [log.calories],
+            lastEaten: log.day,
+            timesEaten: 1,
+          });
+        } else {
+          existing.protein_g.push(log.protein_g);
+          existing.carbs_g.push(log.carbs_g);
+          existing.fat_g.push(log.fat_g);
+          existing.calories.push(log.calories);
+          existing.timesEaten++;
+          if (log.day > existing.lastEaten) {
+            existing.lastEaten = log.day;
+          }
+        }
+      }
+
+      // Calcular promedios y convertir a array
+      const foods = Array.from(foodMap.values())
+        .map((food) => {
+          const avg = (arr: number[]) =>
+            arr.reduce((sum, val) => sum + val, 0) / arr.length;
+          return {
+            name: food.name,
+            protein_g: Math.round(avg(food.protein_g)),
+            carbs_g: Math.round(avg(food.carbs_g)),
+            fat_g: Math.round(avg(food.fat_g)),
+            calories: Math.round(avg(food.calories)),
+            timesEaten: food.timesEaten,
+            lastEaten: food.lastEaten,
+          };
+        })
+        .sort((a, b) => b.timesEaten - a.timesEaten)
+        .slice(0, limit);
+
+      return { ok: true, data: foods };
+    } catch (e) {
+      return { ok: false, ...mapError(e) };
+    }
+  },
+
   async create(input: {
     day: string;
     meal: MealType;
