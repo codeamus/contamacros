@@ -21,9 +21,11 @@ import {
   type GoalType,
 } from "@/domain/services/calorieGoals";
 import { computeMacroTargets } from "@/domain/services/macroTargets";
+import CustomerCenter from "@/presentation/components/premium/CustomerCenter";
 import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useHealthSync } from "@/presentation/hooks/health/useHealthSync";
+import { useRevenueCat } from "@/presentation/hooks/subscriptions/useRevenueCat";
 import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import type { ThemeMode } from "@/presentation/theme/colors";
@@ -181,7 +183,12 @@ export default function SettingsScreen() {
   const { theme, themeMode, setThemeMode } = useTheme();
   const { colors, typography } = theme;
   const { showToast } = useToast();
-  const isPremium = profile?.is_premium ?? false;
+  
+  // Usar RevenueCat como fuente de verdad para premium, con fallback a profile.is_premium
+  const { isPremium: revenueCatPremium } = useRevenueCat();
+  const profilePremium = profile?.is_premium ?? false;
+  const isPremium = revenueCatPremium || profilePremium; // RevenueCat tiene prioridad
+  
   const { syncCalories, isSyncing, caloriesBurned, error: healthError } = useHealthSync(isPremium);
   const insets = useSafeAreaInsets();
   const s = makeStyles(colors, typography, insets);
@@ -656,6 +663,26 @@ export default function SettingsScreen() {
           </View>
         )}
 
+        {/* Premium Section - Solo si ES premium */}
+        {isPremium && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Premium</Text>
+            <View style={s.sectionContent}>
+              <SettingItem
+                icon="diamond-stone"
+                label="Gestionar Suscripción"
+                value="Modifica o cancela tu suscripción"
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  setShowCustomerCenter(true);
+                }}
+                colors={colors}
+                typography={typography}
+              />
+            </View>
+          </View>
+        )}
+
         {/* Salud Section - Solo para Premium */}
         {isPremium && (
           <View style={s.section}>
@@ -1063,6 +1090,12 @@ export default function SettingsScreen() {
             duration: 3000,
           });
         }}
+      />
+
+      {/* Customer Center Modal */}
+      <CustomerCenter
+        visible={showCustomerCenter}
+        onClose={() => setShowCustomerCenter(false)}
       />
     </SafeAreaView>
   );

@@ -22,6 +22,7 @@ import DateHeader from "@/presentation/components/ui/DateHeader";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useHealthSync } from "@/presentation/hooks/health/useHealthSync";
+import { useRevenueCat } from "@/presentation/hooks/subscriptions/useRevenueCat";
 import { useStaggerAnimation } from "@/presentation/hooks/ui/useStaggerAnimation";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { todayStrLocal } from "@/presentation/utils/date";
@@ -329,7 +330,10 @@ export default function DiaryScreen() {
   const { colors, typography } = theme;
   
   // Health Sync (Premium) - Solo para el día de hoy
-  const isPremium = profile?.is_premium ?? false;
+  // Usar RevenueCat como fuente de verdad para premium
+  const { isPremium: revenueCatPremium } = useRevenueCat();
+  const profilePremium = profile?.is_premium ?? false;
+  const isPremium = revenueCatPremium || profilePremium; // RevenueCat tiene prioridad
   const isToday = !params.day || params.day === todayStrLocal();
   const { caloriesBurned } = useHealthSync(isPremium && isToday);
 

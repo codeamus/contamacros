@@ -10,6 +10,7 @@ import { useTodayMeals } from "@/presentation/hooks/diary/useTodayMeals";
 import { useTodaySummary } from "@/presentation/hooks/diary/useTodaySummary";
 import { useSmartCoachPro } from "@/presentation/hooks/smartCoach/useSmartCoachPro";
 import { useHealthSync } from "@/presentation/hooks/health/useHealthSync";
+import { useRevenueCat } from "@/presentation/hooks/subscriptions/useRevenueCat";
 import { useStaggerAnimation } from "@/presentation/hooks/ui/useStaggerAnimation";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { formatDateToSpanish } from "@/presentation/utils/date";
@@ -101,8 +102,10 @@ export default function HomeScreen() {
   const carbsTarget = profile?.carbs_g ?? 0;
   const fatTarget = profile?.fat_g ?? 0;
 
-  // Smart Coach Pro
-  const isPremium = profile?.is_premium ?? false;
+  // Smart Coach Pro - Usar RevenueCat como fuente de verdad para premium
+  const { isPremium: revenueCatPremium } = useRevenueCat();
+  const profilePremium = profile?.is_premium ?? false;
+  const isPremium = revenueCatPremium || profilePremium; // RevenueCat tiene prioridad
   
   // Calcular target efectivo para Smart Coach (incluye calorías quemadas si es premium)
   const effectiveTargetForCoach = useMemo(() => {

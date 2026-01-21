@@ -2,6 +2,7 @@
 import { supabase } from "@/data/supabase/supabaseClient";
 import type { ProfileDb } from "@/domain/models/profileDb";
 import { AuthService } from "@/domain/services/authService";
+import { RevenueCatService } from "@/domain/services/revenueCatService";
 import type { Session } from "@supabase/supabase-js";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as AuthSession from "expo-auth-session";
@@ -123,6 +124,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     return null;
   }
+
+  // Inicializar RevenueCat cuando hay sesión
+  useEffect(() => {
+    if (session?.user?.id) {
+      RevenueCatService.initialize(session.user.id).catch((error) => {
+        console.error("[AuthProvider] Error al inicializar RevenueCat:", error);
+      });
+    } else {
+      // Si no hay sesión, cerrar sesión en RevenueCat
+      RevenueCatService.logout().catch((error) => {
+        console.error("[AuthProvider] Error al cerrar sesión en RevenueCat:", error);
+      });
+    }
+  }, [session?.user?.id]);
 
   useEffect(() => {
     let unsub: null | (() => void) = null;
