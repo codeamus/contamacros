@@ -33,6 +33,7 @@ import {
 } from "@/domain/mappers/foodMappers";
 import type { MealType } from "@/domain/models/foodLogDb";
 import type { OffProduct } from "@/domain/models/offProduct";
+import CreateFoodModal from "@/presentation/components/nutrition/CreateFoodModal";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
@@ -254,6 +255,7 @@ export default function AddFoodScreen() {
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [myRecipes, setMyRecipes] = useState<ExtendedFoodSearchItem[]>([]);
   const [loadingRecipes, setLoadingRecipes] = useState(false);
+  const [showCreateFoodModal, setShowCreateFoodModal] = useState(false);
 
   const [gramsStr, setGramsStr] = useState("100");
   const [unitsStr, setUnitsStr] = useState("1");
@@ -1029,19 +1031,37 @@ export default function AddFoodScreen() {
                 !isSearchingMore &&
                 query.trim().length >= 2 &&
                 results.length === 0 && (
-                  <View style={s.emptyCard}>
-                    <View style={s.emptyIcon}>
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      setShowCreateFoodModal(true);
+                    }}
+                    style={({ pressed }) => [
+                      s.createFoodCard,
+                      pressed && s.createFoodCardPressed,
+                    ]}
+                  >
+                    <View style={s.createFoodIcon}>
                       <MaterialCommunityIcons
-                        name="magnify"
-                        size={22}
-                        color={colors.textSecondary}
+                        name="plus-circle"
+                        size={32}
+                        color={colors.brand}
                       />
                     </View>
-                    <Text style={s.emptyTitle}>Sin resultados</Text>
-                    <Text style={s.emptyText}>
-                      Prueba con otra palabra o busca más resultados.
-                    </Text>
-                  </View>
+                    <View style={s.createFoodContent}>
+                      <Text style={s.createFoodTitle}>
+                        ¿No encuentras "{query}"?
+                      </Text>
+                      <Text style={s.createFoodSubtitle}>
+                        ¡Agrégalo a la comunidad y gana +50 XP!
+                      </Text>
+                    </View>
+                    <MaterialCommunityIcons
+                      name="arrow-right"
+                      size={24}
+                      color={colors.brand}
+                    />
+                  </Pressable>
                 )}
             </View>
           </>
@@ -1266,6 +1286,21 @@ export default function AddFoodScreen() {
 
         <View style={{ height: 20 }} />
       </ScrollView>
+
+      {/* Modal para crear alimento */}
+      <CreateFoodModal
+        visible={showCreateFoodModal}
+        onClose={() => setShowCreateFoodModal(false)}
+        onSuccess={() => {
+          // Refrescar búsqueda después de crear
+          if (query.trim().length >= 2) {
+            searchLocalFoods(query).then((merged) => {
+              setResults(merged);
+            });
+          }
+        }}
+        initialName={query.trim()}
+      />
     </SafeAreaView>
   );
 }
@@ -1611,6 +1646,44 @@ function makeStyles(colors: any, typography: any) {
       fontSize: 12,
       color: colors.textSecondary,
       textAlign: "center",
+    },
+    createFoodCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 20,
+      borderRadius: 16,
+      backgroundColor: colors.brand + "10",
+      borderWidth: 2,
+      borderColor: colors.brand + "40",
+      gap: 16,
+      marginTop: 8,
+    },
+    createFoodCardPressed: {
+      opacity: 0.8,
+      transform: [{ scale: 0.98 }],
+    },
+    createFoodIcon: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: colors.brand + "20",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    createFoodContent: {
+      flex: 1,
+      gap: 4,
+    },
+    createFoodTitle: {
+      ...typography.subtitle,
+      fontSize: 16,
+      fontWeight: "700",
+      color: colors.textPrimary,
+    },
+    createFoodSubtitle: {
+      ...typography.body,
+      fontSize: 13,
+      color: colors.textSecondary,
     },
 
     card: {

@@ -1,4 +1,5 @@
 // app/(tabs)/settings.tsx
+import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import React, { useCallback, useMemo, useState } from "react";
 import {
@@ -22,6 +23,8 @@ import {
 } from "@/domain/services/calorieGoals";
 import { computeMacroTargets } from "@/domain/services/macroTargets";
 import CustomerCenter from "@/presentation/components/premium/CustomerCenter";
+import AchievementsList from "@/presentation/components/nutrition/AchievementsList";
+import ProgressCard from "@/presentation/components/nutrition/ProgressCard";
 import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useHealthSync } from "@/presentation/hooks/health/useHealthSync";
@@ -493,6 +496,21 @@ export default function SettingsScreen() {
         </Text>
             </View>
           </View>
+        </View>
+
+        {/* Progreso Section */}
+        <View style={s.section}>
+          <ProgressCard
+            onPressRanking={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push("/(tabs)/ranking");
+            }}
+          />
+        </View>
+
+        {/* Achievements Section */}
+        <View style={s.section}>
+          <AchievementsList />
         </View>
 
         {/* Perfil Section */}

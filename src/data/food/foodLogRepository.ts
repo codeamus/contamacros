@@ -1,5 +1,6 @@
 // src/data/food/foodLogRepository.ts
 import { supabase } from "@/data/supabase/supabaseClient";
+import { GamificationService } from "@/domain/services/gamificationService";
 import type { FoodLogDb, MealType } from "@/domain/models/foodLogDb";
 
 type RepoResult<T> =
@@ -352,6 +353,25 @@ export const foodLogRepository = {
 
       if (error) return { ok: false, message: error.message, code: error.code };
       if (!data) return { ok: false, message: "No se pudo crear el registro." };
+
+      // Verificar si es el primer registro del día para gamificación
+      // Obtener todos los registros del día para verificar si es el primero
+      const { data: todayLogs } = await supabase
+        .from("food_logs")
+        .select("id")
+        .eq("user_id", uid)
+        .eq("day", input.day)
+        .order("created_at", { ascending: true })
+        .limit(1);
+
+      // Si este es el primer registro del día, añadir XP y actualizar racha
+      if (todayLogs && todayLogs.length === 1) {
+        await GamificationService.recordDailyLog(input.day).catch((error) => {
+          console.warn("[foodLogRepository] Error al registrar log diario:", error);
+          // No fallar si la gamificación falla
+        });
+      }
+
       return { ok: true, data: data as FoodLogDb };
     } catch (e) {
       return { ok: false, ...mapError(e) };
