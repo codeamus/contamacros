@@ -39,7 +39,8 @@
           "photosPermission": "Esta app necesita acceso a tus fotos para que puedas seleccionar un avatar.",
           "cameraPermission": "Esta app necesita acceso a tu cámara para que puedas tomar una foto para tu avatar."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "ios": {
       "supportsTablet": true,

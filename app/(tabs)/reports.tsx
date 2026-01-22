@@ -229,41 +229,21 @@ export default function ReportsScreen() {
       );
 
       if (result.ok && result.data) {
-        // Intentar usar expo-file-system y expo-sharing si están disponibles
-        try {
-          const FileSystem = require("expo-file-system").default;
-          const Sharing = require("expo-sharing").default;
-
-          const fileName = `reporte-nutricional-${startDate}-${endDate}.html`;
-          const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-
-          await FileSystem.writeAsStringAsync(fileUri, result.data, {
-            encoding: FileSystem.EncodingType.UTF8,
+        // Si se generó PDF exitosamente, ya se compartió
+        if (result.data.pdfUri) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          showToast({
+            message: "PDF generado y listo para compartir",
+            type: "success",
+            duration: 2000,
           });
-
-          if (await Sharing.isAvailableAsync()) {
-            await Sharing.shareAsync(fileUri, {
-              mimeType: "text/html",
-              dialogTitle: "Compartir Reporte Nutricional",
-            });
-
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            showToast({
-              message: "Reporte generado y listo para compartir",
-              type: "success",
-              duration: 2000,
-            });
-          } else {
-            throw new Error("Sharing no disponible");
-          }
-        } catch (nativeError) {
-          // Si los módulos nativos no están disponibles, mostrar el HTML en un modal
-          console.log("[Reports] Módulos nativos no disponibles, usando fallback:", nativeError);
-          setReportHTML(result.data);
+        } else {
+          // Fallback: mostrar HTML en modal
+          setReportHTML(result.data.html);
           setShowReportModal(true);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           showToast({
-            message: "Reporte generado (ver en pantalla)",
+            message: "Reporte generado",
             type: "success",
             duration: 2000,
           });
@@ -712,9 +692,20 @@ export default function ReportsScreen() {
             </View>
             <ScrollView style={{ flex: 1 }}>
               <View style={s.reportModalContent}>
+                <View style={s.reportModalInfo}>
+                  <MaterialCommunityIcons
+                    name="information"
+                    size={20}
+                    color={colors.brand}
+                  />
+                  <Text style={s.reportModalInfoText}>
+                    El reporte está listo. Usa "Compartir PDF" para enviarlo por WhatsApp, Email o guardarlo.
+                  </Text>
+                </View>
                 <ScrollView
                   style={s.reportModalHTMLContainer}
                   contentContainerStyle={s.reportModalHTMLContent}
+                  nestedScrollEnabled
                 >
                   <Text
                     style={s.reportModalHTML}
@@ -726,32 +717,85 @@ export default function ReportsScreen() {
                 <View style={s.reportModalActions}>
                   <Pressable
                     onPress={async () => {
+                      if (!reportHTML) return;
+                      
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      
                       try {
-                        // Usar Clipboard de React Native (disponible sin módulo nativo adicional)
-                        const { Clipboard } = require("react-native");
-                        Clipboard.setString(reportHTML);
-                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                        showToast({
-                          message: "HTML copiado al portapapeles. Puedes pegarlo en un navegador para ver el reporte.",
-                          type: "success",
-                          duration: 3000,
-                        });
-                      } catch (error) {
-                        showToast({
-                          message: "El reporte está visible en pantalla. Puedes hacer captura de pantalla.",
-                          type: "info",
-                          duration: 3000,
-                        });
+                        // Intentar generar y compartir PDF usando el servicio
+                        const result = await PdfReportService.generateAndSharePDF(
+                          startDate,
+                          endDate,
+                        );
+
+                        if (result.ok && result.data.pdfUri) {
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                          showToast({
+                            message: "PDF compartido exitosamente",
+                            type: "success",
+                            duration: 2000,
+                          });
+                        } else {
+                          throw new Error(result.message || "No se pudo generar el PDF");
+                        }
+                      } catch (pdfError) {
+                        // Fallback: copiar HTML al portapapeles
+                        try {
+                          const { Clipboard } = require("react-native");
+                          Clipboard.setString(reportHTML);
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                          showToast({
+                            message: "HTML copiado. Pégalo en un navegador para ver el reporte.",
+                            type: "success",
+                            duration: 3000,
+                          });
+                        } catch (clipboardError) {
+                          showToast({
+                            message: "El reporte está visible en pantalla",
+                            type: "info",
+                            duration: 2000,
+                          });
+                        }
                       }
                     }}
                     style={s.reportModalButton}
                   >
                     <MaterialCommunityIcons
-                      name="content-copy"
+                      name="share-variant"
                       size={18}
                       color={colors.brand}
                     />
-                    <Text style={s.reportModalButtonText}>Copiar HTML</Text>
+                    <Text style={s.reportModalButtonText}>Compartir PDF</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={async () => {
+                      if (!reportHTML) return;
+                      
+                      try {
+                        const { Clipboard } = require("react-native");
+                        Clipboard.setString(reportHTML);
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        showToast({
+                          message: "HTML copiado al portapapeles",
+                          type: "success",
+                          duration: 2000,
+                        });
+                      } catch (error) {
+                        showToast({
+                          message: "No se pudo copiar",
+                          type: "error",
+                          duration: 2000,
+                        });
+                      }
+                    }}
+                    style={[s.reportModalButton, s.reportModalButtonSecondary]}
+                  >
+                    <MaterialCommunityIcons
+                      name="content-copy"
+                      size={16}
+                      color={colors.textSecondary}
+                    />
+                    <Text style={s.reportModalButtonTextSecondary}>Copiar HTML</Text>
                   </Pressable>
                 </View>
               </View>
@@ -1314,23 +1358,40 @@ function makeStyles(colors: any, typography: any) {
     },
     reportModalContent: {
       padding: 20,
+      gap: 16,
+    },
+    reportModalInfo: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 12,
+      padding: 14,
+      backgroundColor: colors.brand + "10",
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.brand + "30",
+    },
+    reportModalInfoText: {
+      flex: 1,
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 13,
+      color: colors.textPrimary,
+      lineHeight: 18,
     },
     reportModalHTMLContainer: {
-      flex: 1,
       backgroundColor: colors.surface,
       borderRadius: 16,
       borderWidth: 1,
       borderColor: colors.border,
-      maxHeight: 600,
+      maxHeight: 500,
     },
     reportModalHTMLContent: {
       padding: 16,
     },
     reportModalHTML: {
       fontFamily: "monospace",
-      fontSize: 11,
+      fontSize: 10,
       color: colors.textPrimary,
-      lineHeight: 16,
+      lineHeight: 14,
     },
     reportModalActions: {
       marginTop: 20,
@@ -1350,11 +1411,21 @@ function makeStyles(colors: any, typography: any) {
       borderColor: colors.brand,
       backgroundColor: colors.brand + "10",
     },
+    reportModalButtonSecondary: {
+      borderColor: colors.border,
+      backgroundColor: "transparent",
+    },
     reportModalButtonText: {
       fontFamily: typography.subtitle?.fontFamily,
       fontSize: 15,
       fontWeight: "600",
       color: colors.brand,
+    },
+    reportModalButtonTextSecondary: {
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.textSecondary,
     },
   });
 }

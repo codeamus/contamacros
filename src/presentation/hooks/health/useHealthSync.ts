@@ -1,8 +1,8 @@
 // src/presentation/hooks/health/useHealthSync.ts
 import { activityLogRepository } from "@/data/activity/activityLogRepository";
 import { todayStrLocal } from "@/presentation/utils/date";
-import { useEffect, useState } from "react";
-import { Platform } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { AppState, AppStateStatus, Platform } from "react-native";
 import * as Haptics from "expo-haptics";
 
 /**
@@ -309,12 +309,105 @@ export function useHealthSync(isPremium: boolean) {
     }
   };
 
-  // Cargar calorías al montar el componente
+  // Ref para rastrear última sincronización y evitar múltiples sincronizaciones
+  const lastSyncTime = useRef<number>(0);
+  const isSyncingRef = useRef(false);
+  const appState = useRef(AppState.currentState);
+  const hasInitialSync = useRef(false);
+
+  // Sincronización automática cuando la app pasa a primer plano
+  useEffect(() => {
+    if (!isPremium) return;
+
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      // Solo sincronizar cuando la app pasa de 'background' o 'inactive' a 'active'
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === "active"
+      ) {
+        const now = Date.now();
+        const timeSinceLastSync = now - lastSyncTime.current;
+        const ONE_MINUTE = 60 * 1000;
+
+        // No sincronizar si fue hace menos de 1 minuto
+        if (timeSinceLastSync < ONE_MINUTE) {
+          console.log(
+            `[HealthSync] Sincronización omitida: última sync hace ${Math.round(timeSinceLastSync / 1000)}s (menos de 1 minuto)`,
+          );
+          return;
+        }
+
+        // Evitar múltiples sincronizaciones simultáneas
+        if (isSyncingRef.current) {
+          console.log("[HealthSync] Sincronización ya en curso, omitiendo...");
+          return;
+        }
+
+        console.log("[HealthSync] Sincronización automática disparada por cambio de estado");
+        isSyncingRef.current = true;
+        lastSyncTime.current = now;
+
+        syncCalories()
+          .catch((error) => {
+            console.error("[HealthSync] Error en sincronización automática:", error);
+            // No mostrar error al usuario, es automático
+          })
+          .finally(() => {
+            isSyncingRef.current = false;
+          });
+      }
+
+      appState.current = nextAppState;
+    };
+
+    const subscription = AppState.addEventListener("change", handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+    };
+  }, [isPremium, syncCalories]);
+
+  // Cargar calorías al montar
   useEffect(() => {
     if (isPremium) {
       loadTodayCalories();
+    } else {
+      setCaloriesBurned(0);
     }
   }, [day, isPremium]);
+
+  // Sincronización al inicio (Cold Start) - solo una vez por sesión
+  useEffect(() => {
+    if (!isPremium) return;
+    if (hasInitialSync.current) return; // Ya se sincronizó en esta sesión
+
+    const timer = setTimeout(() => {
+      const now = Date.now();
+      const timeSinceLastSync = now - lastSyncTime.current;
+      const ONE_MINUTE = 60 * 1000;
+
+      // Solo sincronizar al inicio si no se ha sincronizado recientemente
+      if (timeSinceLastSync >= ONE_MINUTE || lastSyncTime.current === 0) {
+        if (!isSyncingRef.current) {
+          console.log("[HealthSync] Sincronización al inicio (cold start)...");
+          isSyncingRef.current = true;
+          lastSyncTime.current = Date.now();
+          hasInitialSync.current = true;
+
+          syncCalories()
+            .catch((error) => {
+              console.error("[useHealthSync] Error en sincronización al inicio:", error);
+            })
+            .finally(() => {
+              isSyncingRef.current = false;
+            });
+        }
+      }
+    }, 1500); // Delay de 1.5s para asegurar que todo esté listo
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPremium]); // Solo depende de isPremium, syncCalories se obtiene del scope
 
   return {
     caloriesBurned,

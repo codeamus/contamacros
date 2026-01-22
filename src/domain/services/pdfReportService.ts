@@ -2,6 +2,8 @@
 import { activityLogRepository } from "@/data/activity/activityLogRepository";
 import { foodLogRepository } from "@/data/food/foodLogRepository";
 import { AuthService } from "@/domain/services/authService";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
 
 type RepoResult<T> =
   | { ok: true; data: T }
@@ -27,19 +29,19 @@ interface ReportData {
       percentage: number;
     };
   };
-  dailyMeals: Array<{
+  dailyMeals: {
     day: string;
-    meals: Array<{
+    meals: {
       meal: string;
       name: string;
       calories: number;
       protein_g: number;
       carbs_g: number;
       fat_g: number;
-    }>;
+    }[];
     totalCalories: number;
     caloriesBurned: number;
-  }>;
+  }[];
 }
 
 /**
@@ -135,18 +137,18 @@ export class PdfReportService {
     endDate: string,
   ): Promise<
     RepoResult<
-      Array<{
+      {
         day: string;
-        meals: Array<{
+        meals: {
           meal: string;
           name: string;
           calories: number;
           protein_g: number;
           carbs_g: number;
           fat_g: number;
-        }>;
+        }[];
         totalCalories: number;
-      }>
+      }[]
     >
   > {
     try {
@@ -158,30 +160,33 @@ export class PdfReportService {
       // Generar array de días en el rango
       const current = new Date(start);
       while (current <= end) {
-        days.push(current.toISOString().split("T")[0]);
+        const dayStr = current.toISOString().split("T")[0];
+        if (dayStr) {
+          days.push(dayStr);
+        }
         current.setDate(current.getDate() + 1);
       }
 
       // Obtener logs de cada día
-      const allMeals: Array<{
+      const allMeals: {
         day: string;
-        meals: Array<{
+        meals: {
           meal: string;
           name: string;
           calories: number;
           protein_g: number;
           carbs_g: number;
           fat_g: number;
-        }>;
+        }[];
         totalCalories: number;
-      }> = [];
+      }[] = [];
 
       for (const day of days) {
         const logsRes = await foodLogRepository.listByDay(day);
         if (logsRes.ok && logsRes.data) {
           const meals = logsRes.data.map((log) => ({
-            meal: this.getMealLabel(log.meal),
-            name: log.name,
+            meal: this.getMealLabel(log.meal || "snack"),
+            name: log.name || "Sin nombre",
             calories: log.calories,
             protein_g: log.protein_g,
             carbs_g: log.carbs_g,
@@ -227,7 +232,7 @@ export class PdfReportService {
     startDate: string,
     endDate: string,
   ): Promise<
-    RepoResult<Array<{ day: string; caloriesBurned: number }>>
+    RepoResult<{ day: string; caloriesBurned: number }[]>
   > {
     try {
       // Obtener actividad reciente (últimos 30 días por defecto, pero puede ser más)
@@ -256,7 +261,10 @@ export class PdfReportService {
       const days: string[] = [];
       const current = new Date(start);
       while (current <= end) {
-        days.push(current.toISOString().split("T")[0]);
+        const dayStr = current.toISOString().split("T")[0];
+        if (dayStr) {
+          days.push(dayStr);
+        }
         current.setDate(current.getDate() + 1);
       }
 
@@ -312,8 +320,11 @@ export class PdfReportService {
       });
     };
 
-    // Para PDFs, las imágenes externas pueden no cargar, así que usamos un placeholder
-    const avatarHtml = `<div style="width: 60px; height: 60px; border-radius: 30px; background: linear-gradient(135deg, #22C55E 0%, #10B981 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; font-weight: bold;">${data.profile.fullName.charAt(0).toUpperCase()}</div>`;
+    // Avatar condicional: img si existe, div circular con inicial si no
+    const getInitial = (name: string) => name.charAt(0).toUpperCase();
+    const avatarHtml = data.profile.avatarUrl
+      ? `<img src="${data.profile.avatarUrl}" crossorigin="anonymous" style="width: 60px; height: 60px; border-radius: 30px; object-fit: cover; border: 2px solid white;" alt="Avatar" />`
+      : `<div style="width: 60px; height: 60px; border-radius: 30px; background: linear-gradient(135deg, #22C55E 0%, #10B981 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; font-weight: bold; border: 2px solid white;">${getInitial(data.profile.fullName)}</div>`;
 
     return `
 <!DOCTYPE html>
@@ -619,13 +630,13 @@ export class PdfReportService {
   }
 
   /**
-   * Genera y comparte el reporte como HTML
-   * Devuelve el HTML para que el componente lo maneje (mostrar en modal, compartir, etc.)
+   * Genera PDF usando expo-print y comparte usando expo-sharing
+   * Si los módulos nativos no están disponibles, devuelve el HTML como fallback
    */
   static async generateAndSharePDF(
     startDate: string,
     endDate: string,
-  ): Promise<RepoResult<string>> {
+  ): Promise<RepoResult<{ html: string; pdfUri?: string }>> {
     try {
       // Obtener HTML del reporte
       const htmlRes = await this.generateReportHTMLString(startDate, endDate);
@@ -633,9 +644,33 @@ export class PdfReportService {
         return { ok: false, message: htmlRes.message };
       }
 
-      // Devolver el HTML directamente
-      // El componente puede mostrarlo en un WebView o usar otra estrategia de compartir
-      return { ok: true, data: htmlRes.data };
+      // Intentar generar PDF con expo-print
+      try {
+        // Verificar disponibilidad antes de usar Print
+        // Nota: Print.isAvailableAsync puede no existir en todas las versiones
+        // Intentamos usar printToFileAsync directamente y manejamos el error si falla
+        const { uri } = await Print.printToFileAsync({
+          html: htmlRes.data,
+          base64: false,
+        });
+
+        // Compartir PDF
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(uri, {
+            mimeType: "application/pdf",
+            dialogTitle: "Compartir Reporte Nutricional",
+            UTI: "com.adobe.pdf", // iOS
+          });
+
+          return { ok: true, data: { html: htmlRes.data, pdfUri: uri } };
+        }
+      } catch (nativeError) {
+        console.log("[PdfReportService] Módulos nativos no disponibles, usando HTML:", nativeError);
+        // Continuar con fallback de HTML
+      }
+
+      // Fallback: devolver HTML para mostrar en modal
+      return { ok: true, data: { html: htmlRes.data } };
     } catch (error) {
       return {
         ok: false,

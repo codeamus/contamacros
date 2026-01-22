@@ -21,8 +21,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Animated,
-  AppState,
-  AppStateStatus,
   Easing,
   Platform,
   Pressable,
@@ -131,47 +129,7 @@ export default function HomeScreen() {
     isPremium,
   );
 
-  // Sincronización automática cuando la app pasa de segundo plano a primer plano
-  const appState = useRef(AppState.currentState);
-  const isSyncingRef = useRef(false);
-
-  useEffect(() => {
-    if (!isPremium) return;
-
-    const handleAppStateChange = (nextAppState: AppStateStatus) => {
-      // Solo sincronizar cuando la app pasa de 'background' o 'inactive' a 'active'
-      if (
-        appState.current.match(/inactive|background/) &&
-        nextAppState === "active"
-      ) {
-        // Evitar múltiples sincronizaciones simultáneas
-        if (isSyncingRef.current) {
-          console.log("[Home] Sincronización ya en curso, omitiendo...");
-          return;
-        }
-
-        console.log("[Home] App pasó a primer plano, sincronizando calorías automáticamente...");
-        isSyncingRef.current = true;
-        
-        syncCalories()
-          .catch((error) => {
-            console.error("[Home] Error en sincronización automática:", error);
-            // No mostrar error al usuario, es automático
-          })
-          .finally(() => {
-            isSyncingRef.current = false;
-          });
-      }
-
-      appState.current = nextAppState;
-    };
-
-    const subscription = AppState.addEventListener("change", handleAppStateChange);
-
-    return () => {
-      subscription.remove();
-    };
-  }, [isPremium, syncCalories]);
+  // La sincronización automática ahora está en useHealthSync hook
 
   const hasTargets =
     caloriesTarget > 0 && proteinTarget > 0 && carbsTarget > 0 && fatTarget > 0;
