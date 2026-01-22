@@ -61,37 +61,68 @@ export function useHealthSync(isPremium: boolean) {
         nowLocal: now.toLocaleString(),
       });
 
-      // Leer calorías activas del día usando queryQuantitySamples
-      // IMPORTANTE: La librería espera objetos Date, no strings ISO
-      // Usar ascending: false para obtener muestras más recientes primero
-      // Esto evita que devuelva muestras históricas antiguas
+      // Intentar obtener el total agregado del día usando getDailyQuantitySamples (más preciso)
+      // Si no está disponible, usar queryQuantitySamples y sumar todas las muestras
+      let totalCalories = 0;
+      
+      try {
+        // Método 1: Intentar obtener datos agregados por día (más preciso y rápido)
+        if (HealthKit.getDailyQuantitySamples) {
+          const dailySamples = await HealthKit.getDailyQuantitySamples(
+            activeEnergyBurnedId,
+            {
+              startDate: startOfDay,
+              endDate: endOfDay,
+            }
+          );
+          
+          if (dailySamples && dailySamples.length > 0) {
+            // Buscar la muestra del día actual
+            const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            const todaySample = dailySamples.find((sample: any) => {
+              if (!sample.startDate) return false;
+              const sampleDate = new Date(sample.startDate);
+              const sampleDateStr = `${sampleDate.getFullYear()}-${String(sampleDate.getMonth() + 1).padStart(2, '0')}-${String(sampleDate.getDate()).padStart(2, '0')}`;
+              return sampleDateStr === todayStr;
+            });
+            
+            if (todaySample && todaySample.quantity) {
+              totalCalories = todaySample.quantity;
+              console.log("[useHealthSync] ✅ Total obtenido con getDailyQuantitySamples:", totalCalories);
+              return Math.round(totalCalories);
+            }
+          }
+        }
+      } catch (dailyError) {
+        console.log("[useHealthSync] getDailyQuantitySamples no disponible, usando queryQuantitySamples:", dailyError);
+      }
+
+      // Método 2: Fallback - Obtener todas las muestras y sumarlas
+      // IMPORTANTE: Usar endOfDay para obtener todo el día, no solo hasta ahora
       const samples = await HealthKit.queryQuantitySamples(
         activeEnergyBurnedId,
         {
-          startDate: startOfDay, // Objeto Date, no string
-          endDate: now, // Hasta ahora (no endOfDay para obtener datos en tiempo real)
-          ascending: false, // Más recientes primero - IMPORTANTE para evitar muestras históricas
-          limit: 1000, // Límite alto para obtener todas las muestras del día
+          startDate: startOfDay,
+          endDate: endOfDay, // Cambiado de 'now' a 'endOfDay' para obtener todo el día
+          ascending: false,
+          limit: 10000, // Aumentado el límite para asegurar que obtenemos todas las muestras
         }
       );
 
       console.log("[useHealthSync] Muestras obtenidas de HealthKit:", samples.length);
 
       // Sumar todas las muestras del día
-      // Filtrar agresivamente por fecha local y timestamp para asegurar que solo contamos el día actual
-      let totalCalories = 0;
-      let validSamples = 0;
-      let skippedOldSamples = 0;
-      
-      // Filtrar solo muestras del día actual
       const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
       const startOfDayTimestamp = startOfDay.getTime();
       const endOfDayTimestamp = endOfDay.getTime();
       
-      // Procesar muestras (ahora están en orden descendente - más recientes primero)
+      let validSamples = 0;
+      let skippedOldSamples = 0;
+      
+      // Procesar todas las muestras del día
       for (let index = 0; index < samples.length; index++) {
         const sample = samples[index];
-        if (!sample.startDate) continue;
+        if (!sample.startDate || !sample.quantity) continue;
         
         const sampleDate = new Date(sample.startDate);
         const sampleTimestamp = sampleDate.getTime();
@@ -102,10 +133,9 @@ export function useHealthSync(isPremium: boolean) {
         const isInTimestampRange = sampleTimestamp >= startOfDayTimestamp && sampleTimestamp <= endOfDayTimestamp;
         const isTodayByDate = sampleDateStr === todayStr;
         
-        // Si la muestra es más antigua que el inicio del día, podemos parar (están ordenadas descendente)
+        // Si la muestra es más antigua que el inicio del día, podemos parar
         if (sampleTimestamp < startOfDayTimestamp) {
           skippedOldSamples = samples.length - index;
-          console.log(`[useHealthSync] Parando procesamiento: muestra ${index + 1} es anterior al día actual`);
           break;
         }
         
@@ -113,36 +143,16 @@ export function useHealthSync(isPremium: boolean) {
         if (isTodayByDate && isInTimestampRange) {
           totalCalories += sampleCalories;
           validSamples++;
-          
-          if (validSamples <= 3) {
-            console.log(`[useHealthSync] ✅ Muestra válida ${validSamples}:`, {
-              fecha: sampleDateStr,
-              calorias: sampleCalories,
-              hora: sampleDate.toLocaleTimeString(),
-              timestamp: sampleTimestamp,
-            });
-          }
-        } else if (index < 5) {
-          console.log(`[useHealthSync] ❌ Muestra ${index + 1} fuera de rango:`, {
-            fechaMuestra: sampleDateStr,
-            fechaBuscada: todayStr,
-            calorias: sampleCalories,
-            timestamp: sampleTimestamp,
-            startOfDayTimestamp,
-            endOfDayTimestamp,
-            isInTimestampRange,
-            isTodayByDate,
-          });
         }
       }
 
       console.log("[useHealthSync] Resumen:", {
+        metodo: "queryQuantitySamples",
         totalMuestras: samples.length,
         muestrasValidas: validSamples,
         muestrasOmitidas: skippedOldSamples,
         caloriasTotales: Math.round(totalCalories),
         fechaBuscada: todayStr,
-        rangoTimestamp: `${startOfDayTimestamp} - ${endOfDayTimestamp}`,
       });
 
       return Math.round(totalCalories);

@@ -1,8 +1,10 @@
 // app/(tabs)/reports.tsx
 import { foodLogRepository } from "@/data/food/foodLogRepository";
+import { PdfReportService } from "@/domain/services/pdfReportService";
 import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
 import Skeleton from "@/presentation/components/ui/Skeleton";
 import { usePremium } from "@/presentation/hooks/subscriptions/usePremium";
+import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -29,7 +31,7 @@ import DateTimePicker, {
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-type DateRange = "7D" | "30D" | "custom";
+type DateRange = "day" | "week" | "month" | "custom";
 
 export default function ReportsScreen() {
   const { theme } = useTheme();
@@ -37,13 +39,17 @@ export default function ReportsScreen() {
   const s = makeStyles(colors, typography);
   const { isPremium } = usePremium();
 
-  const [dateRange, setDateRange] = useState<DateRange>("7D");
+  const [dateRange, setDateRange] = useState<DateRange>("week");
   const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
   const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState<"start" | "end" | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [paywallVisible, setPaywallVisible] = useState(false);
+  const [exportingPDF, setExportingPDF] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportHTML, setReportHTML] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   // Calcular fechas según el rango seleccionado
   const { startDate, endDate } = useMemo(() => {
@@ -61,7 +67,7 @@ export default function ReportsScreen() {
           endDate: end.toISOString().split("T")[0],
         };
       }
-      // Fallback a 7D si no hay fechas personalizadas
+      // Fallback a semana si no hay fechas personalizadas
       const start = new Date();
       start.setDate(start.getDate() - 7);
       start.setHours(0, 0, 0, 0);
@@ -71,11 +77,42 @@ export default function ReportsScreen() {
       };
     }
     
-    const days = dateRange === "7D" ? 7 : 30;
-    const start = new Date();
-    start.setDate(start.getDate() - days);
-    start.setHours(0, 0, 0, 0);
+    if (dateRange === "day") {
+      // Solo hoy
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      return {
+        startDate: start.toISOString().split("T")[0],
+        endDate: end.toISOString().split("T")[0],
+      };
+    }
     
+    if (dateRange === "week") {
+      // Últimos 7 días
+      const start = new Date();
+      start.setDate(start.getDate() - 7);
+      start.setHours(0, 0, 0, 0);
+      return {
+        startDate: start.toISOString().split("T")[0],
+        endDate: end.toISOString().split("T")[0],
+      };
+    }
+    
+    if (dateRange === "month") {
+      // Últimos 30 días
+      const start = new Date();
+      start.setDate(start.getDate() - 30);
+      start.setHours(0, 0, 0, 0);
+      return {
+        startDate: start.toISOString().split("T")[0],
+        endDate: end.toISOString().split("T")[0],
+      };
+    }
+    
+    // Fallback
+    const start = new Date();
+    start.setDate(start.getDate() - 7);
+    start.setHours(0, 0, 0, 0);
     return {
       startDate: start.toISOString().split("T")[0],
       endDate: end.toISOString().split("T")[0],
@@ -174,12 +211,86 @@ export default function ReportsScreen() {
     return "#EF4444"; // Coral/rojo
   }, [stats, colors]);
 
-  // Función para exportar PDF (placeholder)
-  const handleExportPDF = useCallback(() => {
+  // Función para exportar PDF
+  const handleExportPDF = useCallback(async () => {
+    if (!isPremium) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setPaywallVisible(true);
+      return;
+    }
+
+    setExportingPDF(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // TODO: Implementar exportación a PDF
-    console.log("[Reports] Export PDF - Feature coming soon");
-  }, []);
+
+    try {
+      const result = await PdfReportService.generateAndSharePDF(
+        startDate,
+        endDate,
+      );
+
+      if (result.ok && result.data) {
+        // Intentar usar expo-file-system y expo-sharing si están disponibles
+        try {
+          const FileSystem = require("expo-file-system").default;
+          const Sharing = require("expo-sharing").default;
+
+          const fileName = `reporte-nutricional-${startDate}-${endDate}.html`;
+          const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+
+          await FileSystem.writeAsStringAsync(fileUri, result.data, {
+            encoding: FileSystem.EncodingType.UTF8,
+          });
+
+          if (await Sharing.isAvailableAsync()) {
+            await Sharing.shareAsync(fileUri, {
+              mimeType: "text/html",
+              dialogTitle: "Compartir Reporte Nutricional",
+            });
+
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            showToast({
+              message: "Reporte generado y listo para compartir",
+              type: "success",
+              duration: 2000,
+            });
+          } else {
+            throw new Error("Sharing no disponible");
+          }
+        } catch (nativeError) {
+          // Si los módulos nativos no están disponibles, mostrar el HTML en un modal
+          console.log("[Reports] Módulos nativos no disponibles, usando fallback:", nativeError);
+          setReportHTML(result.data);
+          setShowReportModal(true);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          showToast({
+            message: "Reporte generado (ver en pantalla)",
+            type: "success",
+            duration: 2000,
+          });
+        }
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        showToast({
+          message: result.message || "Error al generar el reporte",
+          type: "error",
+          duration: 3000,
+        });
+      }
+    } catch (error) {
+      console.error("[Reports] Error exporting PDF:", error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      showToast({
+        message:
+          error instanceof Error
+            ? error.message
+            : "Error al generar el reporte",
+        type: "error",
+        duration: 3000,
+      });
+    } finally {
+      setExportingPDF(false);
+    }
+  }, [isPremium, startDate, endDate, showToast]);
 
   return (
     <SafeAreaView style={s.safe}>
@@ -201,21 +312,25 @@ export default function ReportsScreen() {
             <Text style={s.headerTitle}>Reportes Premium</Text>
             <Text style={s.headerSubtitle}>Análisis avanzado de tu nutrición</Text>
           </View>
-          {isPremium && (
-            <Pressable
-              onPress={handleExportPDF}
-              style={({ pressed }) => [
-                s.exportButton,
-                pressed && s.exportButtonPressed,
-              ]}
-            >
+          <Pressable
+            onPress={handleExportPDF}
+            disabled={exportingPDF}
+            style={({ pressed }) => [
+              s.exportButton,
+              (pressed || exportingPDF) && s.exportButtonPressed,
+              !isPremium && s.exportButtonDisabled,
+            ]}
+          >
+            {exportingPDF ? (
+              <ActivityIndicator size="small" color={colors.brand} />
+            ) : (
               <MaterialCommunityIcons
                 name="file-export"
                 size={20}
-                color={colors.brand}
+                color={isPremium ? colors.brand : colors.textSecondary}
               />
-            </Pressable>
-          )}
+            )}
+          </Pressable>
         </View>
 
         {/* Selector de Rango */}
@@ -223,41 +338,61 @@ export default function ReportsScreen() {
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setDateRange("7D");
+              setDateRange("day");
             }}
             style={({ pressed }) => [
               s.rangePill,
-              dateRange === "7D" && s.rangePillActive,
+              dateRange === "day" && s.rangePillActive,
               pressed && s.rangePillPressed,
             ]}
           >
             <Text
               style={[
                 s.rangePillText,
-                dateRange === "7D" && s.rangePillTextActive,
+                dateRange === "day" && s.rangePillTextActive,
               ]}
             >
-              7D
+              Día
             </Text>
           </Pressable>
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setDateRange("30D");
+              setDateRange("week");
             }}
             style={({ pressed }) => [
               s.rangePill,
-              dateRange === "30D" && s.rangePillActive,
+              dateRange === "week" && s.rangePillActive,
               pressed && s.rangePillPressed,
             ]}
           >
             <Text
               style={[
                 s.rangePillText,
-                dateRange === "30D" && s.rangePillTextActive,
+                dateRange === "week" && s.rangePillTextActive,
               ]}
             >
-              30D
+              Semana
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setDateRange("month");
+            }}
+            style={({ pressed }) => [
+              s.rangePill,
+              dateRange === "month" && s.rangePillActive,
+              pressed && s.rangePillPressed,
+            ]}
+          >
+            <Text
+              style={[
+                s.rangePillText,
+                dateRange === "month" && s.rangePillTextActive,
+              ]}
+            >
+              Mes
             </Text>
           </Pressable>
           <Pressable
@@ -548,6 +683,82 @@ export default function ReportsScreen() {
           // El perfil se actualiza automáticamente
         }}
       />
+
+      {/* Report HTML Modal */}
+      {showReportModal && reportHTML && (
+        <Modal
+          visible={showReportModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowReportModal(false)}
+        >
+          <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+            <View style={s.reportModalHeader}>
+              <Text style={s.reportModalTitle}>Reporte Nutricional</Text>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowReportModal(false);
+                  setReportHTML(null);
+                }}
+                style={s.reportModalClose}
+              >
+                <MaterialCommunityIcons
+                  name="close"
+                  size={24}
+                  color={colors.textPrimary}
+                />
+              </Pressable>
+            </View>
+            <ScrollView style={{ flex: 1 }}>
+              <View style={s.reportModalContent}>
+                <ScrollView
+                  style={s.reportModalHTMLContainer}
+                  contentContainerStyle={s.reportModalHTMLContent}
+                >
+                  <Text
+                    style={s.reportModalHTML}
+                    selectable
+                  >
+                    {reportHTML}
+                  </Text>
+                </ScrollView>
+                <View style={s.reportModalActions}>
+                  <Pressable
+                    onPress={async () => {
+                      try {
+                        // Usar Clipboard de React Native (disponible sin módulo nativo adicional)
+                        const { Clipboard } = require("react-native");
+                        Clipboard.setString(reportHTML);
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        showToast({
+                          message: "HTML copiado al portapapeles. Puedes pegarlo en un navegador para ver el reporte.",
+                          type: "success",
+                          duration: 3000,
+                        });
+                      } catch (error) {
+                        showToast({
+                          message: "El reporte está visible en pantalla. Puedes hacer captura de pantalla.",
+                          type: "info",
+                          duration: 3000,
+                        });
+                      }
+                    }}
+                    style={s.reportModalButton}
+                  >
+                    <MaterialCommunityIcons
+                      name="content-copy"
+                      size={18}
+                      color={colors.brand}
+                    />
+                    <Text style={s.reportModalButtonText}>Copiar HTML</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </ScrollView>
+          </SafeAreaView>
+        </Modal>
+      )}
 
       {/* Date Picker */}
       {Platform.OS === "android" && showDatePicker && (
@@ -870,6 +1081,9 @@ function makeStyles(colors: any, typography: any) {
       opacity: 0.7,
       transform: [{ scale: 0.95 }],
     },
+    exportButtonDisabled: {
+      opacity: 0.5,
+    },
     rangeSelector: {
       flexDirection: "row",
       gap: 10,
@@ -1073,6 +1287,74 @@ function makeStyles(colors: any, typography: any) {
       fontFamily: typography.body?.fontFamily,
       fontSize: 13,
       color: colors.textSecondary,
+    },
+    reportModalHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    reportModalTitle: {
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 20,
+      fontWeight: "700",
+      color: colors.textPrimary,
+    },
+    reportModalClose: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    reportModalContent: {
+      padding: 20,
+    },
+    reportModalHTMLContainer: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      maxHeight: 600,
+    },
+    reportModalHTMLContent: {
+      padding: 16,
+    },
+    reportModalHTML: {
+      fontFamily: "monospace",
+      fontSize: 11,
+      color: colors.textPrimary,
+      lineHeight: 16,
+    },
+    reportModalActions: {
+      marginTop: 20,
+      flexDirection: "row",
+      gap: 12,
+    },
+    reportModalButton: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      paddingVertical: 14,
+      paddingHorizontal: 20,
+      borderRadius: 16,
+      borderWidth: 1.5,
+      borderColor: colors.brand,
+      backgroundColor: colors.brand + "10",
+    },
+    reportModalButtonText: {
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 15,
+      fontWeight: "600",
+      color: colors.brand,
     },
   });
 }
