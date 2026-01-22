@@ -454,22 +454,42 @@ export class PdfReportService {
     }
     .consistency-bar {
       width: 100%;
-      height: 24px;
+      height: 36px;
       background: #E1E5D3;
-      border-radius: 12px;
-      overflow: hidden;
-      margin-top: 10px;
+      border-radius: 18px;
+      overflow: visible;
+      margin-top: 12px;
+      position: relative;
     }
     .consistency-fill {
       height: 100%;
+      min-width: 60px;
       background: linear-gradient(90deg, #22C55E 0%, #10B981 100%);
       display: flex;
       align-items: center;
       justify-content: center;
       color: white;
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 600;
       transition: width 0.3s;
+      padding: 0 8px;
+      box-sizing: border-box;
+      border-radius: 18px;
+    }
+    .consistency-text {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #2C4B40;
+      font-size: 13px;
+      font-weight: 600;
+      pointer-events: none;
+      z-index: 1;
     }
     .footer {
       text-align: center;
@@ -516,7 +536,7 @@ export class PdfReportService {
         <h3>Consistencia</h3>
         <div class="value">${data.summary.consistency.percentage}<span class="unit">%</span></div>
         <div class="consistency-bar">
-          <div class="consistency-fill" style="width: ${data.summary.consistency.percentage}%">
+          <div class="consistency-fill" style="width: ${Math.max(data.summary.consistency.percentage, 15)}%">
             ${data.summary.consistency.daysWithLogs} de ${data.summary.consistency.totalDays} días
           </div>
         </div>
