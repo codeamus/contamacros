@@ -55,21 +55,31 @@ type PremiumPaywallProps = {
   onSuccess?: () => void;
 };
 
+const BENEFIT_ICON_AI = "#38BDF8";   // Celeste IA — vibrante en dark
+const BENEFIT_ICON_PRO = "#FBBF24";  // Destellos — ámbar, coherente con dark
+
 const BENEFITS = [
+  {
+    icon: "camera-iris" as const,
+    title: "Scanner IA Flash",
+    description: "Identifica alimentos y porciones al instante con una foto gracias a IA avanzada.",
+    iconColor: BENEFIT_ICON_AI,
+  },
+  {
+    icon: "creation" as const,
+    title: "Tu Futuro Pro",
+    description: "Visualiza tu peso y progreso proyectado a 30 días basándonos en tu ritmo real.",
+    iconColor: BENEFIT_ICON_PRO,
+  },
   {
     icon: "brain" as const,
     title: "Smart Coach Pro",
-    description: "Recomendaciones exactas de macros basadas en tu historial",
+    description: "Recomendaciones exactas de macros basadas en tu historial y metas.",
   },
   {
-    icon: "watch" as const,
-    title: "Conexión Salud",
-    description: "Sincroniza Apple Health/Google Health y ajusta tus metas automáticamente",
-  },
-  {
-    icon: "chart-line" as const,
-    title: "Análisis Avanzado",
-    description: "Visualiza tendencias y progresión de macros por semana",
+    icon: "file-chart" as const,
+    title: "Reportes para descargar",
+    description: "Exporta tus reportes en PDF y lleva tu progreso de calorías y macros donde quieras.",
   },
 ];
 
@@ -637,37 +647,45 @@ export default function PremiumPaywall({
 
             {/* Beneficios */}
             <View style={s.benefitsContainer}>
-              {BENEFITS.map((benefit) => (
-                <Animated.View
-                  key={benefit.icon}
-                  style={[
-                    s.benefitCard,
-                    {
-                      opacity: opacityAnim,
-                      transform: [
-                        {
-                          translateX: opacityAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [-20, 0],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
-                >
-                  <View style={s.benefitIconContainer}>
-                    <MaterialCommunityIcons
-                      name={benefit.icon}
-                      size={28}
-                      color={colors.brand}
-                    />
-                  </View>
-                  <View style={s.benefitTextContainer}>
-                    <Text style={s.benefitTitle}>{benefit.title}</Text>
-                    <Text style={s.benefitDescription}>{benefit.description}</Text>
-                  </View>
-                </Animated.View>
-              ))}
+              {BENEFITS.map((benefit) => {
+                const iconColor = benefit.iconColor ?? colors.brand;
+                return (
+                  <Animated.View
+                    key={benefit.icon}
+                    style={[
+                      s.benefitCard,
+                      {
+                        opacity: opacityAnim,
+                        transform: [
+                          {
+                            translateX: opacityAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [-20, 0],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        s.benefitIconContainer,
+                        { backgroundColor: iconColor + "20" },
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        name={benefit.icon}
+                        size={28}
+                        color={iconColor}
+                      />
+                    </View>
+                    <View style={s.benefitTextContainer}>
+                      <Text style={s.benefitTitle}>{benefit.title}</Text>
+                      <Text style={s.benefitDescription}>{benefit.description}</Text>
+                    </View>
+                  </Animated.View>
+                );
+              })}
             </View>
 
             {/* Selector de Planes */}
@@ -843,6 +861,11 @@ export default function PremiumPaywall({
               </View>
             )}
 
+            {/* Mensaje de cierre */}
+            <Text style={s.closingMessage}>
+              Desbloquea el poder de la IA y toma el control total de tu cambio hoy mismo.
+            </Text>
+
             {/* CTA Principal */}
             <Pressable
               onPress={handleSubscribe}
@@ -1000,7 +1023,6 @@ function makeStyles(colors: any, typography: any) {
       width: 56,
       height: 56,
       borderRadius: 16,
-      backgroundColor: colors.brand + "15",
       alignItems: "center",
       justifyContent: "center",
       marginRight: 16,
@@ -1160,6 +1182,15 @@ function makeStyles(colors: any, typography: any) {
     trialBold: {
       fontWeight: "800",
       color: colors.brand,
+    },
+    closingMessage: {
+      ...typography.body,
+      fontSize: 14,
+      color: colors.textSecondary,
+      textAlign: "center",
+      lineHeight: 20,
+      marginBottom: 20,
+      paddingHorizontal: 8,
     },
     ctaButton: {
       flexDirection: "row",
