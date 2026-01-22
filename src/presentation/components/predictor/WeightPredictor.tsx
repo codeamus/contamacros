@@ -152,8 +152,14 @@ export default function WeightPredictor() {
   };
 
   const handleToggle = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const newExpanded = !isExpanded;
+    
+    // Vibración sutil y satisfactoria al abrir
+    if (newExpanded) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } else {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
     
     const springConfig = {
       tension: 200,
@@ -215,8 +221,43 @@ export default function WeightPredictor() {
   }
 
   const weightChange = prediction?.weightChange ?? 0;
-  const isPositive = weightChange > 0;
+  const isPositive = weightChange > 0.5;
+  const isNegative = weightChange < -0.5;
   const hasEnoughData = prediction?.hasEnoughData ?? false;
+
+  // Obtener nombre del usuario (primera palabra del nombre completo o "Usuario")
+  const userName = profile?.full_name?.split(" ")[0] || "Usuario";
+
+  // Mensaje amigable según el estado
+  const getCoachMessage = () => {
+    if (!hasEnoughData) {
+      return `¡Me faltan datos para conocer tu futuro! Registra tus comidas de hoy para darte una predicción exacta.`;
+    }
+    if (isPositive) {
+      return `¡Hola ${userName}! Vas por buen camino si buscas ganar volumen. Tu balance actual proyecta +${Math.abs(weightChange).toFixed(1)}kg en un mes. ¡A darle duro al entrenamiento!`;
+    }
+    if (isNegative) {
+      return `¡Excelente ritmo, ${userName}! Estás en déficit y podrías bajar ${Math.abs(weightChange).toFixed(1)}kg en 30 días. ¡Mantén esa disciplina!`;
+    }
+    // Estable (entre -0.5 y 0.5)
+    return `¡Estás en el punto de equilibrio, ${userName}! Tu peso se mantendrá estable este mes. Ideal para mantener tus resultados.`;
+  };
+
+  // Color según el estado (verde esmeralda para pérdida, naranja suave para superávit)
+  const getPredictionColor = () => {
+    if (!hasEnoughData) return colors.textSecondary;
+    if (isPositive) return "#FB923C"; // Naranja suave
+    if (isNegative) return "#10B981"; // Verde esmeralda
+    return colors.textSecondary; // Gris para estable
+  };
+
+  // Icono según el estado
+  const getIconName = (): React.ComponentProps<typeof MaterialCommunityIcons>["name"] => {
+    if (!hasEnoughData) return "help-circle";
+    if (isPositive) return "trending-up";
+    if (isNegative) return "trending-down";
+    return "minus-circle";
+  };
 
   return (
     <>
@@ -227,7 +268,7 @@ export default function WeightPredictor() {
       >
         <Pressable onPress={handleToggle} style={s.buttonPressable}>
           <MaterialCommunityIcons
-            name="trending-up"
+            name={getIconName()}
             size={24}
             color={colors.onCta}
           />
@@ -273,32 +314,41 @@ export default function WeightPredictor() {
                 {loading ? (
                   <Text style={s.loadingText}>Calculando...</Text>
                 ) : !hasEnoughData ? (
-                  <View style={s.errorContainer}>
-                    <MaterialCommunityIcons
-                      name="alert-circle-outline"
-                      size={32}
-                      color={colors.textSecondary}
-                    />
-                    <View style={{ marginTop: 12 }}>
-                      <Text style={s.errorText}>Faltan datos</Text>
+                  <>
+                    <View style={s.errorContainer}>
+                      <MaterialCommunityIcons
+                        name="help-circle"
+                        size={40}
+                        color={colors.textSecondary}
+                      />
                     </View>
-                  </View>
+                    <View style={s.messageContainer}>
+                      <Text style={s.coachMessage}>{getCoachMessage()}</Text>
+                    </View>
+                  </>
                 ) : (
                   <>
+                    {/* Valor principal con icono */}
                     <View style={s.predictionRow}>
                       <MaterialCommunityIcons
-                        name={isPositive ? "arrow-up" : "arrow-down"}
-                        size={32}
-                        color={isPositive ? "#EF4444" : "#10B981"}
+                        name={getIconName()}
+                        size={36}
+                        color={getPredictionColor()}
                       />
                       <View style={{ marginLeft: 12 }}>
-                        <Text style={s.predictionValue}>
+                        <Text style={[s.predictionValue, { color: getPredictionColor() }]}>
                           {isPositive ? "+" : ""}
-                          {weightChange} kg
+                          {weightChange.toFixed(1)} kg
                         </Text>
                       </View>
                     </View>
-                    <Text style={s.predictionLabel}>En 30 días</Text>
+                    {/* Etiqueta "Tendencia mensual" */}
+                    <Text style={s.trendLabel}>Tendencia mensual</Text>
+                    
+                    {/* Mensaje del coach */}
+                    <View style={s.messageContainer}>
+                      <Text style={s.coachMessage}>{getCoachMessage()}</Text>
+                    </View>
                   </>
                 )}
               </View>
@@ -378,7 +428,8 @@ function makeStyles(colors: any, typography: any) {
       borderRadius: 24,
       overflow: "hidden",
       backgroundColor: colors.surface + "F2", // 95% opacidad
-      padding: 20,
+      padding: 30,
+      paddingBottom: 24,
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.25,
@@ -391,26 +442,44 @@ function makeStyles(colors: any, typography: any) {
       right: 16,
     },
     content: {
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems: "flex-start",
+      justifyContent: "flex-start",
       minHeight: 120,
+      paddingRight: 40, // Espacio para el botón cerrar
+      width: "100%",
     },
     predictionRow: {
       flexDirection: "row",
       alignItems: "center",
-      marginBottom: 8,
+      marginBottom: 4,
     },
     predictionValue: {
       fontFamily: typography.heading?.fontFamily,
       fontSize: 36,
       fontWeight: "700",
-      color: colors.textPrimary,
     },
-    predictionLabel: {
-      fontFamily: typography.body?.fontFamily,
-      fontSize: 14,
+    trendLabel: {
+      fontFamily: typography.caption?.fontFamily,
+      fontSize: 11,
       color: colors.textSecondary,
       fontWeight: "500",
+      marginBottom: 16,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+    },
+    messageContainer: {
+      marginTop: 8,
+      paddingTop: 16,
+      borderTopWidth: 1,
+      borderTopColor: colors.border + "40",
+      width: "100%",
+    },
+    coachMessage: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 13,
+      color: colors.textPrimary,
+      lineHeight: 20,
+      fontWeight: "400",
     },
     loadingText: {
       fontFamily: typography.body?.fontFamily,
@@ -428,15 +497,16 @@ function makeStyles(colors: any, typography: any) {
     },
     closeButton: {
       position: "absolute",
-      top: 8,
-      left: 8,
-      width: 28,
-      height: 28,
-      borderRadius: 14,
+      top: 12,
+      left: 12,
+      width: 32,
+      height: 32,
+      borderRadius: 16,
       backgroundColor: "transparent",
       alignItems: "center",
       justifyContent: "center",
-      opacity: 0.6,
+      opacity: 0.7,
+      zIndex: 10,
     },
   });
 }

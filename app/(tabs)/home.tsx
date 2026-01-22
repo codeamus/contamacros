@@ -1,15 +1,14 @@
 // app/(tabs)/home.tsx
 import type { MealType } from "@/domain/models/foodLogDb";
-import SmartCoachPro from "@/presentation/components/smartCoach/SmartCoachPro";
 import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
+import SmartCoachPro from "@/presentation/components/smartCoach/SmartCoachPro";
 import DonutRing from "@/presentation/components/ui/DonutRing";
-import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import Skeleton from "@/presentation/components/ui/Skeleton";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useTodayMeals } from "@/presentation/hooks/diary/useTodayMeals";
 import { useTodaySummary } from "@/presentation/hooks/diary/useTodaySummary";
-import { useSmartCoachPro } from "@/presentation/hooks/smartCoach/useSmartCoachPro";
 import { useHealthSync } from "@/presentation/hooks/health/useHealthSync";
+import { useSmartCoachPro } from "@/presentation/hooks/smartCoach/useSmartCoachPro";
 import { useRevenueCat } from "@/presentation/hooks/subscriptions/useRevenueCat";
 import { useStaggerAnimation } from "@/presentation/hooks/ui/useStaggerAnimation";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
@@ -862,14 +861,6 @@ export default function HomeScreen() {
           },
         ]}
       >
-        <PrimaryButton
-          title="Agregar comida"
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setSheetOpen(true);
-          }}
-          icon={<Feather name="plus" size={18} color={colors.onCta} />}
-        />
       </Animated.View>
 
       <MealPickerSheet
