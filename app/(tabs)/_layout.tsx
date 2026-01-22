@@ -93,6 +93,19 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="reports"
+        options={{
+          title: "Reportes",
+          tabBarIcon: ({ color, focused, size }) => (
+            <MaterialCommunityIcons
+              name="chart-line"
+              size={focused ? (size ?? 22) : (size ?? 20)}
+              color={focused ? colors.brand : color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: "Ajustes",

@@ -472,4 +472,135 @@ export const foodLogRepository = {
       return { ok: false, ...mapError(e) };
     }
   },
+
+  /**
+   * Obtiene estadísticas para el dashboard de reportes (Bento Grid)
+   * Incluye: calorías diarias, macros totales, top alimentos, consistencia
+   */
+  async getBentoStats(
+    startDate: string,
+    endDate: string,
+  ): Promise<
+    RepoResult<{
+      dailyCalories: Array<{ day: string; calories: number }>;
+      totalMacros: {
+        protein_g: number;
+        carbs_g: number;
+        fat_g: number;
+        totalCalories: number;
+      };
+      topFoods: Array<{
+        name: string;
+        totalCalories: number;
+        timesEaten: number;
+      }>;
+      consistency: {
+        daysWithLogs: number;
+        totalDays: number;
+        percentage: number;
+      };
+    }>
+  > {
+    try {
+      const uidRes = await getUid();
+      if (!uidRes.ok) return uidRes;
+      const uid = uidRes.data;
+
+      // Obtener todos los logs en el rango
+      const { data, error } = await supabase
+        .from("food_logs")
+        .select("day, calories, protein_g, carbs_g, fat_g, name")
+        .eq("user_id", uid)
+        .gte("day", startDate)
+        .lte("day", endDate)
+        .order("day", { ascending: true });
+
+      if (error) return { ok: false, message: error.message, code: error.code };
+
+      const logs = data ?? [];
+
+      // 1. Calorías diarias agrupadas
+      const dailyCaloriesMap = new Map<string, number>();
+      for (const log of logs) {
+        const day = log.day as string;
+        const calories = (log.calories as number) || 0;
+        dailyCaloriesMap.set(day, (dailyCaloriesMap.get(day) || 0) + calories);
+      }
+
+      const dailyCalories = Array.from(dailyCaloriesMap.entries())
+        .map(([day, calories]) => ({ day, calories }))
+        .sort((a, b) => a.day.localeCompare(b.day));
+
+      // 2. Macros totales
+      let totalProtein = 0;
+      let totalCarbs = 0;
+      let totalFat = 0;
+      let totalCalories = 0;
+
+      for (const log of logs) {
+        totalProtein += (log.protein_g as number) || 0;
+        totalCarbs += (log.carbs_g as number) || 0;
+        totalFat += (log.fat_g as number) || 0;
+        totalCalories += (log.calories as number) || 0;
+      }
+
+      // 3. Top alimentos (por calorías totales)
+      const foodMap = new Map<
+        string,
+        { name: string; totalCalories: number; timesEaten: number }
+      >();
+
+      for (const log of logs) {
+        const name = log.name as string;
+        const calories = (log.calories as number) || 0;
+        const existing = foodMap.get(name);
+        if (!existing) {
+          foodMap.set(name, {
+            name,
+            totalCalories: calories,
+            timesEaten: 1,
+          });
+        } else {
+          existing.totalCalories += calories;
+          existing.timesEaten += 1;
+        }
+      }
+
+      const topFoods = Array.from(foodMap.values())
+        .sort((a, b) => b.totalCalories - a.totalCalories)
+        .slice(0, 3);
+
+      // 4. Consistencia (días con logs / días totales en rango)
+      const daysWithLogs = new Set(logs.map((log) => log.day as string)).size;
+
+      // Calcular días totales en el rango
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const diffTime = Math.abs(end.getTime() - start.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 para incluir ambos días
+
+      const consistency = {
+        daysWithLogs,
+        totalDays: diffDays,
+        percentage: diffDays > 0 ? Math.round((daysWithLogs / diffDays) * 100) : 0,
+      };
+
+      return {
+        ok: true,
+        data: {
+          dailyCalories,
+          totalMacros: {
+            protein_g: Math.round(totalProtein * 10) / 10,
+            carbs_g: Math.round(totalCarbs * 10) / 10,
+            fat_g: Math.round(totalFat * 10) / 10,
+            totalCalories: Math.round(totalCalories),
+          },
+          topFoods,
+          consistency,
+        },
+      };
+    } catch (e) {
+      return { ok: false, ...mapError(e) };
+    }
+  },
 };

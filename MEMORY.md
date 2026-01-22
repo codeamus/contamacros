@@ -23,8 +23,9 @@ app/
     ├── diary.tsx         # Diario de comidas por día
     ├── add-food.tsx      # Búsqueda y agregar alimentos
     ├── my-foods.tsx      # Recetas y alimentos personalizados
+    ├── reports.tsx       # Reportes Premium - Dashboard Bento Grid
     ├── settings.tsx      # Perfil, configuración, premium
-    ├── scan.tsx          # Scanner de códigos de barras
+    ├── scan.tsx          # Scanner de códigos de barras (oculta en tabs)
     ├── calendar.tsx      # Vista de calendario (oculta en tabs)
     └── ranking.tsx       # Top Creadores (oculta en tabs)
 ```
@@ -45,7 +46,7 @@ src/data/
 ├── auth/
 │   └── authRepository.ts
 ├── food/
-│   ├── foodLogRepository.ts      # Registro de comidas
+│   ├── foodLogRepository.ts      # Registro de comidas (incluye getBentoStats para reportes)
 │   ├── foodsRepository.ts        # Alimentos genéricos (legacy)
 │   ├── genericFoodsRepository.ts # Alimentos comunitarios (fuente principal)
 │   └── userFoodsRepository.ts   # Alimentos/recetas del usuario
@@ -260,6 +261,17 @@ src/presentation/hooks/
   - Acceso a suscripción premium
   - Secciones de gamificación (solo premium)
 
+- ✅ **Reports Screen (Premium):**
+  - Dashboard estilo Bento Grid con diseño Gen-Z
+  - Selector de rango de fechas (7D, 30D, Personalizado)
+  - Gráfico de barras de calorías diarias (react-native-gifted-charts)
+  - Visualización de macronutrientes con iconos
+  - Tarjeta de consistencia con porcentaje y icono de fuego
+  - Análisis de dieta (top 3 alimentos más consumidos)
+  - Blur overlay para usuarios no premium
+  - Botón de exportar reporte PDF (placeholder)
+  - Función `getBentoStats` en `foodLogRepository` para estadísticas
+
 - ✅ **Gamificación:**
   - Sistema de XP y niveles
   - Racha diaria (streaks)
@@ -290,10 +302,10 @@ src/presentation/hooks/
   - Nota: Para usar gradientes reales, reconstruir proyecto nativo
 
 ### Pendientes / Roadmap
-- 📋 **Insights/Analytics:**
-  - Análisis de tendencias nutricionales
-  - Gráficos de progreso
-  - Recomendaciones personalizadas avanzadas
+- 📋 **Reportes Premium:**
+  - Implementar exportación real a PDF (actualmente placeholder)
+  - Mejorar visualización de donut de macros (versión actual simplificada)
+  - Agregar más métricas y análisis avanzados
 
 - 📋 **Mejoras de Scanner:**
   - Resolver problema de modal que desaparece
