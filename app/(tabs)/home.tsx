@@ -21,6 +21,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Animated,
+  AppState,
+  AppStateStatus,
   Easing,
   Platform,
   Pressable,
@@ -106,6 +108,9 @@ export default function HomeScreen() {
   const { isPremium: revenueCatPremium } = useRevenueCat();
   const profilePremium = profile?.is_premium ?? false;
   const isPremium = revenueCatPremium || profilePremium; // RevenueCat tiene prioridad
+
+  // Health Sync (Premium)
+  const { caloriesBurned, isSyncing, syncCalories, reload: reloadHealth } = useHealthSync(isPremium);
   
   // Calcular target efectivo para Smart Coach (incluye calorías quemadas si es premium)
   const effectiveTargetForCoach = useMemo(() => {
@@ -126,8 +131,47 @@ export default function HomeScreen() {
     isPremium,
   );
 
-  // Health Sync (Premium)
-  const { caloriesBurned, isSyncing, syncCalories, reload: reloadHealth } = useHealthSync(isPremium);
+  // Sincronización automática cuando la app pasa de segundo plano a primer plano
+  const appState = useRef(AppState.currentState);
+  const isSyncingRef = useRef(false);
+
+  useEffect(() => {
+    if (!isPremium) return;
+
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      // Solo sincronizar cuando la app pasa de 'background' o 'inactive' a 'active'
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === "active"
+      ) {
+        // Evitar múltiples sincronizaciones simultáneas
+        if (isSyncingRef.current) {
+          console.log("[Home] Sincronización ya en curso, omitiendo...");
+          return;
+        }
+
+        console.log("[Home] App pasó a primer plano, sincronizando calorías automáticamente...");
+        isSyncingRef.current = true;
+        
+        syncCalories()
+          .catch((error) => {
+            console.error("[Home] Error en sincronización automática:", error);
+            // No mostrar error al usuario, es automático
+          })
+          .finally(() => {
+            isSyncingRef.current = false;
+          });
+      }
+
+      appState.current = nextAppState;
+    };
+
+    const subscription = AppState.addEventListener("change", handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+    };
+  }, [isPremium, syncCalories]);
 
   const hasTargets =
     caloriesTarget > 0 && proteinTarget > 0 && carbsTarget > 0 && fatTarget > 0;
@@ -338,6 +382,11 @@ export default function HomeScreen() {
                   <Text style={s.activityTitle}>Actividad Física</Text>
                   <Text style={s.activitySubtitle}>
                     {Platform.OS === "ios" ? "Apple Health" : "Health Connect"}
+                    {caloriesBurned > 0 && (
+                      <Text style={{ color: colors.textSecondary, fontSize: 11 }}>
+                        {" "}• Sincroniza automáticamente
+                      </Text>
+                    )}
                   </Text>
                 </View>
                 <Pressable
@@ -361,8 +410,8 @@ export default function HomeScreen() {
                   ) : (
                     <MaterialCommunityIcons
                       name="sync"
-                      size={18}
-                      color={colors.brand}
+                      size={16}
+                      color={colors.textSecondary}
                     />
                   )}
                 </Pressable>
@@ -390,8 +439,7 @@ export default function HomeScreen() {
               {caloriesBurned === 0 && (
                 <View style={s.activityEmptyState}>
                   <Text style={s.activityEmptyText}>
-                    Toca el botón de sincronizar para conectar con{" "}
-                    {Platform.OS === "ios" ? "Apple Health" : "Health Connect"}
+                    Se sincroniza automáticamente al abrir la app. Toca el botón para forzar sincronización.
                   </Text>
                 </View>
               )}
@@ -1803,14 +1851,15 @@ function makeStyles(colors: any, typography: any) {
       marginTop: 2,
     },
     activitySyncButton: {
-      width: 36,
-      height: 36,
-      borderRadius: 12,
+      width: 32,
+      height: 32,
+      borderRadius: 10,
       borderWidth: 1,
       borderColor: colors.border,
-      backgroundColor: colors.surface,
+      backgroundColor: "transparent",
       alignItems: "center",
       justifyContent: "center",
+      opacity: 0.7,
     },
     activitySyncButtonPressed: {
       opacity: 0.7,
