@@ -6,22 +6,16 @@ import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { usePremium } from "@/presentation/hooks/subscriptions/usePremium";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Animated,
   Dimensions,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  runOnJS,
-} from "react-native-reanimated";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -42,12 +36,12 @@ export default function WeightPredictor() {
   const [prediction, setPrediction] = useState<PredictionData | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Animaciones
-  const scale = useSharedValue(1);
-  const translateX = useSharedValue(0);
-  const opacity = useSharedValue(0);
+  // Animaciones con Animated de React Native
+  const scale = useRef(new Animated.Value(1)).current;
+  const translateX = useRef(new Animated.Value(0)).current; // Panel en posición normal
+  const opacity = useRef(new Animated.Value(0)).current;
 
-  // Calcular predicción
+  // Calcular predicción - Optimizado para 7 días
   const calculatePrediction = useCallback(async () => {
     if (!isPremium || !profile) {
       setPrediction(null);
@@ -56,31 +50,55 @@ export default function WeightPredictor() {
 
     setLoading(true);
     try {
-      // Obtener datos de los últimos 30 días
+      // Obtener datos de los últimos 7 días (optimizado)
       const today = new Date();
-      const days: string[] = [];
-      for (let i = 29; i >= 0; i--) {
-        const date = new Date(today);
-        date.setDate(date.getDate() - i);
-        const dayStr = date.toISOString().split("T")[0];
-        days.push(dayStr);
+      const sevenDaysAgo = new Date(today);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // Incluye hoy, así que 6 días atrás
+      
+      const startDate = sevenDaysAgo.toISOString().split("T")[0] || "";
+      const endDate = today.toISOString().split("T")[0] || "";
+      
+      if (!startDate || !endDate) {
+        throw new Error("Error al calcular fechas");
       }
 
-      // Obtener calorías consumidas y quemadas
+      // Obtener datos en una sola consulta por rango
+      const [foodRes, activityRes] = await Promise.all([
+        foodLogRepository.getDailySummaries(startDate, endDate),
+        activityLogRepository.getRecentActivity(7),
+      ]);
+
+      // Crear mapas para acceso rápido
+      const foodMap = new Map<string, number>();
+      if (foodRes.ok) {
+        foodRes.data.forEach((item) => {
+          foodMap.set(item.day, item.calories);
+        });
+      }
+
+      const activityMap = new Map<string, number>();
+      if (activityRes.ok && activityRes.data) {
+        activityRes.data.forEach((item) => {
+          if (item.day && item.day >= startDate && item.day <= endDate) {
+            activityMap.set(item.day, item.calories_burned || 0);
+          }
+        });
+      }
+
+      // Calcular totales
       let totalConsumed = 0;
       let totalBurned = 0;
       let daysWithData = 0;
 
-      for (const day of days) {
-        const [foodRes, activityRes] = await Promise.all([
-          foodLogRepository.listByDay(day),
-          activityLogRepository.getTodayCalories(day),
-        ]);
+      // Iterar sobre los 7 días
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(sevenDaysAgo);
+        date.setDate(date.getDate() + i);
+        const dayStr = date.toISOString().split("T")[0] || "";
+        if (!dayStr) continue;
 
-        const dayConsumed = foodRes.ok
-          ? foodRes.data.reduce((sum, log) => sum + (log.calories || 0), 0)
-          : 0;
-        const dayBurned = activityRes.ok ? activityRes.data : 0;
+        const dayConsumed = foodMap.get(dayStr) || 0;
+        const dayBurned = activityMap.get(dayStr) || 0;
 
         if (dayConsumed > 0 || dayBurned > 0) {
           totalConsumed += dayConsumed;
@@ -89,23 +107,24 @@ export default function WeightPredictor() {
         }
       }
 
-      // Calcular balance promedio diario
+      // Calcular balance promedio diario de los 7 días
       const avgDailyBalance =
         daysWithData > 0
           ? (totalConsumed - totalBurned) / daysWithData
           : 0;
 
-      // Calcular consistencia
-      const consistency = (daysWithData / 30) * 100;
+      // Calcular consistencia (basada en 7 días, pero validamos con 20% mínimo)
+      const consistency = (daysWithData / 7) * 100;
 
-      // Aplicar fórmula: (Balance diario * 30) / 7700
+      // Aplicar fórmula: (Balance diario promedio * 30) / 7700
+      // Multiplicamos por 30 para proyectar a un mes, aunque los datos sean de 7 días
       // 7700 kcal ≈ 1 kg de grasa
       const weightChange = (avgDailyBalance * 30) / 7700;
 
       setPrediction({
         weightChange: Math.round(weightChange * 10) / 10, // 1 decimal
         consistency: Math.round(consistency),
-        hasEnoughData: consistency >= 20,
+        hasEnoughData: consistency >= 20, // Al menos 2 días de datos (20% de 7 días)
       });
     } catch (error) {
       console.error("[WeightPredictor] Error calculando predicción:", error);
@@ -119,46 +138,73 @@ export default function WeightPredictor() {
     calculatePrediction();
   }, [calculatePrediction]);
 
-  // Animaciones
-  const animatedButtonStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
+  // Estilos animados
+  const animatedButtonStyle = {
+    transform: [{ scale }],
+  };
 
-  const animatedPanelStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
-    opacity: opacity.value,
-  }));
+  const animatedPanelStyle = {
+    transform: [{ translateX }],
+  };
+
+  const animatedBackdropStyle = {
+    opacity,
+  };
 
   const handleToggle = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const newExpanded = !isExpanded;
-    setIsExpanded(newExpanded);
+    
+    const springConfig = {
+      tension: 200,
+      friction: 15,
+      useNativeDriver: true,
+    };
 
     if (newExpanded) {
-      scale.value = withSpring(0.9, {
-        damping: 15,
-        stiffness: 200,
-      });
-      translateX.value = withSpring(-SCREEN_WIDTH + 120, {
-        damping: 15,
-        stiffness: 200,
-      });
-      opacity.value = withSpring(1, {
-        damping: 15,
-        stiffness: 200,
-      });
+      // Primero establecer el estado para renderizar el panel
+      setIsExpanded(true);
+      // El panel está posicionado con right: 18
+      // translateX positivo lo mueve hacia la derecha (fuera de pantalla)
+      // translateX negativo lo mueve hacia la izquierda
+      // Empezamos fuera de pantalla (a la derecha) y animamos a 0
+      const panelWidth = Math.min(SCREEN_WIDTH - 100, 320);
+      translateX.setValue(panelWidth + 18); // Fuera de pantalla a la derecha
+      opacity.setValue(0);
+      // Luego animar desde fuera de la pantalla (derecha) hacia su posición
+      Animated.parallel([
+        Animated.spring(scale, {
+          toValue: 0.9,
+          ...springConfig,
+        }),
+        Animated.spring(translateX, {
+          toValue: 0, // Panel en su posición normal (right: 18)
+          ...springConfig,
+        }),
+        Animated.spring(opacity, {
+          toValue: 1,
+          ...springConfig,
+        }),
+      ]).start();
     } else {
-      scale.value = withSpring(1, {
-        damping: 15,
-        stiffness: 200,
-      });
-      translateX.value = withSpring(0, {
-        damping: 15,
-        stiffness: 200,
-      });
-      opacity.value = withSpring(0, {
-        damping: 15,
-        stiffness: 200,
+      // Primero animar hacia fuera (hacia la derecha)
+      const panelWidth = Math.min(SCREEN_WIDTH - 100, 320);
+      Animated.parallel([
+        Animated.spring(scale, {
+          toValue: 1,
+          ...springConfig,
+        }),
+        Animated.spring(translateX, {
+          toValue: panelWidth + 18, // Mover fuera de la pantalla hacia la derecha
+          ...springConfig,
+        }),
+        Animated.spring(opacity, {
+          toValue: 0,
+          ...springConfig,
+        }),
+      ]).start(() => {
+        // Después de la animación, ocultar el panel
+        setIsExpanded(false);
       });
     }
   }, [isExpanded, scale, translateX, opacity]);
@@ -189,33 +235,40 @@ export default function WeightPredictor() {
         </Pressable>
       </Animated.View>
 
-      {/* Panel expandido */}
+      {/* Panel expandido - Solo renderizar cuando está expandido */}
       {isExpanded && (
-        <Animated.View
-          style={[s.panelContainer, animatedPanelStyle]}
-          pointerEvents="box-none"
-        >
-          <Pressable
-            style={s.backdrop}
-            onPress={handleToggle}
-            activeOpacity={1}
-          />
-          <View style={s.panel}>
-            <BlurView intensity={80} style={s.blurContainer}>
-              {/* Avatar */}
-              {profile && (
+        <View style={s.panelContainer} pointerEvents="box-none">
+          {/* Backdrop oscuro */}
+          <Animated.View
+            style={[s.backdropContainer, animatedBackdropStyle]}
+            pointerEvents="auto"
+          >
+            <Pressable
+              style={s.backdrop}
+              onPress={handleToggle}
+            />
+          </Animated.View>
+          {/* Panel con contenido */}
+          <Animated.View
+            style={[s.panel, animatedPanelStyle]}
+            pointerEvents="auto"
+            collapsable={false}
+          >
+            <View style={s.blurContainer}>
+              {/* Avatar - Solo si está disponible */}
+              {profile?.avatar_url && (
                 <View style={s.avatarContainer}>
                   <Avatar
                     avatarUrl={profile.avatar_url}
                     fullName={profile.full_name}
-                    size={32}
+                    size={28}
                     colors={colors}
                     typography={typography}
                   />
                 </View>
               )}
 
-              {/* Contenido */}
+              {/* Contenido - Protagonista: flecha y número */}
               <View style={s.content}>
                 {loading ? (
                   <Text style={s.loadingText}>Calculando...</Text>
@@ -226,20 +279,24 @@ export default function WeightPredictor() {
                       size={32}
                       color={colors.textSecondary}
                     />
-                    <Text style={s.errorText}>Faltan datos</Text>
+                    <View style={{ marginTop: 12 }}>
+                      <Text style={s.errorText}>Faltan datos</Text>
+                    </View>
                   </View>
                 ) : (
                   <>
                     <View style={s.predictionRow}>
                       <MaterialCommunityIcons
                         name={isPositive ? "arrow-up" : "arrow-down"}
-                        size={28}
+                        size={32}
                         color={isPositive ? "#EF4444" : "#10B981"}
                       />
-                      <Text style={s.predictionValue}>
-                        {isPositive ? "+" : ""}
-                        {weightChange} kg
-                      </Text>
+                      <View style={{ marginLeft: 12 }}>
+                        <Text style={s.predictionValue}>
+                          {isPositive ? "+" : ""}
+                          {weightChange} kg
+                        </Text>
+                      </View>
                     </View>
                     <Text style={s.predictionLabel}>En 30 días</Text>
                   </>
@@ -254,9 +311,9 @@ export default function WeightPredictor() {
                   color={colors.textSecondary}
                 />
               </Pressable>
-            </BlurView>
-          </View>
-        </Animated.View>
+            </View>
+          </Animated.View>
+        </View>
       )}
     </>
   );
@@ -299,6 +356,13 @@ function makeStyles(colors: any, typography: any) {
       bottom: 0,
       zIndex: 999,
     },
+    backdropContainer: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+    },
     backdrop: {
       flex: 1,
       backgroundColor: "rgba(0, 0, 0, 0.3)",
@@ -307,17 +371,17 @@ function makeStyles(colors: any, typography: any) {
       position: "absolute",
       right: 18,
       bottom: 100,
-      width: SCREEN_WIDTH - 100,
-      maxWidth: 320,
+      width: Math.min(SCREEN_WIDTH - 100, 320),
+      zIndex: 1000,
     },
     blurContainer: {
       borderRadius: 24,
       overflow: "hidden",
-      backgroundColor: colors.surface + "E0",
+      backgroundColor: colors.surface + "F2", // 95% opacidad
       padding: 20,
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
+      shadowOpacity: 0.25,
       shadowRadius: 12,
       elevation: 8,
     },
@@ -334,7 +398,6 @@ function makeStyles(colors: any, typography: any) {
     predictionRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 12,
       marginBottom: 8,
     },
     predictionValue: {
@@ -356,7 +419,6 @@ function makeStyles(colors: any, typography: any) {
     },
     errorContainer: {
       alignItems: "center",
-      gap: 12,
     },
     errorText: {
       fontFamily: typography.body?.fontFamily,
@@ -366,14 +428,15 @@ function makeStyles(colors: any, typography: any) {
     },
     closeButton: {
       position: "absolute",
-      top: 12,
-      left: 12,
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: colors.surface + "80",
+      top: 8,
+      left: 8,
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: "transparent",
       alignItems: "center",
       justifyContent: "center",
+      opacity: 0.6,
     },
   });
 }
