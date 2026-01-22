@@ -82,7 +82,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="my-foods"
         options={{
-          title: "Mis comidas",
+          title: "Comidas",
           tabBarIcon: ({ color, focused, size }) => (
             <MaterialCommunityIcons
               name="chef-hat"
@@ -107,16 +107,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="settings"
-        options={{
-          title: "Ajustes",
-          tabBarIcon: ({ color, focused, size }) => (
-            <Feather
-              name="settings"
-              size={focused ? (size ?? 22) : (size ?? 20)}
-              color={focused ? colors.brand : color}
-            />
-          ),
-        }}
+        options={{ href: null }}
       />
       <Tabs.Screen name="scan" options={{ href: null }} />
       <Tabs.Screen name="calendar" options={{ href: null }} />

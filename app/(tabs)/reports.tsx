@@ -2,18 +2,17 @@
 import { foodLogRepository } from "@/data/food/foodLogRepository";
 import { PdfReportService } from "@/domain/services/pdfReportService";
 import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
-import Skeleton from "@/presentation/components/ui/Skeleton";
 import { usePremium } from "@/presentation/hooks/subscriptions/usePremium";
 import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import * as Haptics from "expo-haptics";
-import { BarChart } from "react-native-gifted-charts";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Svg, { Circle } from "react-native-svg";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Animated,
   Dimensions,
   Modal,
   Platform,
@@ -22,12 +21,11 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  View,
+  View
 } from "react-native";
+import { BarChart } from "react-native-gifted-charts";
 import { SafeAreaView } from "react-native-safe-area-context";
-import DateTimePicker, {
-  DateTimePickerEvent,
-} from "@react-native-community/datetimepicker";
+import Svg, { Circle } from "react-native-svg";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -121,18 +119,18 @@ export default function ReportsScreen() {
 
   // Estado de estadísticas
   const [stats, setStats] = useState<{
-    dailyCalories: Array<{ day: string; calories: number }>;
+    dailyCalories: { day: string; calories: number }[];
     totalMacros: {
       protein_g: number;
       carbs_g: number;
       fat_g: number;
       totalCalories: number;
     };
-    topFoods: Array<{
+    topFoods: {
       name: string;
       totalCalories: number;
       timesEaten: number;
-    }>;
+    }[];
     consistency: {
       daysWithLogs: number;
       totalDays: number;
@@ -173,19 +171,26 @@ export default function ReportsScreen() {
     // Colores vibrantes para las barras
     const vibrantColors = ["#22C55E", "#10B981", "#34D399", "#6EE7B7"];
     
-    return stats.dailyCalories.map((item, index) => ({
-      value: item.calories,
-      label: new Date(item.day).toLocaleDateString("es-CL", { day: "numeric", month: "short" }),
-      frontColor: vibrantColors[index % vibrantColors.length],
-      gradientColor: vibrantColors[index % vibrantColors.length] + "CC",
-      spacing: 2,
-      labelWidth: 50,
-      labelTextStyle: {
-        color: colors.textSecondary,
-        fontSize: 10,
-        fontFamily: typography.body?.fontFamily,
-      },
-    }));
+    return stats.dailyCalories.map((item, index) => {
+      const date = new Date(item.day);
+      // Formato más corto: solo día del mes (ej: "19", "20") para evitar solapamiento
+      const shortLabel = date.getDate().toString();
+      
+      return {
+        value: item.calories,
+        label: shortLabel,
+        frontColor: vibrantColors[index % vibrantColors.length],
+        gradientColor: vibrantColors[index % vibrantColors.length] + "CC",
+        spacing: 2,
+        labelWidth: 30, // Reducido para etiquetas más cortas
+        labelTextStyle: {
+          color: colors.textSecondary,
+          fontSize: 11,
+          fontFamily: typography.body?.fontFamily,
+          fontWeight: "600" as const,
+        },
+      };
+    });
   }, [stats, colors, typography]);
 
   // Calcular porcentajes de macros para el donut
@@ -313,8 +318,13 @@ export default function ReportsScreen() {
           </Pressable>
         </View>
 
-        {/* Selector de Rango */}
-        <View style={s.rangeSelector}>
+        {/* Selector de Rango - Scroll Horizontal */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={s.rangeSelector}
+          style={s.rangeSelectorContainer}
+        >
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -398,7 +408,7 @@ export default function ReportsScreen() {
               Personalizado 📅
             </Text>
           </Pressable>
-        </View>
+        </ScrollView>
 
 
         {/* Bento Grid */}
@@ -444,9 +454,9 @@ export default function ReportsScreen() {
                   <BarChart
                     data={barChartData}
                     width={SCREEN_WIDTH - 72}
-                    height={220}
-                    barWidth={28}
-                    spacing={10}
+                    height={240}
+                    barWidth={22}
+                    spacing={30}
                     roundedTop
                     roundedBottom
                     hideRules
@@ -458,12 +468,33 @@ export default function ReportsScreen() {
                       fontFamily: typography.body?.fontFamily,
                       fontWeight: "600",
                     }}
+                    xAxisLabelTextStyle={{
+                      color: colors.textSecondary,
+                      fontSize: 11,
+                      fontFamily: typography.body?.fontFamily,
+                      fontWeight: "600",
+                      marginTop: 6,
+                    }}
                     noOfSections={4}
                     maxValue={Math.max(...barChartData.map((d) => d.value), 0) * 1.2}
                     barBorderRadius={8}
                     isAnimated
                     animationDuration={800}
+                    showVerticalLines={false}
+                    showReferenceLine1={false}
+                    showReferenceLine2={false}
+                    showReferenceLine3={false}
                   />
+                  <View style={s.chartLegend}>
+                    <MaterialCommunityIcons
+                      name="information-outline"
+                      size={14}
+                      color={colors.textSecondary}
+                    />
+                    <Text style={s.chartLegendText}>
+                      Los números representan los días del mes
+                    </Text>
+                  </View>
                 </View>
               ) : (
                 <View style={s.emptyState}>
@@ -1128,10 +1159,14 @@ function makeStyles(colors: any, typography: any) {
     exportButtonDisabled: {
       opacity: 0.5,
     },
+    rangeSelectorContainer: {
+      marginBottom: 8,
+    },
     rangeSelector: {
       flexDirection: "row",
       gap: 10,
-      marginBottom: 8,
+      paddingHorizontal: 2,
+      paddingRight: 18,
     },
     rangePill: {
       paddingHorizontal: 20,
@@ -1149,9 +1184,6 @@ function makeStyles(colors: any, typography: any) {
     rangePillActive: {
       backgroundColor: colors.brand,
       borderColor: colors.brand,
-      shadowColor: colors.brand,
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
     },
     rangePillPressed: {
       opacity: 0.7,
@@ -1235,6 +1267,20 @@ function makeStyles(colors: any, typography: any) {
     chartContainer: {
       alignItems: "center",
       justifyContent: "center",
+    },
+    chartLegend: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      marginTop: 12,
+      paddingHorizontal: 12,
+    },
+    chartLegendText: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontStyle: "italic",
     },
     horizontalRow: {
       flexDirection: "row",
