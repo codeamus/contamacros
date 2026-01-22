@@ -268,11 +268,11 @@ export default function WeightPredictor() {
       >
         <Pressable onPress={handleToggle} style={s.buttonPressable}>
           <MaterialCommunityIcons
-            name={getIconName()}
+            name="creation"
             size={24}
             color={colors.onCta}
           />
-          <Text style={s.buttonLabel}>PREDICCIÓN</Text>
+          <Text style={s.buttonLabel}>Tu Futuro</Text>
         </Pressable>
       </Animated.View>
 
@@ -380,9 +380,9 @@ function makeStyles(colors: any, typography: any) {
     buttonPressable: {
       alignItems: "center",
       justifyContent: "center",
-      width: 64,
-      height: 64,
-      borderRadius: 32,
+      width: 74,
+      height: 74,
+      borderRadius: 42,
       backgroundColor: colors.brand,
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 4 },
@@ -392,7 +392,7 @@ function makeStyles(colors: any, typography: any) {
     },
     buttonLabel: {
       fontFamily: typography.caption?.fontFamily,
-      fontSize: 7,
+      fontSize: 10,
       fontWeight: "700",
       color: colors.onCta,
       marginTop: 2,
