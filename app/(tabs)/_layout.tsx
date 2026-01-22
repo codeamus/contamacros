@@ -1,42 +1,44 @@
 // app/(tabs)/_layout.tsx
+import WeightPredictor from "@/presentation/components/predictor/WeightPredictor";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
-import { Platform } from "react-native";
+import { Platform, View } from "react-native";
 
 export default function TabsLayout() {
   const { theme } = useTheme();
   const { colors, typography } = theme;
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.textPrimary,
-        tabBarInactiveTintColor: colors.textSecondary,
+    <View style={{ flex: 1 }}>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarActiveTintColor: colors.textPrimary,
+          tabBarInactiveTintColor: colors.textSecondary,
 
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          borderTopWidth: 1,
-          height: Platform.OS === "ios" ? 88 : 70,
-          paddingTop: 10,
-          paddingBottom: Platform.OS === "ios" ? 26 : 12,
-          elevation: 8, // Sombra en Android
-          shadowColor: "#000", // Sombra en iOS
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 8,
-        },
+          tabBarStyle: {
+            backgroundColor: colors.surface,
+            borderTopColor: colors.border,
+            borderTopWidth: 1,
+            height: Platform.OS === "ios" ? 88 : 70,
+            paddingTop: 10,
+            paddingBottom: Platform.OS === "ios" ? 26 : 12,
+            elevation: 8, // Sombra en Android
+            shadowColor: "#000", // Sombra en iOS
+            shadowOffset: { width: 0, height: -2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 8,
+          },
 
-        tabBarLabelStyle: {
-          fontFamily: typography.body?.fontFamily,
-          fontSize: 12,
-          fontWeight: "600", // Más bold para mejor legibilidad
-        },
-      }}
-    >
+          tabBarLabelStyle: {
+            fontFamily: typography.body?.fontFamily,
+            fontSize: 12,
+            fontWeight: "600", // Más bold para mejor legibilidad
+          },
+        }}
+      >
       {/* ✅ Mantener index como redirect, pero NO mostrarlo como tab */}
       <Tabs.Screen
         name="index"
@@ -112,6 +114,9 @@ export default function TabsLayout() {
       <Tabs.Screen name="scan" options={{ href: null }} />
       <Tabs.Screen name="calendar" options={{ href: null }} />
       <Tabs.Screen name="ranking" options={{ href: null }} />
-    </Tabs>
+      </Tabs>
+      {/* Predictor Inteligente - Persistente en toda la app */}
+      <WeightPredictor />
+    </View>
   );
 }
