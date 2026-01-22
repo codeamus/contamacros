@@ -112,6 +112,7 @@ export const AuthService = {
       Pick<
         ProfileDb,
         | "full_name"
+        | "avatar_url"
         | "height_cm"
         | "weight_kg"
         | "goal"

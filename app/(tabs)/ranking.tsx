@@ -1,5 +1,6 @@
 // app/(tabs)/ranking.tsx
 import { GamificationService, getUserRank, type LeaderboardEntry } from "@/domain/services/gamificationService";
+import { Avatar } from "@/presentation/components/ui/Avatar";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -173,10 +174,12 @@ export default function RankingScreen() {
                       </View>
                     )}
                     <View style={s.podiumAvatar}>
-                      <MaterialCommunityIcons
-                        name="account-circle"
+                      <Avatar
+                        avatarUrl={top3[1].avatar_url}
+                        fullName={top3[1].full_name}
                         size={48}
-                        color={colors.brand}
+                        colors={colors}
+                        typography={typography}
                       />
                     </View>
                     <Text style={s.podiumName} numberOfLines={1}>
@@ -212,10 +215,12 @@ export default function RankingScreen() {
                       </View>
                     )}
                     <View style={s.podiumAvatarLarge}>
-                      <MaterialCommunityIcons
-                        name="account-circle"
+                      <Avatar
+                        avatarUrl={top3[0].avatar_url}
+                        fullName={top3[0].full_name}
                         size={64}
-                        color={colors.brand}
+                        colors={colors}
+                        typography={typography}
                       />
                     </View>
                     <Text style={s.podiumNameLarge} numberOfLines={1}>
@@ -254,10 +259,12 @@ export default function RankingScreen() {
                       </View>
                     )}
                     <View style={s.podiumAvatar}>
-                      <MaterialCommunityIcons
-                        name="account-circle"
+                      <Avatar
+                        avatarUrl={top3[2].avatar_url}
+                        fullName={top3[2].full_name}
                         size={48}
-                        color={colors.brand}
+                        colors={colors}
+                        typography={typography}
                       />
                     </View>
                     <Text style={s.podiumName} numberOfLines={1}>
@@ -295,10 +302,12 @@ export default function RankingScreen() {
                             </View>
                             <View style={s.userInfo}>
                               <View style={s.avatar}>
-                                <MaterialCommunityIcons
-                                  name="account-circle"
+                                <Avatar
+                                  avatarUrl={entry.avatar_url}
+                                  fullName={entry.full_name}
                                   size={32}
-                                  color={colors.brand}
+                                  colors={colors}
+                                  typography={typography}
                                 />
                               </View>
                               <View style={s.userDetails}>
@@ -338,10 +347,12 @@ export default function RankingScreen() {
                           </View>
                           <View style={s.userInfo}>
                             <View style={s.avatar}>
-                              <MaterialCommunityIcons
-                                name="account-circle"
+                              <Avatar
+                                avatarUrl={entry.avatar_url}
+                                fullName={entry.full_name}
                                 size={32}
-                                color={colors.brand}
+                                colors={colors}
+                                typography={typography}
                               />
                             </View>
                             <View style={s.userDetails}>
@@ -376,10 +387,12 @@ export default function RankingScreen() {
         <View style={s.stickyBar}>
           <View style={s.stickyContent}>
             <View style={s.stickyLeft}>
-              <MaterialCommunityIcons
-                name="account-circle"
+              <Avatar
+                avatarUrl={userPosition.entry.avatar_url}
+                fullName={userPosition.entry.full_name}
                 size={32}
-                color={colors.brand}
+                colors={colors}
+                typography={typography}
               />
               <View style={s.stickyInfo}>
                 <Text style={s.stickyName} numberOfLines={1}>
@@ -648,7 +661,7 @@ function makeStyles(colors: any, typography: any) {
       width: 40,
       height: 40,
       borderRadius: 20,
-      backgroundColor: colors.brand + "15",
+      overflow: "hidden",
       alignItems: "center",
       justifyContent: "center",
     },

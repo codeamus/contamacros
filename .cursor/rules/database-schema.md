@@ -34,6 +34,20 @@ Estos campos permiten que el usuario registre sin necesidad de una pesa de alime
 | `unit_label_es` | text | **Etiqueta natural (ej: "1 unidad", "1 slice", "1 presa")**. |
 | `grams_per_unit` | numeric | Peso real en gramos de la unidad descrita. |
 
+### Tabla: `profiles`
+| Campo | Tipo | Descripción |
+| :--- | :--- | :--- |
+| `id` | uuid | UUID del usuario (FK a auth.users.id) |
+| `avatar_url` | text | URL pública del avatar almacenado en Supabase Storage (bucket `avatars`) |
+| `full_name` | text | Nombre completo del usuario |
+| `email` | text | Email del usuario |
+| `is_premium` | boolean | Estado de suscripción premium |
+
+### Supabase Storage: Bucket `avatars`
+- **Nombre de archivo**: `${userId}_avatar.jpg`
+- **Compresión**: Calidad 0.4, máximo 500x500px
+- **RLS**: Usuarios pueden subir/actualizar su propio avatar, todos pueden leer avatares públicos
+
 ---
 
 ## 🤖 Directrices para el Agente (Prompt del Sistema)

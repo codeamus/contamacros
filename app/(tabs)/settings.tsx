@@ -1,6 +1,6 @@
 // app/(tabs)/settings.tsx
-import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -22,10 +22,12 @@ import {
   type GoalType,
 } from "@/domain/services/calorieGoals";
 import { computeMacroTargets } from "@/domain/services/macroTargets";
-import CustomerCenter from "@/presentation/components/premium/CustomerCenter";
+import { UserService } from "@/domain/services/userService";
 import AchievementsList from "@/presentation/components/nutrition/AchievementsList";
 import ProgressCard from "@/presentation/components/nutrition/ProgressCard";
+import CustomerCenter from "@/presentation/components/premium/CustomerCenter";
 import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
+import { Avatar } from "@/presentation/components/ui/Avatar";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useHealthSync } from "@/presentation/hooks/health/useHealthSync";
 import { useRevenueCat } from "@/presentation/hooks/subscriptions/useRevenueCat";
@@ -134,7 +136,7 @@ type ThemeOptionProps = {
 };
 
 const ThemeOption = React.memo(function ThemeOption({
-  mode,
+  mode: _mode,
   label,
   icon,
   selected,
@@ -206,6 +208,8 @@ export default function SettingsScreen() {
   const [nameInput, setNameInput] = useState("");
   const [showPaywall, setShowPaywall] = useState(false);
   const [showCustomerCenter, setShowCustomerCenter] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarCacheKey, setAvatarCacheKey] = useState(Date.now());
 
   const handleThemeChange = useCallback(
     async (mode: ThemeMode) => {
@@ -488,7 +492,7 @@ export default function SettingsScreen() {
           type: "success",
           duration: 2000,
         });
-      } catch (error) {
+      } catch {
         showToast({
           message: "Error al actualizar el nombre",
           type: "error",
@@ -500,6 +504,222 @@ export default function SettingsScreen() {
     },
     [profile, nameInput, updateProfile, refreshProfile, showToast],
   );
+
+  const handlePickAvatar = useCallback(async () => {
+    console.log("[Settings] 🖼️ handlePickAvatar: Iniciando proceso de selección de avatar");
+    console.log("[Settings] ⚠️ NOTA: Si la app crashea aquí, el módulo nativo no está disponible.");
+    console.log("[Settings] ⚠️ SOLUCIÓN: Ejecuta 'npx expo run:ios' para reconstruir la app con el módulo nativo.");
+    
+    // Envolver todo en un try-catch para evitar crashes
+    try {
+      console.log("[Settings] 📦 Paso 1: Intentando importar expo-image-picker...");
+      // Importación dinámica del módulo
+      const ImagePickerModule = await import("expo-image-picker");
+      console.log("[Settings] ✅ Paso 1: Importación exitosa", {
+        hasDefault: !!ImagePickerModule.default,
+        hasRequestMediaLibraryPermissionsAsync: typeof ImagePickerModule.requestMediaLibraryPermissionsAsync === "function",
+        hasLaunchImageLibraryAsync: typeof ImagePickerModule.launchImageLibraryAsync === "function",
+        moduleKeys: Object.keys(ImagePickerModule),
+      });
+      
+      const ImagePicker = ImagePickerModule.default || ImagePickerModule;
+      console.log("[Settings] 📋 Paso 1.1: ImagePicker asignado", {
+        type: typeof ImagePicker,
+        isObject: typeof ImagePicker === "object",
+      });
+
+      // Verificar que las funciones necesarias existan
+      console.log("[Settings] 🔍 Paso 2: Verificando funciones disponibles...");
+      if (
+        !ImagePicker ||
+        typeof ImagePicker.requestMediaLibraryPermissionsAsync !== "function" ||
+        typeof ImagePicker.launchImageLibraryAsync !== "function"
+      ) {
+        console.error("[Settings] ❌ Paso 2: Funciones no disponibles", {
+          hasImagePicker: !!ImagePicker,
+          hasRequestMediaLibraryPermissionsAsync: typeof ImagePicker?.requestMediaLibraryPermissionsAsync === "function",
+          hasLaunchImageLibraryAsync: typeof ImagePicker?.launchImageLibraryAsync === "function",
+        });
+        showToast({
+          message: "El módulo de selección de imágenes no está disponible. Por favor, reconstruye la app nativa ejecutando: npx expo run:ios",
+          type: "error",
+          duration: 5000,
+        });
+        return;
+      }
+      console.log("[Settings] ✅ Paso 2: Todas las funciones están disponibles");
+
+      // Verificar que launchImageLibraryAsync existe antes de usarlo
+      console.log("[Settings] 🔍 Paso 3: Verificando launchImageLibraryAsync...");
+      if (typeof ImagePicker.launchImageLibraryAsync !== "function") {
+        console.error("[Settings] ❌ Paso 3: launchImageLibraryAsync no está disponible");
+        showToast({
+          message: "La función de selección de imágenes no está disponible. Por favor, reconstruye la app ejecutando: npx expo run:ios",
+          type: "error",
+          duration: 5000,
+        });
+        return;
+      }
+      console.log("[Settings] ✅ Paso 3: launchImageLibraryAsync está disponible");
+
+      // Abrir selector de imagen directamente (solicita permisos automáticamente si es necesario)
+      console.log("[Settings] 🖼️ Paso 4: Abriendo selector de imagen directamente...");
+      console.log("[Settings] ⚠️ NOTA: launchImageLibraryAsync solicitará permisos automáticamente si es necesario.");
+      
+      let result;
+      try {
+        console.log("[Settings] 📋 Paso 4.1: Llamando a launchImageLibraryAsync...");
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1], // Aspecto 1:1 para que sea cuadrada
+          quality: 0.2, // Calidad baja para reducir el tamaño del archivo
+        });
+        console.log("[Settings] 📋 Paso 4.2: Resultado recibido", {
+          canceled: result.canceled,
+          hasAssets: !!result.assets,
+          assetsLength: result.assets?.length || 0,
+        });
+      } catch (launchError) {
+        console.error("[Settings] ❌ Paso 4: Error al abrir selector de imagen", launchError);
+        console.error("[Settings] 📋 Detalles del error:", {
+          name: launchError instanceof Error ? launchError.name : "Unknown",
+          message: launchError instanceof Error ? launchError.message : String(launchError),
+          stack: launchError instanceof Error ? launchError.stack : undefined,
+        });
+        
+        const errorMessage = launchError instanceof Error ? launchError.message : String(launchError);
+        if (
+          errorMessage.includes("Cannot find native module") ||
+          errorMessage.includes("ExponentImagePicker") ||
+          errorMessage.includes("native module") ||
+          errorMessage.includes("requireNativeModule")
+        ) {
+          showToast({
+            message: "El módulo nativo no está disponible. Por favor, reconstruye la app ejecutando: npx expo run:ios",
+            type: "error",
+            duration: 6000,
+          });
+        } else {
+          showToast({
+            message: "Error al abrir el selector de imágenes. Asegúrate de haber reconstruido la app.",
+            type: "error",
+            duration: 4000,
+          });
+        }
+        return;
+      }
+      console.log("[Settings] 📋 Paso 4.3: Procesando resultado del selector", {
+        canceled: result.canceled,
+        hasAssets: !!result.assets,
+        assetsLength: result.assets?.length || 0,
+        firstAsset: result.assets?.[0] ? {
+          uri: result.assets[0].uri,
+          width: result.assets[0].width,
+          height: result.assets[0].height,
+          fileSize: result.assets[0].fileSize,
+        } : null,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        console.log("[Settings] ℹ️ Paso 4: Usuario canceló o no seleccionó imagen");
+        return;
+      }
+
+      const firstAsset = result.assets[0];
+      if (!firstAsset) {
+        console.warn("[Settings] ⚠️ Paso 4: No hay primer asset disponible");
+        return;
+      }
+
+      const imageUri = firstAsset.uri;
+      console.log("[Settings] 📸 Paso 5: URI de imagen obtenida", { imageUri });
+      
+      setUploadingAvatar(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      console.log("[Settings] 🔄 Paso 6: Iniciando subida de avatar...");
+
+      // Subir y actualizar avatar
+      const uploadResult = await UserService.updateUserAvatar(imageUri);
+      console.log("[Settings] 📋 Paso 6: Resultado de subida", {
+        ok: uploadResult.ok,
+        hasData: uploadResult.ok ? !!uploadResult.data : false,
+        message: uploadResult.ok ? "N/A" : uploadResult.message,
+        avatarUrl: uploadResult.ok ? uploadResult.data : null,
+      });
+
+      if (!uploadResult.ok) {
+        console.error("[Settings] ❌ Paso 6: Error en subida", uploadResult);
+        showToast({
+          message: uploadResult.message || "No se pudo actualizar el avatar",
+          type: "error",
+          duration: 3000,
+        });
+        return;
+      }
+
+      console.log("[Settings] ✅ Paso 6: Avatar subido exitosamente", { url: uploadResult.data });
+
+      // Actualizar perfil para refrescar avatar_url
+      console.log("[Settings] 🔄 Paso 7: Refrescando perfil...");
+      await refreshProfile();
+      console.log("[Settings] ✅ Paso 7: Perfil refrescado");
+      
+      // Forzar actualización del cache del avatar
+      setAvatarCacheKey(Date.now());
+      console.log("[Settings] 🔄 Cache del avatar actualizado con nuevo timestamp");
+      
+      showToast({
+        message: "Avatar actualizado correctamente",
+        type: "success",
+        duration: 2000,
+      });
+      console.log("[Settings] ✅ Proceso completado exitosamente");
+    } catch (error: unknown) {
+      console.error("[Settings] ❌ Error capturado en handlePickAvatar:", error);
+      console.error("[Settings] 📋 Detalles del error:", {
+        name: error instanceof Error ? error.name : "Unknown",
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        type: typeof error,
+        isError: error instanceof Error,
+      });
+      
+      // Detectar si es un error de módulo nativo no disponible
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.log("[Settings] 🔍 Analizando tipo de error...", {
+        errorMessage,
+        includesCannotFind: errorMessage.includes("Cannot find native module"),
+        includesExponentImagePicker: errorMessage.includes("ExponentImagePicker"),
+        includesNativeModule: errorMessage.includes("native module"),
+        includesRequireNativeModule: errorMessage.includes("requireNativeModule"),
+      });
+      
+      if (
+        errorMessage.includes("Cannot find native module") ||
+        errorMessage.includes("ExponentImagePicker") ||
+        errorMessage.includes("native module") ||
+        errorMessage.includes("requireNativeModule")
+      ) {
+        console.error("[Settings] ❌ Error de módulo nativo no disponible");
+        showToast({
+          message: "El módulo nativo no está disponible. Por favor, reconstruye la app ejecutando: npx expo run:ios",
+          type: "error",
+          duration: 6000,
+        });
+      } else {
+        console.error("[Settings] ❌ Error desconocido al actualizar avatar");
+        showToast({
+          message: "Error al actualizar el avatar. Asegúrate de haber reconstruido la app después de instalar expo-image-picker.",
+          type: "error",
+          duration: 4000,
+        });
+      }
+    } finally {
+      console.log("[Settings] 🏁 Finalizando handlePickAvatar, limpiando estado de carga");
+      setUploadingAvatar(false);
+    }
+  }, [showToast, refreshProfile]);
 
   const goalLabel = useMemo(() => {
     if (!profile?.goal) return "—";
@@ -538,13 +758,41 @@ export default function SettingsScreen() {
         {/* Header */}
         <View style={s.header}>
           <View style={s.headerContent}>
-            <View style={s.avatarContainer}>
-              <MaterialCommunityIcons
-                name="account-circle"
-                size={56}
-                color={colors.brand}
-              />
-            </View>
+            <Pressable
+              onPress={() => {
+                console.log("[Settings] 👆 Pressable del avatar presionado");
+                console.log("[Settings] ⚠️ IMPORTANTE: Si la app crashea, necesitas reconstruirla con: npx expo run:ios");
+                handlePickAvatar();
+              }}
+              disabled={uploadingAvatar}
+              style={({ pressed }) => [
+                s.avatarContainer,
+                pressed && !uploadingAvatar && { opacity: 0.7 },
+              ]}
+            >
+              {uploadingAvatar ? (
+                <View style={s.avatarLoading}>
+                  <ActivityIndicator size="small" color={colors.brand} />
+                </View>
+              ) : (
+                <>
+                  <Avatar
+                    avatarUrl={profile?.avatar_url ? `${profile.avatar_url}?t=${avatarCacheKey}` : null}
+                    fullName={profile?.full_name}
+                    size={72}
+                    colors={colors}
+                    typography={typography}
+                  />
+                  <View style={s.avatarEditBadge}>
+                    <MaterialCommunityIcons
+                      name="camera"
+                      size={16}
+                      color="#FFFFFF"
+                    />
+                  </View>
+                </>
+              )}
+            </Pressable>
             <View style={s.headerText}>
               <Text style={s.headerTitle}>
                 {profile?.full_name || profile?.email?.split("@")[0] || "Usuario"}
@@ -1306,7 +1554,7 @@ export default function SettingsScreen() {
   );
 }
 
-function makeStyles(colors: any, typography: any, insets: any) {
+function makeStyles(colors: any, typography: any, _insets: any) {
   return StyleSheet.create({
     safe: {
       flex: 1,
@@ -1324,14 +1572,33 @@ function makeStyles(colors: any, typography: any, insets: any) {
       gap: 16,
     },
     avatarContainer: {
+      position: "relative",
       width: 72,
       height: 72,
-      borderRadius: 20,
+      borderRadius: 36,
+    },
+    avatarLoading: {
+      width: 72,
+      height: 72,
+      borderRadius: 36,
       backgroundColor: `${colors.brand}15`,
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 2,
       borderColor: `${colors.brand}30`,
+    },
+    avatarEditBadge: {
+      position: "absolute",
+      bottom: 0,
+      right: 0,
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      backgroundColor: colors.brand,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 2,
+      borderColor: colors.background,
     },
     headerText: {
       flex: 1,

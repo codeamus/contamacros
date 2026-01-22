@@ -14,6 +14,7 @@ export type ProfileDb = {
   email: string | null;
 
   full_name: string | null;
+  avatar_url: string | null;
   height_cm: number | null;
   weight_kg: number | null;
 

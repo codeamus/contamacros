@@ -30,6 +30,7 @@ export type LeaderboardEntry = {
   user_id: string;
   full_name: string; // Obligatorio para evitar valores por defecto
   email: string;
+  avatar_url: string | null;
   xp_points: number;
   level: number;
   daily_streak: number;
@@ -456,6 +457,7 @@ export const GamificationService = {
           contribution_count,
           profiles (
             full_name,
+            avatar_url,
             is_premium
           )
         `,
@@ -502,6 +504,7 @@ export const GamificationService = {
         const mappedEntry = {
           user_id: item.id,
           full_name: profileData?.full_name || "Usuario Anónimo",
+          avatar_url: profileData?.avatar_url || null,
           is_premium: profileData?.is_premium ?? false,
           xp_points: item.xp_points || 0,
           contribution_count: item.contribution_count || 0,
@@ -562,7 +565,7 @@ export const GamificationService = {
       // Obtener datos del usuario para el entry
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .select("full_name, email, is_premium")
+        .select("full_name, email, avatar_url, is_premium")
         .eq("id", uid)
         .maybeSingle();
 
@@ -596,6 +599,7 @@ export const GamificationService = {
       const entry: LeaderboardEntry = {
         user_id: userStats.id,
         full_name: profileData?.full_name || "Usuario Anónimo",
+        avatar_url: profileData?.avatar_url || null,
         email: profileData?.email || "",
         xp_points: userXP,
         level: calculateLevel(userXP),

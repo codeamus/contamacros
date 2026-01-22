@@ -32,6 +32,13 @@
           "healthSharePermission": "Esta app necesita acceso a tus datos de salud para sincronizar las calorías quemadas.",
           "healthUpdatePermission": "Esta app necesita acceso para actualizar tus datos de salud."
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Esta app necesita acceso a tus fotos para que puedas seleccionar un avatar.",
+          "cameraPermission": "Esta app necesita acceso a tu cámara para que puedas tomar una foto para tu avatar."
+        }
       ]
     ],
     "ios": {
@@ -39,7 +46,9 @@
       "bundleIdentifier": "com.codeamusdev2.contamacro",
       "infoPlist": {
         "NSHealthShareUsageDescription": "Esta app necesita acceso a tus datos de salud para sincronizar las calorías quemadas y mejorar las recomendaciones del Coach Pro.",
-        "NSHealthUpdateUsageDescription": "Esta app necesita acceso para actualizar tus datos de salud."
+        "NSHealthUpdateUsageDescription": "Esta app necesita acceso para actualizar tus datos de salud.",
+        "NSPhotoLibraryUsageDescription": "Esta app necesita acceso a tus fotos para que puedas seleccionar un avatar.",
+        "NSCameraUsageDescription": "Esta app necesita acceso a tu cámara para que puedas tomar una foto para tu avatar."
       }
     },
     "android": {
@@ -51,7 +60,9 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.codeamusdev2.contamacro",
       "permissions": [
-        "android.permission.health.READ_ACTIVE_CALORIES_BURNED"
+        "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.CAMERA"
       ]
     },
     "experiments": {

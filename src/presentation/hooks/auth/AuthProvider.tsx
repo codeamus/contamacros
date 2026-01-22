@@ -130,6 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (session?.user?.id) {
       (async () => {
         try {
+          console.log("[AuthProvider] 🔐 Inicializando RevenueCat para usuario:", session.user.id);
           // 1. Inicializar RevenueCat con el userId
           const initResult = await RevenueCatService.initialize(session.user.id);
           if (!initResult.ok) {
@@ -137,7 +138,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return;
           }
 
-          // 2. Obtener información del cliente (esto sincroniza automáticamente con Supabase)
+          // 2. Identificar explícitamente al usuario con RevenueCat (llama a Purchases.logIn)
+          const identifyResult = await RevenueCatService.identifyUser(session.user.id);
+          if (!identifyResult.ok) {
+            console.warn("[AuthProvider] No se pudo identificar usuario con RevenueCat:", identifyResult.message);
+          } else {
+            console.log("[AuthProvider] ✅ Usuario identificado con RevenueCat");
+          }
+
+          // 3. Obtener información del cliente (esto sincroniza automáticamente con Supabase)
           const customerInfoResult = await RevenueCatService.getCustomerInfo();
           if (!customerInfoResult.ok) {
             console.warn("[AuthProvider] No se pudo obtener customer info:", customerInfoResult.message);
@@ -146,7 +155,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           const customerInfo = customerInfoResult.data;
           
-          // 3. Verificar entitlement y sincronizar estado
+          // 4. Verificar entitlement y sincronizar estado
           const hasEntitlement =
             customerInfo.entitlements.active["ContaMacros Pro"] !== undefined;
 
@@ -155,7 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             userId: session.user.id,
           });
 
-          // 4. Refrescar perfil local para obtener el estado actualizado de Supabase
+          // 5. Refrescar perfil local para obtener el estado actualizado de Supabase
           await refreshProfile();
         } catch (error) {
           console.error("[AuthProvider] Error al sincronizar estado premium:", error);
@@ -177,13 +186,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (s.ok) {
         setSession(s.data);
         
-        // Sincronizar estado premium al iniciar la app si hay sesión
+        // Identificar usuario con RevenueCat al iniciar la app si hay sesión
         if (s.data?.user?.id) {
           try {
+            console.log("[AuthProvider] 🔐 Identificando usuario con RevenueCat al iniciar app:", s.data.user.id);
             await RevenueCatService.initialize(s.data.user.id);
+            // Llamar explícitamente a logIn para asegurar que RevenueCat reconozca al usuario
+            await RevenueCatService.identifyUser(s.data.user.id);
             await RevenueCatService.getCustomerInfo();
+            console.log("[AuthProvider] ✅ Usuario identificado correctamente con RevenueCat (inicio de app)");
           } catch (error) {
-            console.warn("[AuthProvider] Error al sincronizar premium al iniciar:", error);
+            console.error("[AuthProvider] ❌ Error al sincronizar premium al iniciar:", error);
           }
         }
         
@@ -194,13 +207,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       unsub = AuthService.onAuthStateChange(async (sess) => {
         setSession(sess);
         if (sess) {
-          // Sincronizar estado premium cuando cambia el estado de autenticación
+          // Identificar usuario con RevenueCat cuando cambia el estado de autenticación
           if (sess.user?.id) {
             try {
+              console.log("[AuthProvider] 🔐 Identificando usuario con RevenueCat en auth change:", sess.user.id);
               await RevenueCatService.initialize(sess.user.id);
+              // Llamar explícitamente a logIn para asegurar que RevenueCat reconozca al usuario
+              await RevenueCatService.identifyUser(sess.user.id);
               await RevenueCatService.getCustomerInfo();
+              console.log("[AuthProvider] ✅ Usuario identificado correctamente con RevenueCat (auth change)");
             } catch (error) {
-              console.warn("[AuthProvider] Error al sincronizar premium en auth change:", error);
+              console.error("[AuthProvider] ❌ Error al sincronizar premium en auth change:", error);
             }
           }
           await refreshProfile();
@@ -227,13 +244,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (s.ok) {
           setSession(s.data);
           
-          // Sincronizar estado premium después de registro
+          // Identificar usuario con RevenueCat después de registro
           if (s.data?.user?.id) {
             try {
+              console.log("[AuthProvider] 🔐 Identificando usuario con RevenueCat después de registro:", s.data.user.id);
               await RevenueCatService.initialize(s.data.user.id);
+              // Llamar explícitamente a logIn para asegurar que RevenueCat reconozca al usuario
+              await RevenueCatService.identifyUser(s.data.user.id);
               await RevenueCatService.getCustomerInfo();
+              console.log("[AuthProvider] ✅ Usuario identificado correctamente con RevenueCat (registro)");
             } catch (error) {
-              console.warn("[AuthProvider] Error al sincronizar premium después de registro:", error);
+              console.error("[AuthProvider] ❌ Error al sincronizar premium después de registro:", error);
             }
           }
         }
@@ -247,13 +268,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!res.ok) return { ok: false, message: res.message };
         setSession(res.data);
         
-        // Sincronizar estado premium después de login
+        // Identificar usuario con RevenueCat después de login
         if (res.data?.user?.id) {
           try {
+            console.log("[AuthProvider] 🔐 Identificando usuario con RevenueCat después de login:", res.data.user.id);
             await RevenueCatService.initialize(res.data.user.id);
+            // Llamar explícitamente a logIn para asegurar que RevenueCat reconozca al usuario
+            await RevenueCatService.identifyUser(res.data.user.id);
             await RevenueCatService.getCustomerInfo();
+            console.log("[AuthProvider] ✅ Usuario identificado correctamente con RevenueCat");
           } catch (error) {
-            console.warn("[AuthProvider] Error al sincronizar premium después de login:", error);
+            console.error("[AuthProvider] ❌ Error al sincronizar premium después de login:", error);
           }
         }
         
@@ -322,13 +347,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (s.ok) {
               setSession(s.data);
               
-              // Sincronizar estado premium después de login con Google
+              // Identificar usuario con RevenueCat después de login con Google
               if (s.data?.user?.id) {
                 try {
+                  console.log("[AuthProvider] 🔐 Identificando usuario con RevenueCat después de Google:", s.data.user.id);
                   await RevenueCatService.initialize(s.data.user.id);
+                  // Llamar explícitamente a logIn para asegurar que RevenueCat reconozca al usuario
+                  await RevenueCatService.identifyUser(s.data.user.id);
                   await RevenueCatService.getCustomerInfo();
+                  console.log("[AuthProvider] ✅ Usuario identificado correctamente con RevenueCat (Google)");
                 } catch (error) {
-                  console.warn("[AuthProvider] Error al sincronizar premium después de Google:", error);
+                  console.error("[AuthProvider] ❌ Error al sincronizar premium después de Google:", error);
                 }
               }
             }
@@ -418,13 +447,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (s.ok) {
             setSession(s.data);
             
-            // Sincronizar estado premium después de login con Apple
+            // Identificar usuario con RevenueCat después de login con Apple
             if (s.data?.user?.id) {
               try {
+                console.log("[AuthProvider] 🔐 Identificando usuario con RevenueCat después de Apple:", s.data.user.id);
                 await RevenueCatService.initialize(s.data.user.id);
+                // Llamar explícitamente a logIn para asegurar que RevenueCat reconozca al usuario
+                await RevenueCatService.identifyUser(s.data.user.id);
                 await RevenueCatService.getCustomerInfo();
+                console.log("[AuthProvider] ✅ Usuario identificado correctamente con RevenueCat (Apple)");
               } catch (error) {
-                console.warn("[AuthProvider] Error al sincronizar premium después de Apple:", error);
+                console.error("[AuthProvider] ❌ Error al sincronizar premium después de Apple:", error);
               }
             }
           }

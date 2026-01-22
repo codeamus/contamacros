@@ -172,10 +172,17 @@ src/presentation/hooks/
 
 5. **Columnas Importantes:**
    - `profiles.full_name`: Nombre del usuario (editable desde settings)
+   - `profiles.avatar_url`: URL pública del avatar del usuario (almacenado en Supabase Storage, bucket `avatars`)
    - `profiles.is_premium`: Estado premium (se sincroniza con RevenueCat)
    - `user_stats.contribution_count`: Número de alimentos creados (para ranking)
    - `user_stats.xp_points`: Puntos de experiencia
    - `user_stats.level`: **NO existe en BD**, se calcula dinámicamente con `calculateLevel(xp_points)`
+
+6. **Supabase Storage:**
+   - Bucket `avatars`: Almacena los avatares de los usuarios
+   - Nombre de archivo: `${userId}_avatar.jpg`
+   - Políticas RLS: Usuarios pueden subir/actualizar su propio avatar, todos pueden leer avatares públicos
+   - Compresión: Imágenes se comprimen a calidad 0.4 y máximo 500x500px antes de subir
 
 ### Lógica de Negocio
 1. **Cálculo de Macros:**
@@ -308,6 +315,10 @@ src/presentation/hooks/
   - `user_stats`: SELECT público para ranking, UPDATE/INSERT solo propio
   - `profiles`: SELECT público para ranking, UPDATE solo propio
   - `generic_foods`: SELECT público, INSERT para usuarios autenticados
+- **Storage (Bucket `avatars`):**
+  - SELECT: Público (todos pueden leer avatares)
+  - INSERT/UPDATE/DELETE: Solo usuarios autenticados
+  - Ver `supabase/storage-policies-avatars.sql` para las políticas SQL completas
 
 ### RevenueCat
 - API Key iOS: `appl_YefJRBImlNCzKtxjKjWOtrUMsSo`
