@@ -38,7 +38,7 @@ export default function WeightPredictor() {
 
   // Animaciones con Animated de React Native
   const scale = useRef(new Animated.Value(1)).current;
-  const translateX = useRef(new Animated.Value(0)).current; // Panel en posición normal
+  const translateY = useRef(new Animated.Value(0)).current; // Panel en posición normal (arriba del botón)
   const opacity = useRef(new Animated.Value(0)).current;
 
   // Calcular predicción - Optimizado para 7 días
@@ -54,10 +54,10 @@ export default function WeightPredictor() {
       const today = new Date();
       const sevenDaysAgo = new Date(today);
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // Incluye hoy, así que 6 días atrás
-      
+
       const startDate = sevenDaysAgo.toISOString().split("T")[0] || "";
       const endDate = today.toISOString().split("T")[0] || "";
-      
+
       if (!startDate || !endDate) {
         throw new Error("Error al calcular fechas");
       }
@@ -109,9 +109,7 @@ export default function WeightPredictor() {
 
       // Calcular balance promedio diario de los 7 días
       const avgDailyBalance =
-        daysWithData > 0
-          ? (totalConsumed - totalBurned) / daysWithData
-          : 0;
+        daysWithData > 0 ? (totalConsumed - totalBurned) / daysWithData : 0;
 
       // Calcular consistencia (basada en 7 días, pero validamos con 20% mínimo)
       const consistency = (daysWithData / 7) * 100;
@@ -144,7 +142,7 @@ export default function WeightPredictor() {
   };
 
   const animatedPanelStyle = {
-    transform: [{ translateX }],
+    transform: [{ translateY }],
   };
 
   const animatedBackdropStyle = {
@@ -153,38 +151,43 @@ export default function WeightPredictor() {
 
   const handleToggle = useCallback(() => {
     const newExpanded = !isExpanded;
-    
+
     // Vibración sutil y satisfactoria al abrir
     if (newExpanded) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } else {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    
+
     const springConfig = {
-      tension: 200,
-      friction: 15,
+      tension: 300,
+      friction: 20,
+      useNativeDriver: true,
+    };
+
+    const closeConfig = {
+      tension: 400,
+      friction: 25,
       useNativeDriver: true,
     };
 
     if (newExpanded) {
       // Primero establecer el estado para renderizar el panel
       setIsExpanded(true);
-      // El panel está posicionado con right: 18
-      // translateX positivo lo mueve hacia la derecha (fuera de pantalla)
-      // translateX negativo lo mueve hacia la izquierda
-      // Empezamos fuera de pantalla (a la derecha) y animamos a 0
-      const panelWidth = Math.min(SCREEN_WIDTH - 100, 320);
-      translateX.setValue(panelWidth + 18); // Fuera de pantalla a la derecha
+      // El panel se abre de abajo hacia arriba
+      // translateY positivo lo mueve hacia abajo (fuera de vista)
+      // translateY negativo lo mueve hacia arriba
+      // Empezamos abajo (fuera de vista) y animamos a 0
+      translateY.setValue(30); // Empezar un poco abajo
       opacity.setValue(0);
-      // Luego animar desde fuera de la pantalla (derecha) hacia su posición
+      // Luego animar desde abajo hacia arriba
       Animated.parallel([
         Animated.spring(scale, {
-          toValue: 0.9,
+          toValue: 0.95,
           ...springConfig,
         }),
-        Animated.spring(translateX, {
-          toValue: 0, // Panel en su posición normal (right: 18)
+        Animated.spring(translateY, {
+          toValue: 0, // Panel en su posición normal
           ...springConfig,
         }),
         Animated.spring(opacity, {
@@ -193,27 +196,27 @@ export default function WeightPredictor() {
         }),
       ]).start();
     } else {
-      // Primero animar hacia fuera (hacia la derecha)
-      const panelWidth = Math.min(SCREEN_WIDTH - 100, 320);
+      // Animar hacia abajo (ocultar) - más rápido
       Animated.parallel([
         Animated.spring(scale, {
           toValue: 1,
-          ...springConfig,
+          ...closeConfig,
         }),
-        Animated.spring(translateX, {
-          toValue: panelWidth + 18, // Mover fuera de la pantalla hacia la derecha
-          ...springConfig,
+        Animated.spring(translateY, {
+          toValue: 30, // Mover hacia abajo para ocultar
+          ...closeConfig,
         }),
-        Animated.spring(opacity, {
+        Animated.timing(opacity, {
           toValue: 0,
-          ...springConfig,
+          duration: 150, // Animación más rápida para el fade out
+          useNativeDriver: true,
         }),
       ]).start(() => {
         // Después de la animación, ocultar el panel
         setIsExpanded(false);
       });
     }
-  }, [isExpanded, scale, translateX, opacity]);
+  }, [isExpanded, scale, translateY, opacity]);
 
   // No mostrar si no es premium
   if (!isPremium) {
@@ -252,8 +255,10 @@ export default function WeightPredictor() {
   };
 
   // Icono según el estado
-  const getIconName = (): React.ComponentProps<typeof MaterialCommunityIcons>["name"] => {
-    if (!hasEnoughData) return "help-circle";
+  const getIconName = (): React.ComponentProps<
+    typeof MaterialCommunityIcons
+  >["name"] => {
+    if (!hasEnoughData) return "information-outline";
     if (isPositive) return "trending-up";
     if (isNegative) return "trending-down";
     return "minus-circle";
@@ -266,13 +271,12 @@ export default function WeightPredictor() {
         style={[s.floatingButton, animatedButtonStyle]}
         pointerEvents="box-none"
       >
-        <Pressable onPress={handleToggle} style={s.buttonPressable}>
+        <Pressable onPress={handleToggle} style={s.buttonPressable(colors)}>
           <MaterialCommunityIcons
-            name="creation"
-            size={24}
-            color={colors.onCta}
+            name="chart-timeline-variant"
+            size={22}
+            color={colors.brand}
           />
-          <Text style={s.buttonLabel}>Tu Futuro</Text>
         </Pressable>
       </Animated.View>
 
@@ -284,10 +288,7 @@ export default function WeightPredictor() {
             style={[s.backdropContainer, animatedBackdropStyle]}
             pointerEvents="auto"
           >
-            <Pressable
-              style={s.backdrop}
-              onPress={handleToggle}
-            />
+            <Pressable style={s.backdrop} onPress={handleToggle} />
           </Animated.View>
           {/* Panel con contenido */}
           <Animated.View
@@ -296,59 +297,53 @@ export default function WeightPredictor() {
             collapsable={false}
           >
             <View style={s.blurContainer}>
-              {/* Avatar - Solo si está disponible */}
-              {profile?.avatar_url && (
-                <View style={s.avatarContainer}>
-                  <Avatar
-                    avatarUrl={profile.avatar_url}
-                    fullName={profile.full_name}
-                    size={28}
-                    colors={colors}
-                    typography={typography}
-                  />
-                </View>
-              )}
+              {/* Avatar - Siempre mostrar, con placeholder si no hay avatar */}
+              <View style={s.avatarContainer}>
+                <Avatar
+                  avatarUrl={profile?.avatar_url || null}
+                  fullName={profile?.full_name || "Usuario"}
+                  size={32}
+                  colors={colors}
+                  typography={typography}
+                />
+              </View>
 
-              {/* Contenido - Protagonista: flecha y número */}
+              {/* Contenido - Minimalista */}
               <View style={s.content}>
                 {loading ? (
                   <Text style={s.loadingText}>Calculando...</Text>
                 ) : !hasEnoughData ? (
                   <>
-                    <View style={s.errorContainer}>
-                      <MaterialCommunityIcons
-                        name="help-circle"
-                        size={40}
-                        color={colors.textSecondary}
-                      />
-                    </View>
-                    <View style={s.messageContainer}>
-                      <Text style={s.coachMessage}>{getCoachMessage()}</Text>
-                    </View>
+                    <MaterialCommunityIcons
+                      name="information-outline"
+                      size={24}
+                      color={colors.textSecondary}
+                      style={{ marginBottom: 12 }}
+                    />
+                    <Text style={s.coachMessage}>{getCoachMessage()}</Text>
                   </>
                 ) : (
                   <>
-                    {/* Valor principal con icono */}
+                    {/* Valor principal - Minimalista */}
                     <View style={s.predictionRow}>
                       <MaterialCommunityIcons
                         name={getIconName()}
-                        size={36}
+                        size={28}
                         color={getPredictionColor()}
                       />
-                      <View style={{ marginLeft: 12 }}>
-                        <Text style={[s.predictionValue, { color: getPredictionColor() }]}>
-                          {isPositive ? "+" : ""}
-                          {weightChange.toFixed(1)} kg
-                        </Text>
-                      </View>
+                      <Text
+                        style={[
+                          s.predictionValue,
+                          { color: getPredictionColor() },
+                        ]}
+                      >
+                        {isPositive ? "+" : ""}
+                        {weightChange.toFixed(1)} kg
+                      </Text>
                     </View>
-                    {/* Etiqueta "Tendencia mensual" */}
-                    <Text style={s.trendLabel}>Tendencia mensual</Text>
-                    
-                    {/* Mensaje del coach */}
-                    <View style={s.messageContainer}>
-                      <Text style={s.coachMessage}>{getCoachMessage()}</Text>
-                    </View>
+
+                    {/* Mensaje del coach - Minimalista */}
+                    <Text style={s.coachMessage}>{getCoachMessage()}</Text>
                   </>
                 )}
               </View>
@@ -377,27 +372,21 @@ function makeStyles(colors: any, typography: any) {
       right: 18,
       zIndex: 1000,
     },
-    buttonPressable: {
+    buttonPressable: (colors: any) => ({
       alignItems: "center",
       justifyContent: "center",
-      width: 74,
-      height: 74,
-      borderRadius: 42,
-      backgroundColor: colors.brand,
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
       shadowColor: "#000",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.2,
-      shadowRadius: 8,
-      elevation: 6,
-    },
-    buttonLabel: {
-      fontFamily: typography.caption?.fontFamily,
-      fontSize: 10,
-      fontWeight: "700",
-      color: colors.onCta,
-      marginTop: 2,
-      letterSpacing: 0.5,
-    },
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 4,
+    }),
     panelContainer: {
       position: "absolute",
       top: 0,
@@ -420,21 +409,21 @@ function makeStyles(colors: any, typography: any) {
     panel: {
       position: "absolute",
       right: 18,
-      bottom: 100,
+      bottom: 180, // Aparece arriba del botón (botón está en bottom: 100, altura ~56px, gap ~24px)
       width: Math.min(SCREEN_WIDTH - 100, 320),
       zIndex: 1000,
     },
     blurContainer: {
-      borderRadius: 24,
+      borderRadius: 20,
       overflow: "hidden",
-      backgroundColor: colors.surface + "F2", // 95% opacidad
-      padding: 30,
-      paddingBottom: 24,
+      backgroundColor: colors.surface + "F5", // 96% opacidad
+      padding: 24,
+      paddingTop: 20,
       shadowColor: "#000",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.25,
-      shadowRadius: 12,
-      elevation: 8,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.15,
+      shadowRadius: 8,
+      elevation: 6,
     },
     avatarContainer: {
       position: "absolute",
@@ -444,41 +433,27 @@ function makeStyles(colors: any, typography: any) {
     content: {
       alignItems: "flex-start",
       justifyContent: "flex-start",
-      minHeight: 120,
-      paddingRight: 40, // Espacio para el botón cerrar
+      minHeight: 80,
+      paddingRight: 56, // Más espacio para avatar y botón cerrar (evitar choque)
+      paddingLeft: 20, // Padding izquierdo para evitar choque con botón cerrar
       width: "100%",
     },
     predictionRow: {
       flexDirection: "row",
       alignItems: "center",
-      marginBottom: 4,
+      gap: 8,
+      marginBottom: 12,
     },
     predictionValue: {
       fontFamily: typography.heading?.fontFamily,
-      fontSize: 36,
+      fontSize: 28,
       fontWeight: "700",
-    },
-    trendLabel: {
-      fontFamily: typography.caption?.fontFamily,
-      fontSize: 11,
-      color: colors.textSecondary,
-      fontWeight: "500",
-      marginBottom: 16,
-      textTransform: "uppercase",
-      letterSpacing: 0.5,
-    },
-    messageContainer: {
-      marginTop: 8,
-      paddingTop: 16,
-      borderTopWidth: 1,
-      borderTopColor: colors.border + "40",
-      width: "100%",
     },
     coachMessage: {
       fontFamily: typography.body?.fontFamily,
-      fontSize: 13,
+      fontSize: 12,
       color: colors.textPrimary,
-      lineHeight: 20,
+      lineHeight: 18,
       fontWeight: "400",
     },
     loadingText: {
@@ -497,15 +472,15 @@ function makeStyles(colors: any, typography: any) {
     },
     closeButton: {
       position: "absolute",
-      top: 12,
-      left: 12,
-      width: 32,
-      height: 32,
-      borderRadius: 16,
+      top: 8,
+      left: 8,
+      width: 28,
+      height: 28,
+      borderRadius: 14,
       backgroundColor: "transparent",
       alignItems: "center",
       justifyContent: "center",
-      opacity: 0.7,
+      opacity: 0.6,
       zIndex: 10,
     },
   });

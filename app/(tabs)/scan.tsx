@@ -249,15 +249,8 @@ export default function ScanScreen() {
 
             <Text style={styles.title}>Escanear código</Text>
 
-            <Pressable
-              onPress={handleModeToggle}
-              style={({ pressed }) => [
-                styles.iconBtn,
-                pressed && { opacity: 0.85 },
-              ]}
-            >
-              <MaterialCommunityIcons name="brain" size={24} color="white" />
-            </Pressable>
+            {/* Espaciador para mantener el título centrado */}
+            <View style={styles.iconBtn} />
           </View>
 
           <View style={styles.frame} />

@@ -122,19 +122,12 @@ export function Avatar({
         },
       ]}
     >
-      <Text
-        style={[
-          styles.initial,
-          {
-            fontSize: size * 0.4,
-            color: "#FFFFFF",
-            fontFamily: typography.subtitle?.fontFamily,
-            fontWeight: "700",
-          },
-        ]}
-      >
-        {initial}
-      </Text>
+      {/* Siempre mostrar icono de perfil cuando no hay avatar */}
+      <MaterialCommunityIcons
+        name="account"
+        size={size * 0.65}
+        color="#FFFFFF"
+      />
     </View>
   );
 }
