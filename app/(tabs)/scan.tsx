@@ -4,33 +4,33 @@ import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
-import React, { useCallback, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View, ActivityIndicator } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Alert, Pressable, StyleSheet, Text, View, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMacroScanner } from "@/presentation/hooks/scanner/useMacroScanner";
 import { ScannerOverlay } from "@/presentation/components/scanner/ScannerOverlay";
 import { ConfirmMacroModal } from "@/presentation/components/scanner/ConfirmMacroModal";
+import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
 
 const MEALS: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
 function isMealType(x: unknown): x is MealType {
   return typeof x === "string" && MEALS.includes(x as MealType);
 }
 
-type ScanMode = "barcode" | "ai";
-
 export default function ScanScreen() {
   const { theme } = useTheme();
   const { colors, typography } = theme;
   const insets = useSafeAreaInsets();
 
-  const params = useLocalSearchParams<{ meal?: string; returnTo?: string }>();
+  const params = useLocalSearchParams<{ meal?: string; returnTo?: string; mode?: string }>();
   const meal: MealType = isMealType(params.meal) ? params.meal : "snack";
   const returnTo = params.returnTo || "add-food";
 
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
-  const [scanMode, setScanMode] = useState<ScanMode>("barcode");
+  const [scanMode, setScanMode] = useState<"barcode" | "ai">("barcode");
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [paywallVisible, setPaywallVisible] = useState(false);
 
   // Evita dobles lecturas (iOS puede disparar 2 veces)
   const lockRef = useRef(false);
@@ -43,9 +43,28 @@ export default function ScanScreen() {
     captureAndAnalyze,
     resetAnalysis,
   } = useMacroScanner({
-    onAnalysisComplete: (result) => {
+    onAnalysisComplete: () => {
       // Navegación automática: abrir modal de confirmación con los macros precargados
       setShowConfirmModal(true);
+    },
+    onLimitReached: () => {
+      // Mostrar Alert cuando se alcanza el límite
+      Alert.alert(
+        "Límite de escaneos alcanzado",
+        "Has alcanzado el límite de 3 escaneos diarios gratuitos. ¡Pásate a Premium para uso ilimitado!",
+        [
+          {
+            text: "Cancelar",
+            style: "cancel",
+          },
+          {
+            text: "Ver Premium",
+            onPress: () => setPaywallVisible(true),
+            style: "default",
+          },
+        ],
+        { cancelable: true }
+      );
     },
   });
 
@@ -94,6 +113,32 @@ export default function ScanScreen() {
     },
     [meal, returnTo]
   );
+
+  // Detectar modo desde params
+  useEffect(() => {
+    const mode = params.mode as "barcode" | "ai" | undefined;
+    if (mode === "ai" || mode === "barcode") {
+      setScanMode(mode);
+    }
+  }, [params.mode]);
+
+  const handleModeToggle = useCallback(() => {
+    setScanMode((prev) => (prev === "barcode" ? "ai" : "barcode"));
+    setScanned(false);
+    lockRef.current = false;
+    resetAnalysis();
+  }, [resetAnalysis]);
+
+  const handleCapture = useCallback(() => {
+    if (scanMode === "ai" && !isAnalyzing) {
+      captureAndAnalyze();
+    }
+  }, [scanMode, isAnalyzing, captureAndAnalyze]);
+
+  const handleCloseConfirmModal = useCallback(() => {
+    setShowConfirmModal(false);
+    resetAnalysis();
+  }, [resetAnalysis]);
 
   if (!permission) {
     return (
@@ -169,24 +214,6 @@ export default function ScanScreen() {
       </View>
     );
   }
-
-  const handleModeToggle = useCallback(() => {
-    setScanMode((prev) => (prev === "barcode" ? "ai" : "barcode"));
-    setScanned(false);
-    lockRef.current = false;
-    resetAnalysis();
-  }, [resetAnalysis]);
-
-  const handleCapture = useCallback(() => {
-    if (scanMode === "ai" && !isAnalyzing) {
-      captureAndAnalyze();
-    }
-  }, [scanMode, isAnalyzing, captureAndAnalyze]);
-
-  const handleCloseConfirmModal = useCallback(() => {
-    setShowConfirmModal(false);
-    resetAnalysis();
-  }, [resetAnalysis]);
 
   return (
     <View style={{ flex: 1, backgroundColor: "black" }}>
@@ -298,6 +325,16 @@ export default function ScanScreen() {
         }}
         analysisResult={analysisResult}
         meal={meal}
+      />
+
+      {/* Premium Paywall Modal */}
+      <PremiumPaywall
+        visible={paywallVisible}
+        onClose={() => setPaywallVisible(false)}
+        onSuccess={() => {
+          setPaywallVisible(false);
+          // El usuario ahora es premium, puede escanear ilimitadamente
+        }}
       />
     </View>
   );

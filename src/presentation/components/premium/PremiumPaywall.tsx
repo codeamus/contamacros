@@ -61,8 +61,8 @@ const BENEFIT_ICON_PRO = "#FBBF24";  // Destellos — ámbar, coherente con dark
 const BENEFITS = [
   {
     icon: "camera-iris" as const,
-    title: "Scanner IA Flash",
-    description: "Identifica alimentos y porciones al instante con una foto gracias a IA avanzada.",
+    title: "Escáner Nutricional IA Ilimitado",
+    description: "Análisis instantáneo de platos y alimentos con Gemini 2.0 Flash. Versión gratuita limitada a 3 escaneos por día.",
     iconColor: BENEFIT_ICON_AI,
   },
   {

@@ -5,9 +5,12 @@ import * as ImageManipulator from "expo-image-manipulator";
 import { analyzeFoodImage, type MacroAnalysisResult } from "@/data/ai/geminiService";
 import { handleError, getErrorMessage } from "@/core/errors/errorHandler";
 import { useToast } from "@/presentation/hooks/ui/useToast";
+import { usePremium } from "@/presentation/hooks/subscriptions/usePremium";
+import { canScanToday, incrementScanCount } from "@/domain/services/scanLimitService";
 
 type UseMacroScannerOptions = {
   onAnalysisComplete?: (result: MacroAnalysisResult) => void;
+  onLimitReached?: () => void; // Callback cuando se alcanza el límite
 };
 
 export function useMacroScanner(options?: UseMacroScannerOptions) {
@@ -15,10 +18,21 @@ export function useMacroScanner(options?: UseMacroScannerOptions) {
   const [isRetrying, setIsRetrying] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<MacroAnalysisResult | null>(null);
   const { showToast } = useToast();
+  const { isPremium } = usePremium();
 
   const captureAndAnalyze = useCallback(async () => {
     if (isAnalyzing) {
       return;
+    }
+
+    // Verificar límite diario solo si NO es premium
+    if (!isPremium) {
+      const canScan = await canScanToday();
+      if (!canScan) {
+        // Límite alcanzado, notificar al componente padre
+        options?.onLimitReached?.();
+        return;
+      }
     }
 
     setIsAnalyzing(true);
@@ -77,6 +91,12 @@ export function useMacroScanner(options?: UseMacroScannerOptions) {
         clearTimeout(timeoutId);
         setIsRetrying(false);
         setAnalysisResult(result);
+        
+        // Incrementar contador solo si NO es premium y el análisis fue exitoso
+        if (!isPremium) {
+          await incrementScanCount();
+        }
+        
         options?.onAnalysisComplete?.(result);
       } catch (error) {
         clearTimeout(timeoutId);
@@ -142,7 +162,7 @@ export function useMacroScanner(options?: UseMacroScannerOptions) {
     } finally {
       setIsAnalyzing(false);
     }
-  }, [isAnalyzing, options, showToast]);
+  }, [isAnalyzing, isPremium, options, showToast]);
 
   const resetAnalysis = useCallback(() => {
     setAnalysisResult(null);

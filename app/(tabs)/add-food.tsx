@@ -914,21 +914,42 @@ export default function AddFoodScreen() {
               Busca alimentos y registra los gramos.
             </Text>
 
-            <Pressable
-              onPress={() =>
-                router.push({
-                  pathname: "/(tabs)/scan",
-                  params: { meal },
-                })
-              }
-              style={({ pressed }) => [
-                s.scanBtn,
-                pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] },
-              ]}
-            >
-              <Feather name="camera" size={18} color="#111827" />
-              <Text style={s.scanBtnText}>Escanear código</Text>
-            </Pressable>
+            {/* Botones de escaneo */}
+            <View style={s.scanButtonsContainer}>
+              <Pressable
+                onPress={() =>
+                  router.push({
+                    pathname: "/(tabs)/scan",
+                    params: { meal, mode: "barcode" },
+                  })
+                }
+                style={({ pressed }) => [
+                  s.scanBtn,
+                  s.scanBtnBarcode,
+                  pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] },
+                ]}
+              >
+                <MaterialCommunityIcons name="barcode-scan" size={18} color="#111827" />
+                <Text style={s.scanBtnText}>Escanear código</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() =>
+                  router.push({
+                    pathname: "/(tabs)/scan",
+                    params: { meal, mode: "ai" },
+                  })
+                }
+                style={({ pressed }) => [
+                  s.scanBtn,
+                  s.scanBtnAI,
+                  pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] },
+                ]}
+              >
+                <MaterialCommunityIcons name="brain" size={18} color="#111827" />
+                <Text style={s.scanBtnText}>Escanear con IA</Text>
+              </Pressable>
+            </View>
 
             {/* Search */}
             <View style={s.searchBox}>
@@ -2005,8 +2026,13 @@ function makeStyles(colors: any, typography: any) {
       textAlign: "center",
       fontFamily: typography.subtitle?.fontFamily,
     },
-    scanBtn: {
+    scanButtonsContainer: {
       marginTop: 10,
+      flexDirection: "row",
+      gap: 10,
+    },
+    scanBtn: {
+      flex: 1,
       height: 48,
       borderRadius: 14,
       borderWidth: 1,
@@ -2016,6 +2042,12 @@ function makeStyles(colors: any, typography: any) {
       alignItems: "center",
       justifyContent: "center",
       gap: 10,
+    },
+    scanBtnBarcode: {
+      // Estilos específicos para barcode si es necesario
+    },
+    scanBtnAI: {
+      // Estilos específicos para IA si es necesario
     },
     scanBtnText: { fontWeight: "800", color: "#111827" },
   });
