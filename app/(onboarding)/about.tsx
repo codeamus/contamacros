@@ -260,6 +260,7 @@ export default function AboutScreen() {
                   maximumDate={maxBirthDate}
                   minimumDate={minBirthDate}
                   onChange={onPickerChange}
+                  textColor={colors.textPrimary}
                   style={{ alignSelf: "stretch" }}
                 />
               </View>
