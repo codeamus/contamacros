@@ -6,6 +6,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import React, { useCallback, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View, ActivityIndicator } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMacroScanner } from "@/presentation/hooks/scanner/useMacroScanner";
 import { ScannerOverlay } from "@/presentation/components/scanner/ScannerOverlay";
 import { ConfirmMacroModal } from "@/presentation/components/scanner/ConfirmMacroModal";
@@ -20,6 +21,7 @@ type ScanMode = "barcode" | "ai";
 export default function ScanScreen() {
   const { theme } = useTheme();
   const { colors, typography } = theme;
+  const insets = useSafeAreaInsets();
 
   const params = useLocalSearchParams<{ meal?: string; returnTo?: string }>();
   const meal: MealType = isMealType(params.meal) ? params.meal : "snack";
@@ -36,11 +38,13 @@ export default function ScanScreen() {
   // Hook para escaneo por IA
   const {
     isAnalyzing,
+    isRetrying,
     analysisResult,
     captureAndAnalyze,
     resetAnalysis,
   } = useMacroScanner({
     onAnalysisComplete: (result) => {
+      // Navegación automática: abrir modal de confirmación con los macros precargados
       setShowConfirmModal(true);
     },
   });
@@ -204,7 +208,7 @@ export default function ScanScreen() {
 
       {/* Overlay */}
       {scanMode === "barcode" ? (
-        <View style={styles.overlay}>
+        <View style={[styles.overlay, { paddingTop: insets.top + 12 }]}>
           <View style={styles.topRow}>
             <Pressable
               onPress={() => router.back()}
@@ -213,7 +217,7 @@ export default function ScanScreen() {
                 pressed && { opacity: 0.85 },
               ]}
             >
-              <Feather name="x" size={20} color="white" />
+              <Feather name="x" size={24} color="white" />
             </Pressable>
 
             <Text style={styles.title}>Escanear código</Text>
@@ -225,7 +229,7 @@ export default function ScanScreen() {
                 pressed && { opacity: 0.85 },
               ]}
             >
-              <MaterialCommunityIcons name="brain" size={20} color="white" />
+              <MaterialCommunityIcons name="brain" size={24} color="white" />
             </Pressable>
           </View>
 
@@ -234,8 +238,8 @@ export default function ScanScreen() {
         </View>
       ) : (
         <>
-          <ScannerOverlay isScanning={isAnalyzing} />
-          <View style={styles.overlay}>
+          <ScannerOverlay isScanning={isAnalyzing} isRetrying={isRetrying} />
+          <View style={[styles.overlay, { paddingTop: insets.top + 12 }]}>
             <View style={styles.topRow}>
               <Pressable
                 onPress={() => router.back()}
@@ -244,7 +248,7 @@ export default function ScanScreen() {
                   pressed && { opacity: 0.85 },
                 ]}
               >
-                <Feather name="x" size={20} color="white" />
+                <Feather name="x" size={24} color="white" />
               </Pressable>
 
               <Text style={styles.title}>Escaneo por IA</Text>
@@ -256,7 +260,7 @@ export default function ScanScreen() {
                   pressed && { opacity: 0.85 },
                 ]}
               >
-                <Feather name="maximize-2" size={20} color="white" />
+                <Feather name="maximize-2" size={24} color="white" />
               </Pressable>
             </View>
 
@@ -304,7 +308,6 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
-    paddingTop: 18,
   },
   topRow: {
     width: "100%",
@@ -312,14 +315,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    marginBottom: 8,
   },
   iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.35)",
+    backgroundColor: "rgba(0,0,0,0.6)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   title: { color: "white", fontSize: 16, fontWeight: "800" },
   frame: {

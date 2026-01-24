@@ -5,9 +5,10 @@ import { useTheme } from "@/presentation/theme/ThemeProvider";
 
 type ScannerOverlayProps = {
   isScanning?: boolean;
+  isRetrying?: boolean;
 };
 
-export function ScannerOverlay({ isScanning = false }: ScannerOverlayProps) {
+export function ScannerOverlay({ isScanning = false, isRetrying = false }: ScannerOverlayProps) {
   const { theme } = useTheme();
   const { colors } = theme;
   
@@ -131,7 +132,9 @@ export function ScannerOverlay({ isScanning = false }: ScannerOverlayProps) {
       {/* Texto de instrucción */}
       <View style={styles.hintContainer}>
         <Text style={[styles.hint, { color: colors.textPrimary }]}>
-          {isScanning
+          {isRetrying
+            ? "Reintentando..."
+            : isScanning
             ? "Analizando alimento..."
             : "Apunta la cámara al alimento"}
         </Text>

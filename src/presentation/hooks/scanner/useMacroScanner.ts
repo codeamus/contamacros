@@ -12,6 +12,7 @@ type UseMacroScannerOptions = {
 
 export function useMacroScanner(options?: UseMacroScannerOptions) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<MacroAnalysisResult | null>(null);
   const { showToast } = useToast();
 
@@ -31,7 +32,7 @@ export function useMacroScanner(options?: UseMacroScannerOptions) {
 
       // Capturar foto desde la cámara
       const photo = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: "images",
         allowsEditing: false,
         quality: 0.8,
         base64: true,
@@ -48,12 +49,13 @@ export function useMacroScanner(options?: UseMacroScannerOptions) {
         throw new Error("No se pudo capturar la imagen");
       }
 
-      // Redimensionar imagen a 800px de ancho para optimizar velocidad
+      // Compresión obligatoria: máximo 512px (ancho o alto) y calidad 0.3
+      // Esto reduce drásticamente el tamaño del Base64, consumiendo el mínimo de tokens posible
       const manipulatedImage = await ImageManipulator.manipulateAsync(
         asset.uri,
-        [{ resize: { width: 800 } }],
+        [{ resize: { width: 512 } }], // Máximo 512px de ancho (mantiene aspect ratio)
         {
-          compress: 0.8,
+          compress: 0.3, // Calidad 0.3 para optimización extrema de tokens
           format: ImageManipulator.SaveFormat.JPEG,
           base64: true,
         },
@@ -63,19 +65,77 @@ export function useMacroScanner(options?: UseMacroScannerOptions) {
         throw new Error("Error al procesar la imagen");
       }
 
-      // Analizar con Gemini
-      const result = await analyzeFoodImage(manipulatedImage.base64);
-      
-      setAnalysisResult(result);
-      options?.onAnalysisComplete?.(result);
+      // Analizar con Gemini (el servicio maneja reintentos automáticamente)
+      // Mostrar "Reintentando..." si el análisis tarda más de 4 segundos (probable reintento)
+      const analysisPromise = analyzeFoodImage(manipulatedImage.base64);
+      const timeoutId = setTimeout(() => {
+        setIsRetrying(true);
+      }, 4000); // Mostrar "Reintentando..." después de 4 segundos
+
+      try {
+        const result = await analysisPromise;
+        clearTimeout(timeoutId);
+        setIsRetrying(false);
+        setAnalysisResult(result);
+        options?.onAnalysisComplete?.(result);
+      } catch (error) {
+        clearTimeout(timeoutId);
+        setIsRetrying(false);
+        throw error;
+      }
     } catch (error) {
       console.error("[useMacroScanner] Error:", error);
-      const errorMessage = getErrorMessage(error);
+      
+      // Determinar tipo de error para mostrar mensaje descriptivo
+      let errorMessage: string;
+      let isApiKeyError = false;
+      let isNetworkError = false;
+
+      if (error instanceof Error) {
+        const errorMsg = error.message.toLowerCase();
+        
+        // Detectar errores de API Key
+        if (errorMsg.includes("api key") || 
+            errorMsg.includes("api_key") || 
+            errorMsg.includes("autenticación") ||
+            errorMsg.includes("no configurada")) {
+          isApiKeyError = true;
+          errorMessage = "Error de API Key: Verifica que EXPO_PUBLIC_GEMINI_API_KEY esté configurada en tu archivo .env";
+        }
+        // Detectar errores de límite de tokens (429) o quota exceeded
+        else if (errorMsg.includes("429") || 
+                 errorMsg.includes("resource_exhausted") ||
+                 errorMsg.includes("quota exceeded") ||
+                 errorMsg.includes("quota") ||
+                 errorMsg.includes("límite") ||
+                 errorMsg.includes("rate limit") ||
+                 errorMsg.includes("procesando") ||
+                 errorMsg.includes("configurando conexión")) {
+          errorMessage = "Configurando conexión con Google... Por favor, intenta escanear de nuevo en unos instantes.";
+        }
+        // Detectar errores de red/conexión
+        else if (errorMsg.includes("conexión") || 
+                 errorMsg.includes("network") || 
+                 errorMsg.includes("404") ||
+                 errorMsg.includes("internet") ||
+                 errorMsg.includes("failed to fetch") ||
+                 errorMsg.includes("timeout")) {
+          isNetworkError = true;
+          // El servicio ya reintentó automáticamente, mostrar mensaje final
+          errorMessage = "Error de conexión: Verifica tu internet e intenta de nuevo";
+        }
+        // Otros errores
+        else {
+          errorMessage = getErrorMessage(error);
+        }
+      } else {
+        errorMessage = getErrorMessage(error);
+      }
       
       showToast({
         message: errorMessage,
         type: "error",
-        duration: 4000,
+        duration: isApiKeyError || isNetworkError ? 6000 : 4000,
       });
       
       setAnalysisResult(null);
@@ -87,10 +147,12 @@ export function useMacroScanner(options?: UseMacroScannerOptions) {
   const resetAnalysis = useCallback(() => {
     setAnalysisResult(null);
     setIsAnalyzing(false);
+    setIsRetrying(false);
   }, []);
 
   return {
     isAnalyzing,
+    isRetrying,
     analysisResult,
     captureAndAnalyze,
     resetAnalysis,
