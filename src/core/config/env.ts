@@ -8,6 +8,9 @@ export const env = {
   // API
   apiUrl: process.env.EXPO_PUBLIC_API_URL ?? "",
   
+  // AI Services
+  geminiApiKey: process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? "",
+  
   // Environment
   isDev: __DEV__,
   isProduction: !__DEV__,
