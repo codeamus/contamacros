@@ -13,6 +13,9 @@ type UseMacroScannerOptions = {
   onLimitReached?: () => void; // Callback cuando se alcanza el límite
 };
 
+// Lock in-flight para evitar llamadas concurrentes
+let isAnalyzingInFlight = false;
+
 export function useMacroScanner(options?: UseMacroScannerOptions) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -21,9 +24,12 @@ export function useMacroScanner(options?: UseMacroScannerOptions) {
   const { isPremium } = usePremium();
 
   const captureAndAnalyze = useCallback(async () => {
-    if (isAnalyzing) {
+    // Lock in-flight: evitar llamadas concurrentes
+    if (isAnalyzing || isAnalyzingInFlight) {
       return;
     }
+    
+    isAnalyzingInFlight = true;
 
     // Verificar límite diario solo si NO es premium
     if (!isPremium) {
@@ -54,6 +60,7 @@ export function useMacroScanner(options?: UseMacroScannerOptions) {
 
       if (photo.canceled || !photo.assets[0]) {
         setIsAnalyzing(false);
+        isAnalyzingInFlight = false;
         return;
       }
 
@@ -129,9 +136,10 @@ export function useMacroScanner(options?: UseMacroScannerOptions) {
                  errorMsg.includes("quota") ||
                  errorMsg.includes("límite") ||
                  errorMsg.includes("rate limit") ||
-                 errorMsg.includes("procesando") ||
-                 errorMsg.includes("configurando conexión")) {
-          errorMessage = "Configurando conexión con Google... Por favor, intenta escanear de nuevo en unos instantes.";
+                 errorMsg.includes("revisa billing") ||
+                 errorMsg.includes("reintenta en")) {
+          // El mensaje ya viene formateado desde geminiService con retryDelay
+          errorMessage = error.message;
         }
         // Detectar errores de red/conexión
         else if (errorMsg.includes("conexión") || 
@@ -161,6 +169,7 @@ export function useMacroScanner(options?: UseMacroScannerOptions) {
       setAnalysisResult(null);
     } finally {
       setIsAnalyzing(false);
+      isAnalyzingInFlight = false; // Liberar lock
     }
   }, [isAnalyzing, isPremium, options, showToast]);
 
