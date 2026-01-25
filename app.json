@@ -8,9 +8,22 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "icon": "./assets/images/adaptive-icon.png",
-    "web": {
-      "output": "static",
-      "favicon": "./assets/images/adaptive-icon.png"
+    "ios": {
+      "bundleIdentifier": "com.codeamusdev2.contamacro",
+      "buildNumber": "1",
+      "supportsTablet": false,
+      "usesAppleSignIn": true,
+      "appleTeamId": "47CYZ3UYYK",
+      "entitlements": {
+        "com.apple.developer.in-app-payments": []
+      },
+      "infoPlist": {
+        "NSHealthShareUsageDescription": "ContaMacros lee tus calorías quemadas y pasos para ajustar tus metas diarias de macronutrientes automáticamente.",
+        "NSHealthUpdateUsageDescription": "ContaMacros sincroniza tus registros de comidas con Apple Health para mantener tu historial centralizado.",
+        "NSPhotoLibraryUsageDescription": "Selecciona una foto para personalizar tu perfil de usuario.",
+        "NSCameraUsageDescription": "Toma una foto para registrar tus comidas o actualizar tu avatar.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "plugins": [
       "expo-router",
@@ -19,50 +32,37 @@
         {
           "image": "./assets/images/splash-icon-light.png",
           "resizeMode": "contain",
-          "backgroundColor": "#FFFFFF",
+          "backgroundColor": "#F6F7EB",
           "dark": {
             "image": "./assets/images/splash-icon-dark.png",
-            "backgroundColor": "#000000"
+            "backgroundColor": "#1B3A2F"
           }
         }
       ],
       [
         "@kingstinct/react-native-healthkit",
         {
-          "healthSharePermission": "Esta app necesita acceso a tus datos de salud para sincronizar las calorías quemadas.",
-          "healthUpdatePermission": "Esta app necesita acceso para actualizar tus datos de salud."
+          "healthSharePermission": "ContaMacros necesita leer tus datos de actividad para calcular tu gasto energético diario.",
+          "healthUpdatePermission": "ContaMacros puede guardar tus registros nutricionales en la app Salud."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Esta app necesita acceso a tus fotos para que puedas seleccionar un avatar.",
-          "cameraPermission": "Esta app necesita acceso a tu cámara para que puedas tomar una foto para tu avatar."
+          "photosPermission": "Permite el acceso para elegir tu foto de perfil.",
+          "cameraPermission": "Permite el acceso para tomar fotos de tus comidas."
         }
       ],
       "@react-native-community/datetimepicker"
     ],
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.codeamusdev2.contamacro",
-      "infoPlist": {
-        "NSHealthShareUsageDescription": "Esta app necesita acceso a tus datos de salud para sincronizar las calorías quemadas y mejorar las recomendaciones del Coach Pro.",
-        "NSHealthUpdateUsageDescription": "Esta app necesita acceso para actualizar tus datos de salud.",
-        "NSPhotoLibraryUsageDescription": "Esta app necesita acceso a tus fotos para que puedas seleccionar un avatar.",
-        "NSCameraUsageDescription": "Esta app necesita acceso a tu cámara para que puedas tomar una foto para tu avatar."
-      }
-    },
     "android": {
+      "package": "com.codeamusdev2.contamacro",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#E6F4FE"
+        "backgroundColor": "#22C55E"
       },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
-      "package": "com.codeamusdev2.contamacro",
       "permissions": [
         "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
-        "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.CAMERA"
       ]
     },
