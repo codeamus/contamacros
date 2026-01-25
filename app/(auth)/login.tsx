@@ -271,8 +271,8 @@ export default function LoginScreen() {
               </Text>
             </Pressable>
 
-            {/* Apple (solo iOS) */}
-            {Platform.OS === "ios" && (
+            {/* Apple (solo iOS) - OCULTO */}
+            {false && Platform.OS === "ios" && (
               <Pressable
                 onPress={onApple}
                 disabled={busy}

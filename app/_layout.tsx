@@ -26,6 +26,22 @@ function AuthGate() {
   // Loader SOLO fuera de onboarding (para no tapar el flujo)
   const showLoader = initializing || (session && !profile && !inOnboarding);
 
+  // ✅ FAILSAFE: Timeout de seguridad de 4 segundos
+  // Fuerza el ocultamiento del splash después de 4 segundos máximo, pase lo que pase
+  // Esto previene bloqueos causados por errores en hooks o librerías nativas
+  useEffect(() => {
+    const emergencyTimer = setTimeout(() => {
+      console.log("[AuthGate] ⚠️ TIMEOUT DE SEGURIDAD: Forzando ocultamiento del splash después de 4s");
+      SplashScreen.hideAsync().catch((error) => {
+        console.warn("[AuthGate] Error al ocultar splash en timeout de seguridad:", error);
+      });
+    }, 4000);
+
+    return () => {
+      clearTimeout(emergencyTimer);
+    };
+  }, []);
+
   // ✅ Cuando la app está lista para renderizar UI real, escondemos el splash
   // Usamos un pequeño delay para asegurar que el view controller esté listo
   useEffect(() => {
@@ -41,6 +57,20 @@ function AuthGate() {
       return () => clearTimeout(timer);
     }
   }, [showLoader]);
+  
+  // ✅ FORZAR OCULTAMIENTO cuando initializing cambia a false
+  // Esto asegura que el splash se oculte incluso si showLoader sigue siendo true
+  useEffect(() => {
+    if (!initializing) {
+      const timer = setTimeout(() => {
+        SplashScreen.hideAsync().catch(() => {
+          // Ignorar errores silenciosamente
+        });
+      }, 200);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [initializing]);
 
   // ✅ Routing gate
   useEffect(() => {
