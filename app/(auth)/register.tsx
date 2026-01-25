@@ -2,6 +2,7 @@
 import AuthTextField from "@/presentation/components/auth/AuthTextField";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
+import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { translateAuthError } from "@/presentation/utils/authErrorTranslator";
 import {
@@ -27,6 +28,7 @@ const logoLight = require("assets/images/logo-light-removebg.png");
 
 export default function RegisterScreen() {
   const { signUp } = useAuth();
+  const { showToast } = useToast();
   const { theme } = useTheme();
   const { colors, typography } = theme;
 
@@ -87,6 +89,15 @@ export default function RegisterScreen() {
         setFormError(translateAuthError(res.message));
         return;
       }
+      
+      // ✅ Mostrar toast indicando que debe revisar su bandeja de entrada
+      showToast({
+        message: "Revisa tu bandeja de entrada para confirmar tu email",
+        type: "info",
+        duration: 4000,
+        icon: "email-outline",
+      });
+      
       // ✅ No redirigimos aquí.
       // AuthGate se encarga del flujo (onboarding / tabs) para evitar duplicidad.
     } catch (e) {
