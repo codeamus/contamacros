@@ -41,6 +41,9 @@ function translateAuthMessage(msg?: string) {
   if (m.includes("password") && m.includes("short"))
     return "La contraseña es demasiado corta.";
 
+  if (m.includes("email not confirmed") || m.includes("email_not_confirmed") || m.includes("not confirmed"))
+    return "Confirma tu email antes de iniciar sesión. Revisa tu bandeja de entrada.";
+
   return msg;
 }
 
