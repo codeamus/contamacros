@@ -23,7 +23,15 @@ export const AuthService = {
     password: string,
   ): Promise<AuthResult<{ user: User; session: Session | null }>> {
     try {
-      const { data, error } = await supabase.auth.signUp({ email, password });
+      // ✅ emailRedirectTo: Redirige al usuario a la app después de confirmar el email
+      // Usa el esquema de la app (contamacros://login) para abrir la app automáticamente
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: "contamacros://login",
+        },
+      });
 
       if (error) return { ok: false, message: error.message, code: error.code };
       if (!data.user)
