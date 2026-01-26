@@ -2,46 +2,51 @@
 import WeightPredictor from "@/presentation/components/predictor/WeightPredictor";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
-import { Tabs, router, useSegments } from "expo-router";
+import { Tabs, useSegments } from "expo-router";
 import React, { useMemo } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 
 export default function TabsLayout() {
   const { theme } = useTheme();
   const { colors, typography } = theme;
   const segments = useSegments();
-  
+
   // Detectar si estamos en la pantalla de scan
   const isScanScreen = useMemo(() => {
     return segments.includes("scan");
   }, [segments]);
-  
+
   // Estilos dinámicos
-  const addFoodPressableStyle = useMemo(() => ({
-    alignItems: "center" as const,
-    justifyContent: "center" as const,
-    minWidth: 56,
-    height: 40,
-    paddingHorizontal: 10,
-    borderRadius: 20,
-    backgroundColor: colors.brand,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
-    flexDirection: "row" as const,
-    gap: 4,
-  }), [colors.brand]);
-  
-  const addFoodLabelStyle = useMemo(() => ({
-    fontFamily: typography.body?.fontFamily,
-    fontSize: 11,
-    fontWeight: "600" as const,
-    color: colors.onCta,
-    letterSpacing: 0.3,
-  }), [typography.body?.fontFamily, colors.onCta]);
+  const addFoodPressableStyle = useMemo(
+    () => ({
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+      minWidth: 56,
+      height: 40,
+      paddingHorizontal: 10,
+      borderRadius: 20,
+      backgroundColor: colors.brand,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.15,
+      shadowRadius: 6,
+      elevation: 4,
+      flexDirection: "row" as const,
+      gap: 4,
+    }),
+    [colors.brand],
+  );
+
+  const addFoodLabelStyle = useMemo(
+    () => ({
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 11,
+      fontWeight: "600" as const,
+      color: colors.onCta,
+      letterSpacing: 0.3,
+    }),
+    [typography.body?.fontFamily, colors.onCta],
+  );
 
   return (
     <View style={{ flex: 1 }}>
@@ -153,34 +158,6 @@ export default function TabsLayout() {
       </Tabs>
       {/* Predictor Inteligente - Persistente en toda la app (oculto en scan) */}
       {!isScanScreen && <WeightPredictor />}
-
-      {/* Botón Agregar comida - A la misma altura que WeightPredictor (oculto en scan) */}
-      {!isScanScreen && (
-        <View style={[styles.addFoodButton, { bottom: 100, left: 18 }]}>
-        <Pressable
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.push({
-              pathname: "/(tabs)/add-food",
-              params: { meal: "snack" },
-            });
-          }}
-          style={({ pressed }) => [
-            addFoodPressableStyle,
-            pressed && { opacity: 0.9, transform: [{ scale: 0.95 }] },
-          ]}
-        >
-          <MaterialCommunityIcons
-            name="food-apple"
-            size={16}
-            color={colors.onCta}
-          />
-          <Text style={addFoodLabelStyle}>
-            Agregar Comida
-          </Text>
-        </Pressable>
-      </View>
-      )}
     </View>
   );
 }
