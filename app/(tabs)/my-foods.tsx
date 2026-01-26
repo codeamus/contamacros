@@ -518,7 +518,10 @@ export default function MyFoodsScreen() {
       // Si está en modo unidades, calcular gramos desde unidades
       const unitsNum = toFloatSafe(ingredientUnits);
       if (!Number.isFinite(unitsNum) || unitsNum <= 0) {
-        showToast("Ingresa una cantidad válida", "error");
+        showToast({
+          message: "Ingresa una cantidad válida",
+          type: "error",
+        });
         return;
       }
       units = Math.round(clamp(unitsNum, 1, 1000));
@@ -527,7 +530,10 @@ export default function MyFoodsScreen() {
       // Modo gramos
       const gramsNum = toFloatSafe(ingredientGrams);
       if (!Number.isFinite(gramsNum) || gramsNum <= 0) {
-        showToast("Ingresa una cantidad válida", "error");
+        showToast({
+          message: "Ingresa una cantidad válida",
+          type: "error",
+        });
         return;
       }
       clampedGrams = clamp(gramsNum, 1, 2000);
@@ -644,12 +650,18 @@ export default function MyFoodsScreen() {
     setSaving(false);
 
     if (!res.ok) {
-      showToast(res.message, "error");
+      showToast({
+        message: res.message,
+        type: "error",
+      });
       return;
     }
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showToast("Receta creada exitosamente", "success");
+    showToast({
+      message: "Receta creada exitosamente",
+      type: "success",
+    });
 
     // Reset
     setRecipeName("");
@@ -675,11 +687,17 @@ export default function MyFoodsScreen() {
           onPress: async () => {
             const res = await userFoodsRepository.remove(id);
             if (!res.ok) {
-              showToast(res.message, "error");
+              showToast({
+                message: res.message,
+                type: "error",
+              });
               return;
             }
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            showToast("Comida eliminada", "success");
+            showToast({
+              message: `"${name}" eliminado exitosamente`,
+              type: "success",
+            });
             await loadMyFoods();
           },
         },
