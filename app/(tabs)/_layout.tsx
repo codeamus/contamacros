@@ -96,7 +96,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="my-foods"
           options={{
-            title: "Comidas",
+            title: "Mis Comidas",
             tabBarIcon: ({ color, focused, size }) => (
               <MaterialCommunityIcons
                 name="chef-hat"

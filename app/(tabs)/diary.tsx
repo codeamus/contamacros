@@ -477,17 +477,8 @@ export default function DiaryScreen() {
 
   function onOpenItemActions(it: FoodLogDb) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Alert.alert(it.name, "¿Qué deseas hacer?", [
+    Alert.alert("Eliminar", `¿Eliminar "${it.name}"?`, [
       { text: "Cancelar", style: "cancel" },
-      {
-        text: "Editar",
-        onPress: () => {
-          router.push({
-            pathname: "/(tabs)/add-food",
-            params: { logId: it.id },
-          });
-        },
-      },
       {
         text: "Eliminar",
         style: "destructive",
