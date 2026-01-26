@@ -83,6 +83,19 @@ const BENEFITS = [
   },
 ];
 
+// Función helper para formatear precios según la moneda
+// En Chile (CLP) usamos puntos como separador de miles en lugar de comas
+const formatPriceForCurrency = (priceString: string, currencyCode?: string): string => {
+  if (!priceString || priceString === "—") return priceString;
+  
+  // Si es CLP, reemplazar comas por puntos
+  if (currencyCode === "CLP") {
+    return priceString.replace(/,/g, ".");
+  }
+  
+  return priceString;
+};
+
 // Los precios se obtendrán dinámicamente de RevenueCat
 
 export default function PremiumPaywall({
@@ -288,16 +301,19 @@ export default function PremiumPaywall({
     // Si el usuario está en Chile, los precios se mostrarán en CLP automáticamente
     // cuando estén configurados en App Store Connect para esa región
     const monthlyPrice = monthlyPkg?.product?.price ?? monthlyPkg?.storeProduct?.price ?? 0;
-    const monthlyPriceString = monthlyPkg?.product?.priceString ?? monthlyPkg?.storeProduct?.priceString ?? "—";
+    const monthlyPriceStringRaw = monthlyPkg?.product?.priceString ?? monthlyPkg?.storeProduct?.priceString ?? "—";
     const monthlyCurrency = monthlyPkg?.product?.currencyCode ?? monthlyPkg?.storeProduct?.currencyCode;
+    const monthlyPriceString = formatPriceForCurrency(monthlyPriceStringRaw, monthlyCurrency);
     
     const annualPrice = annualPkg?.product?.price ?? annualPkg?.storeProduct?.price ?? 0;
-    const annualPriceString = annualPkg?.product?.priceString ?? annualPkg?.storeProduct?.priceString ?? "—";
+    const annualPriceStringRaw = annualPkg?.product?.priceString ?? annualPkg?.storeProduct?.priceString ?? "—";
     const annualCurrency = annualPkg?.product?.currencyCode ?? annualPkg?.storeProduct?.currencyCode;
+    const annualPriceString = formatPriceForCurrency(annualPriceStringRaw, annualCurrency);
     
     const lifetimePrice = lifetimePkg?.product?.price ?? lifetimePkg?.storeProduct?.price ?? 0;
-    const lifetimePriceString = lifetimePkg?.product?.priceString ?? lifetimePkg?.storeProduct?.priceString ?? "—";
+    const lifetimePriceStringRaw = lifetimePkg?.product?.priceString ?? lifetimePkg?.storeProduct?.priceString ?? "—";
     const lifetimeCurrency = lifetimePkg?.product?.currencyCode ?? lifetimePkg?.storeProduct?.currencyCode;
+    const lifetimePriceString = formatPriceForCurrency(lifetimePriceStringRaw, lifetimeCurrency);
 
     // Log para debugging: ver qué moneda está usando
     if (monthlyCurrency || annualCurrency) {
@@ -320,6 +336,7 @@ export default function PremiumPaywall({
       monthly: {
         price: monthlyPrice,
         priceString: monthlyPriceString,
+        currencyCode: monthlyCurrency,
         period: "mes",
         label: "Plan Mensual",
         package: monthlyPkg ?? null,
@@ -327,6 +344,7 @@ export default function PremiumPaywall({
       annual: {
         price: annualPrice,
         priceString: annualPriceString,
+        currencyCode: annualCurrency,
         period: "año",
         label: "Plan Anual",
         savings: annualSavings,
@@ -336,6 +354,7 @@ export default function PremiumPaywall({
       lifetime: {
         price: lifetimePrice,
         priceString: lifetimePriceString,
+        currencyCode: lifetimeCurrency,
         period: "única vez",
         label: "Plan de por vida",
         package: lifetimePkg ?? null,
@@ -575,13 +594,35 @@ export default function PremiumPaywall({
   
   // Calcular precio mensual equivalente dinámicamente
   const monthlyPrice = useMemo(() => {
+    let price: number;
+    let currencyCode: string | undefined;
+    
     if (selectedPlan === "annual" && plansData.annual.price > 0) {
-      return (plansData.annual.price / 12).toFixed(2);
+      price = plansData.annual.price / 12;
+      currencyCode = plansData.annual.currencyCode;
+    } else if (plansData.monthly.price > 0) {
+      price = plansData.monthly.price;
+      currencyCode = plansData.monthly.currencyCode;
+    } else {
+      return "—";
     }
-    if (plansData.monthly.price > 0) {
-      return plansData.monthly.price.toFixed(2);
+    
+    // Formatear el precio con separador de miles según la moneda
+    const formattedPrice = price.toFixed(2);
+    
+    // Si es CLP, formatear con puntos como separador de miles
+    if (currencyCode === "CLP") {
+      // Separar parte entera y decimal
+      const parts = formattedPrice.split(".");
+      const integerPart = parts[0] || "";
+      const decimalPart = parts[1] || "00";
+      // Agregar puntos como separador de miles
+      const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+      return `${formattedInteger}.${decimalPart}`;
     }
-    return "—";
+    
+    // Para otras monedas, usar formato estándar (puede tener comas según locale)
+    return formattedPrice;
   }, [selectedPlan, plansData]);
 
   return (
