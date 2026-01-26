@@ -1,12 +1,12 @@
 // src/presentation/hooks/scanner/useMacroScanner.ts
-import { useState, useCallback } from "react";
-import * as ImagePicker from "expo-image-picker";
-import * as ImageManipulator from "expo-image-manipulator";
+import { getErrorMessage } from "@/core/errors/errorHandler";
 import { analyzeFoodImage, type MacroAnalysisResult } from "@/data/ai/geminiService";
-import { handleError, getErrorMessage } from "@/core/errors/errorHandler";
-import { useToast } from "@/presentation/hooks/ui/useToast";
-import { usePremium } from "@/presentation/hooks/subscriptions/usePremium";
 import { canScanToday, incrementScanCount } from "@/domain/services/scanLimitService";
+import { usePremium } from "@/presentation/hooks/subscriptions/usePremium";
+import { useToast } from "@/presentation/hooks/ui/useToast";
+import * as ImageManipulator from "expo-image-manipulator";
+import * as ImagePicker from "expo-image-picker";
+import { useCallback, useState } from "react";
 
 type UseMacroScannerOptions = {
   onAnalysisComplete?: (result: MacroAnalysisResult) => void;

@@ -1,16 +1,23 @@
 // app/(tabs)/scan.tsx
 import type { MealType } from "@/domain/models/foodLogDb";
-import { useTheme } from "@/presentation/theme/ThemeProvider";
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import { CameraView, useCameraPermissions } from "expo-camera";
-import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View, ActivityIndicator } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useMacroScanner } from "@/presentation/hooks/scanner/useMacroScanner";
-import { ScannerOverlay } from "@/presentation/components/scanner/ScannerOverlay";
-import { ConfirmMacroModal } from "@/presentation/components/scanner/ConfirmMacroModal";
 import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
+import { ConfirmMacroModal } from "@/presentation/components/scanner/ConfirmMacroModal";
+import { ScannerOverlay } from "@/presentation/components/scanner/ScannerOverlay";
+import { useMacroScanner } from "@/presentation/hooks/scanner/useMacroScanner";
+import { useTheme } from "@/presentation/theme/ThemeProvider";
+import { Feather } from "@expo/vector-icons";
+import { CameraView, useCameraPermissions } from "expo-camera";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const MEALS: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
 function isMealType(x: unknown): x is MealType {
@@ -22,7 +29,11 @@ export default function ScanScreen() {
   const { colors, typography } = theme;
   const insets = useSafeAreaInsets();
 
-  const params = useLocalSearchParams<{ meal?: string; returnTo?: string; mode?: string }>();
+  const params = useLocalSearchParams<{
+    meal?: string;
+    returnTo?: string;
+    mode?: string;
+  }>();
   const meal: MealType = isMealType(params.meal) ? params.meal : "snack";
   const returnTo = params.returnTo || "add-food";
 
@@ -63,7 +74,7 @@ export default function ScanScreen() {
             style: "default",
           },
         ],
-        { cancelable: true }
+        { cancelable: true },
       );
     },
   });
@@ -71,35 +82,49 @@ export default function ScanScreen() {
   // Resetear el estado cuando la pantalla recibe foco (para permitir escanear de nuevo)
   useFocusEffect(
     useCallback(() => {
-      console.log("[ScanScreen] 🔄 Pantalla enfocada, reseteando estado de escaneo");
+      console.log(
+        "[ScanScreen] 🔄 Pantalla enfocada, reseteando estado de escaneo",
+      );
       setScanned(false);
       lockRef.current = false;
       resetAnalysis();
       setShowConfirmModal(false);
-    }, [resetAnalysis])
+    }, [resetAnalysis]),
   );
 
   const onBarcodeScanned = useCallback(
     ({ data }: { data: string }) => {
-      console.log("[ScanScreen] 📷 Código escaneado:", { data, returnTo, meal });
-      
+      console.log("[ScanScreen] 📷 Código escaneado:", {
+        data,
+        returnTo,
+        meal,
+      });
+
       if (lockRef.current) {
         console.log("[ScanScreen] ⚠️ Escaneo bloqueado (ya procesado)");
         return;
       }
-      
+
       lockRef.current = true;
       setScanned(true);
 
       try {
         if (returnTo === "my-foods") {
-          console.log("[ScanScreen] 🔄 Navegando a my-foods con barcode:", data);
+          console.log(
+            "[ScanScreen] 🔄 Navegando a my-foods con barcode:",
+            data,
+          );
           router.replace({
             pathname: "/(tabs)/my-foods",
             params: { barcode: data },
           });
         } else {
-          console.log("[ScanScreen] 🔄 Navegando a add-food con barcode:", data, "meal:", meal);
+          console.log(
+            "[ScanScreen] 🔄 Navegando a add-food con barcode:",
+            data,
+            "meal:",
+            meal,
+          );
           router.replace({
             pathname: "/(tabs)/add-food",
             params: { meal, barcode: data },
@@ -111,7 +136,7 @@ export default function ScanScreen() {
         setScanned(false);
       }
     },
-    [meal, returnTo]
+    [meal, returnTo],
   );
 
   // Detectar modo desde params
