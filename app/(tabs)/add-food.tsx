@@ -267,6 +267,7 @@ export default function AddFoodScreen() {
   const isBarcodeSearchRef = useRef(false); // Ref para rastrear si hay búsqueda de barcode en curso
   const justProcessedBarcodeRef = useRef(false); // Ref para rastrear si acabamos de procesar un barcode exitosamente
   const justSelectedManuallyRef = useRef(false); // Ref para proteger cuando el usuario selecciona manualmente un alimento
+  const lastFavoritesKeyRef = useRef<string>(""); // Ref para rastrear la última clave de favoritos cargada
 
   // Cargar historial, recetas y favoritos al montar
   useEffect(() => {
@@ -285,39 +286,58 @@ export default function AddFoodScreen() {
     })();
   }, []);
 
+  // Función para cargar alimentos favoritos
+  const loadFavoriteFoods = useCallback(async (favoriteIds: string[]) => {
+    if (favoriteIds.length === 0) {
+      setFavoriteFoods([]);
+      return;
+    }
+
+    setLoadingFavorites(true);
+    try {
+      const favoritesRes = await genericFoodsRepository.getByIds(favoriteIds);
+      if (favoritesRes.ok) {
+        const favoriteItems = mapGenericFoodDbArrayToSearchItems(favoritesRes.data);
+        setFavoriteFoods(favoriteItems);
+      }
+    } catch (error) {
+      console.error("[AddFoodScreen] Error loading favorite foods:", error);
+    } finally {
+      setLoadingFavorites(false);
+    }
+  }, []); // Sin dependencias para evitar recreaciones
+
   // Cargar alimentos favoritos cuando cambian los favoritos
   // Usar useMemo para crear una clave estable basada en el contenido del array
   const favoritesKey = useMemo(() => favorites.join(","), [favorites]);
   
   useEffect(() => {
-    let cancelled = false;
-    
-    (async () => {
-      if (favorites.length === 0) {
-        if (!cancelled) {
-          setFavoriteFoods([]);
-        }
-        return;
+    // Solo cargar si la clave cambió (evitar cargas duplicadas)
+    if (favoritesKey !== lastFavoritesKeyRef.current) {
+      lastFavoritesKeyRef.current = favoritesKey;
+      
+      if (favorites.length > 0) {
+        loadFavoriteFoods(favorites);
+      } else {
+        setFavoriteFoods([]);
       }
-
-      setLoadingFavorites(true);
-      const favoritesRes = await genericFoodsRepository.getByIds(favorites);
-      if (!cancelled) {
-        if (favoritesRes.ok) {
-          const favoriteItems = mapGenericFoodDbArrayToSearchItems(favoritesRes.data);
-          setFavoriteFoods(favoriteItems);
-        }
-        setLoadingFavorites(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [favoritesKey]);
+    }
+  }, [favoritesKey, favorites, loadFavoriteFoods]);
 
   useFocusEffect(
     useCallback(() => {
+      // Recargar favoritos cuando se vuelve a entrar a la pantalla
+      // Solo cargar si la clave cambió desde la última vez (evitar loops)
+      const currentKey = favorites.join(",");
+      if (currentKey !== lastFavoritesKeyRef.current) {
+        lastFavoritesKeyRef.current = currentKey;
+        if (favorites.length > 0) {
+          loadFavoriteFoods(favorites);
+        } else {
+          setFavoriteFoods([]);
+        }
+      }
+
       // ✅ cada vez que entras a AddFood, parte limpio
       // PERO: No limpiar selected si hay un barcode pendiente (viene del scanner)
       const hasBarcode = typeof params.barcode === "string" && params.barcode.trim().length > 0;
@@ -398,7 +418,7 @@ export default function AddFoodScreen() {
           }
         }
       };
-    }, [params.barcode, selected, isSearchingMore]),
+    }, [params.barcode, selected, isSearchingMore, favorites, loadFavoriteFoods]),
   );
 
   useEffect(() => {
@@ -1099,7 +1119,7 @@ export default function AddFoodScreen() {
                     size={18}
                     color={colors.brand}
                   />
-                  <Text style={s.sectionTitle}>Tus Favoritos ⭐</Text>
+                  <Text style={s.sectionTitle}>⭐ Mis Favoritos</Text>
                 </View>
                 {loadingFavorites ? (
                   <View style={s.loadingBox}>
@@ -1153,7 +1173,7 @@ export default function AddFoodScreen() {
                     size={18}
                     color={colors.textPrimary}
                   />
-                  <Text style={s.sectionTitle}>Recientemente consumidos 🕒</Text>
+                  <Text style={s.sectionTitle}>🕒 Consumidos Recientemente</Text>
                 </View>
                 <View style={{ gap: 8 }}>
                   {recentFoods.map((recent) => {

@@ -13,7 +13,7 @@ type RecentFood = {
   timestamp: number;
 };
 
-const MAX_RECENT_FOODS = 10;
+const MAX_RECENT_FOODS = 15;
 
 export function useRecentFoods() {
   const [recentFoods, setRecentFoods] = useState<RecentFood[]>([]);

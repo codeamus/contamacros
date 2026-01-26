@@ -42,6 +42,18 @@ Estos campos permiten que el usuario registre sin necesidad de una pesa de alime
 
 **Importante**: Todos los valores nutricionales en `generic_foods` están normalizados a 100g. Para calcular macros de una cantidad específica, usar la fórmula: `(valor_100g / 100) * cantidad_en_gramos`.
 
+### Tabla: `user_favorites`
+| Campo | Tipo | Descripción |
+| :--- | :--- | :--- |
+| `id` | uuid | Identificador único del favorito |
+| `user_id` | uuid | UUID del usuario (FK a auth.users.id) |
+| `food_id` | uuid | ID del alimento favorito (FK a generic_foods.id) |
+| `created_at` | timestamp | Fecha de creación del favorito |
+
+**Políticas RLS**:
+- Los usuarios solo pueden ver, insertar y eliminar sus propios favoritos
+- Ver archivo `supabase/migrations/user_favorites_rls.sql` para las políticas completas
+
 ### Tabla: `profiles`
 | Campo | Tipo | Descripción |
 | :--- | :--- | :--- |
