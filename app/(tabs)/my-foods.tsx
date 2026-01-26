@@ -720,6 +720,16 @@ export default function MyFoodsScreen() {
           >
             <Feather name="plus" size={18} color={colors.textPrimary} />
           </Pressable>
+
+          <Pressable
+            style={s.iconBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push("/(tabs)/settings");
+            }}
+          >
+            <Feather name="settings" size={18} color={colors.textPrimary} />
+          </Pressable>
         </View>
 
         {!!err && (

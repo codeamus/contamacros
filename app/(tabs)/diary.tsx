@@ -507,21 +507,44 @@ export default function DiaryScreen() {
         }
       >
         {/* Header con componente reutilizable */}
-        <DateHeader
-          dateStr={day}
-          kicker="Diario"
-          onRefresh={goToToday}
-          loading={loading}
-          rightAction={{
-            icon: "plus",
-            onPress: () => {
-              router.push({
-                pathname: "/(tabs)/add-food",
-                params: addMealParam ? { meal: addMealParam } : undefined,
-              });
-            },
-          }}
-        />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <View style={{ flex: 1 }}>
+            <DateHeader
+              dateStr={day}
+              kicker="Diario"
+              rightAction={{
+                icon: "plus",
+                onPress: () => {
+                  router.push({
+                    pathname: "/(tabs)/add-food",
+                    params: addMealParam ? { meal: addMealParam } : undefined,
+                  });
+                },
+              }}
+            />
+          </View>
+          <Pressable
+            style={({ pressed }) => [
+              {
+                width: 40,
+                height: 40,
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.surface,
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: pressed ? 0.7 : 1,
+              },
+            ]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push("/(tabs)/settings");
+            }}
+          >
+            <Feather name="settings" size={18} color={colors.textPrimary} />
+          </Pressable>
+        </View>
 
         {/* Filter chips con animación */}
         <Animated.View

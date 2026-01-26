@@ -201,10 +201,12 @@ export default function SettingsScreen() {
   const [loading, setLoading] = useState(false);
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [showWeightModal, setShowWeightModal] = useState(false);
+  const [showHeightModal, setShowHeightModal] = useState(false);
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [showNameModal, setShowNameModal] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [weightInput, setWeightInput] = useState("");
+  const [heightInput, setHeightInput] = useState("");
   const [nameInput, setNameInput] = useState("");
   const [showPaywall, setShowPaywall] = useState(false);
   const [showCustomerCenter, setShowCustomerCenter] = useState(false);
@@ -373,6 +375,77 @@ export default function SettingsScreen() {
       setUpdating(false);
     }
   }, [profile, weightInput, updateProfile, refreshProfile, showToast]);
+
+  const handleUpdateHeight = useCallback(async () => {
+    if (!profile) return;
+
+    const heightNum = parseFloat(heightInput.replace(",", "."));
+    if (!Number.isFinite(heightNum) || heightNum <= 0 || heightNum > 250) {
+      showToast({
+        message: "Ingresa una altura válida (1-250 cm)",
+        type: "error",
+        duration: 2000,
+      });
+      return;
+    }
+
+    setUpdating(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    try {
+      // Recalcular calorías con la nueva altura
+      const calorieResult = calculateCalorieGoal({
+        gender: profile.gender || "male",
+        birthDate: profile.birth_date || "1990-01-01",
+        heightCm: heightNum,
+        weightKg: profile.weight_kg || 70,
+        activityLevel: profile.activity_level || "moderate",
+        goalType: (profile.goal === "maintain" ? "maintenance" : (profile.goal as GoalType)) || "maintenance",
+        goalAdjustment: profile.goal_adjustment ?? undefined,
+      });
+
+      // Recalcular macros con la nueva altura
+      const macros = computeMacroTargets({
+        calories: calorieResult.dailyCalorieTarget,
+        weightKg: profile.weight_kg || 70,
+      });
+
+      // Actualizar perfil
+      const res = await updateProfile({
+        height_cm: heightNum,
+        daily_calorie_target: calorieResult.dailyCalorieTarget,
+        protein_g: macros.proteinG,
+        carbs_g: macros.carbsG,
+        fat_g: macros.fatG,
+      });
+
+      if (!res.ok) {
+        showToast({
+          message: res.message || "No se pudo actualizar la altura",
+          type: "error",
+          duration: 3000,
+        });
+        return;
+      }
+
+      await refreshProfile();
+      setShowHeightModal(false);
+      setHeightInput("");
+      showToast({
+        message: "Altura actualizada correctamente",
+        type: "success",
+        duration: 2000,
+      });
+    } catch (error: any) {
+      showToast({
+        message: error.message || "Error al actualizar la altura",
+        type: "error",
+        duration: 3000,
+      });
+    } finally {
+      setUpdating(false);
+    }
+  }, [profile, heightInput, updateProfile, refreshProfile, showToast]);
 
   const handleUpdateActivity = useCallback(
     async (newActivity: ActivityLevelDb) => {
@@ -916,6 +989,11 @@ export default function SettingsScreen() {
                   icon="human-male-height"
                   label="Altura"
                   value={`${profile.height_cm} cm`}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setHeightInput((profile.height_cm || 170).toString());
+                    setShowHeightModal(true);
+                  }}
                   colors={colors}
                   typography={typography}
                 />
@@ -1344,6 +1422,79 @@ export default function SettingsScreen() {
                 ) : (
                   <Pressable
                     onPress={handleUpdateWeight}
+                    style={({ pressed }) => [
+                      s.modalSaveBtn,
+                      pressed && { opacity: 0.8 },
+                    ]}
+                  >
+                    <Text style={s.modalSaveBtnText}>Guardar</Text>
+                  </Pressable>
+                )}
+              </View>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
+
+      {/* Modal para editar altura */}
+      <Modal
+        visible={showHeightModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowHeightModal(false)}
+      >
+        <Pressable
+          style={s.modalOverlay}
+          onPress={() => setShowHeightModal(false)}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={s.modalContent}
+          >
+            <Pressable onPress={(e) => e.stopPropagation()}>
+              <View style={s.modalHeader}>
+                <Text style={s.modalTitle}>Actualizar altura</Text>
+                <Pressable
+                  onPress={() => {
+                    setShowHeightModal(false);
+                    setHeightInput("");
+                  }}
+                  style={({ pressed }) => [
+                    s.modalCloseBtn,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <Feather name="x" size={20} color={colors.textPrimary} />
+                </Pressable>
+              </View>
+
+              <View style={s.modalBody}>
+                <Text style={s.modalDescription}>
+                  Ingresa tu altura actual. Se recalcularán automáticamente tus
+                  calorías y macros diarios.
+                </Text>
+
+                <View style={s.weightInputContainer}>
+                  <TextInput
+                    style={s.weightInput}
+                    value={heightInput}
+                    onChangeText={setHeightInput}
+                    placeholder="Ej: 175"
+                    placeholderTextColor={colors.textSecondary}
+                    keyboardType="decimal-pad"
+                    autoFocus
+                  />
+                  <Text style={s.weightInputLabel}>cm</Text>
+                </View>
+
+                {updating ? (
+                  <View style={s.modalLoading}>
+                    <ActivityIndicator size="small" color={colors.brand} />
+                    <Text style={s.modalLoadingText}>Actualizando...</Text>
+                  </View>
+                ) : (
+                  <Pressable
+                    onPress={handleUpdateHeight}
                     style={({ pressed }) => [
                       s.modalSaveBtn,
                       pressed && { opacity: 0.8 },

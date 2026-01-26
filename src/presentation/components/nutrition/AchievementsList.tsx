@@ -2,7 +2,6 @@
 import { GamificationService, type UserAchievement } from "@/domain/services/gamificationService";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import * as Haptics from "expo-haptics";
@@ -45,7 +44,6 @@ type AchievementsListProps = {
 export default function AchievementsList({ showHeader = true, maxItems }: AchievementsListProps) {
   const { theme } = useTheme();
   const { colors, typography } = theme;
-  const router = useRouter();
   const s = makeStyles(colors, typography);
 
   const [achievements, setAchievements] = useState<UserAchievement[]>([]);
@@ -75,10 +73,19 @@ export default function AchievementsList({ showHeader = true, maxItems }: Achiev
   if (achievements.length === 0) {
     return (
       <View style={s.container}>
-        <Text style={s.emptyText}>Aún no has desbloqueado medallas</Text>
-        <Text style={s.emptySubtext}>
-          ¡Registra comidas y aporta alimentos para ganar logros!
-        </Text>
+        <View style={s.emptyCard}>
+          <View style={s.emptyIconContainer}>
+            <MaterialCommunityIcons
+              name="medal-outline"
+              size={32}
+              color={colors.brand}
+            />
+          </View>
+          <Text style={s.emptyTitle}>Aún no has desbloqueado medallas</Text>
+          <Text style={s.emptyText}>
+            ¡Registra comidas y aporta alimentos para ganar logros!
+          </Text>
+        </View>
       </View>
     );
   }
@@ -123,9 +130,16 @@ export default function AchievementsList({ showHeader = true, maxItems }: Achiev
       {!showHeader && <Text style={s.title}>Medallas Obtenidas</Text>}
       <View style={s.list}>
         {displayedAchievements.length === 0 ? (
-          <View style={s.emptyContainer}>
-            <Text style={s.emptyText}>Aún no has desbloqueado medallas</Text>
-            <Text style={s.emptySubtext}>
+          <View style={s.emptyCard}>
+            <View style={s.emptyIconContainer}>
+              <MaterialCommunityIcons
+                name="medal-outline"
+                size={32}
+                color={colors.brand}
+              />
+            </View>
+            <Text style={s.emptyTitle}>Aún no has desbloqueado medallas</Text>
+            <Text style={s.emptyText}>
               ¡Registra comidas y aporta alimentos para ganar logros!
             </Text>
           </View>
@@ -234,23 +248,38 @@ function makeStyles(colors: any, typography: any) {
       fontSize: 12,
       color: colors.textSecondary,
     },
-    emptyContainer: {
-      padding: 20,
+    emptyCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 24,
       alignItems: "center",
+      gap: 12,
+    },
+    emptyIconContainer: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: colors.brand + "15",
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: colors.brand + "30",
+    },
+    emptyTitle: {
+      ...typography.subtitle,
+      fontSize: 16,
+      fontWeight: "700",
+      color: colors.textPrimary,
+      textAlign: "center",
     },
     emptyText: {
       ...typography.body,
-      fontSize: 14,
+      fontSize: 13,
       color: colors.textSecondary,
       textAlign: "center",
-      marginTop: 8,
-    },
-    emptySubtext: {
-      ...typography.caption,
-      fontSize: 12,
-      color: colors.textSecondary,
-      textAlign: "center",
-      marginTop: 4,
+      lineHeight: 18,
     },
   });
 }

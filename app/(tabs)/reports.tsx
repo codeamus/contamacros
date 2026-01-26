@@ -5,11 +5,12 @@ import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
 import { usePremium } from "@/presentation/hooks/subscriptions/usePremium";
 import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -315,6 +316,18 @@ export default function ReportsScreen() {
                 color={isPremium ? colors.brand : colors.textSecondary}
               />
             )}
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              s.exportButton,
+              pressed && s.exportButtonPressed,
+            ]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push("/(tabs)/settings");
+            }}
+          >
+            <Feather name="settings" size={18} color={colors.textPrimary} />
           </Pressable>
         </View>
 
