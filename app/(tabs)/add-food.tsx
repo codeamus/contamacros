@@ -35,6 +35,8 @@ import type { OffProduct } from "@/domain/models/offProduct";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
+import { useFavorites } from "@/presentation/hooks/food/useFavorites";
+import { useRecentFoods } from "@/presentation/hooks/food/useRecentFoods";
 import { todayStrLocal } from "@/presentation/utils/date";
 import { MEAL_LABELS } from "@/presentation/utils/labels";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -218,6 +220,8 @@ export default function AddFoodScreen() {
   const { theme } = useTheme();
   const { colors, typography } = theme;
   const { showToast } = useToast();
+  const { favorites, isFavorite, toggleFavorite } = useFavorites();
+  const { recentFoods, addRecent } = useRecentFoods();
   const s = makeStyles(colors, typography);
 
   const day = todayStrLocal();
@@ -247,6 +251,8 @@ export default function AddFoodScreen() {
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [myRecipes, setMyRecipes] = useState<ExtendedFoodSearchItem[]>([]);
   const [loadingRecipes, setLoadingRecipes] = useState(false);
+  const [favoriteFoods, setFavoriteFoods] = useState<ExtendedFoodSearchItem[]>([]);
+  const [loadingFavorites, setLoadingFavorites] = useState(false);
 
   const [gramsStr, setGramsStr] = useState("100");
   const [unitsStr, setUnitsStr] = useState("1");
@@ -262,7 +268,7 @@ export default function AddFoodScreen() {
   const justProcessedBarcodeRef = useRef(false); // Ref para rastrear si acabamos de procesar un barcode exitosamente
   const justSelectedManuallyRef = useRef(false); // Ref para proteger cuando el usuario selecciona manualmente un alimento
 
-  // Cargar historial y recetas al montar
+  // Cargar historial, recetas y favoritos al montar
   useEffect(() => {
     (async () => {
       const history = await getSearchHistory();
@@ -278,6 +284,37 @@ export default function AddFoodScreen() {
       setLoadingRecipes(false);
     })();
   }, []);
+
+  // Cargar alimentos favoritos cuando cambian los favoritos
+  // Usar useMemo para crear una clave estable basada en el contenido del array
+  const favoritesKey = useMemo(() => favorites.join(","), [favorites]);
+  
+  useEffect(() => {
+    let cancelled = false;
+    
+    (async () => {
+      if (favorites.length === 0) {
+        if (!cancelled) {
+          setFavoriteFoods([]);
+        }
+        return;
+      }
+
+      setLoadingFavorites(true);
+      const favoritesRes = await genericFoodsRepository.getByIds(favorites);
+      if (!cancelled) {
+        if (favoritesRes.ok) {
+          const favoriteItems = mapGenericFoodDbArrayToSearchItems(favoritesRes.data);
+          setFavoriteFoods(favoriteItems);
+        }
+        setLoadingFavorites(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [favoritesKey]);
 
   useFocusEffect(
     useCallback(() => {
@@ -856,10 +893,15 @@ export default function AddFoodScreen() {
 
     console.log("[AddFoodScreen] ✅ Alimento guardado exitosamente");
 
-    // Guardar en historial
+    // Guardar en historial de búsqueda
     await addToSearchHistory(selected.name);
     const updatedHistory = await getSearchHistory();
     setSearchHistory(updatedHistory);
+
+    // Guardar en recientes (solo si es de generic_foods o user_foods, no de OFF)
+    if (selected.source === "food" || selected.source === "user_food") {
+      await addRecent(selected);
+    }
 
     setSelected(null);
     setQuery("");
@@ -1048,6 +1090,150 @@ export default function AddFoodScreen() {
               )}
             </View>
 
+            {/* Favoritos - Solo cuando no hay búsqueda */}
+            {!query.trim() && favoriteFoods.length > 0 && (
+              <View style={{ gap: 8, marginTop: 12 }}>
+                <View style={s.sectionHeader}>
+                  <MaterialCommunityIcons
+                    name="star"
+                    size={18}
+                    color={colors.brand}
+                  />
+                  <Text style={s.sectionTitle}>Tus Favoritos ⭐</Text>
+                </View>
+                {loadingFavorites ? (
+                  <View style={s.loadingBox}>
+                    <ActivityIndicator size="small" color={colors.brand} />
+                  </View>
+                ) : (
+                  <View style={{ gap: 8 }}>
+                    {favoriteFoods.map((food) => (
+                      <Pressable
+                        key={food.key}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          justSelectedManuallyRef.current = true;
+                          setSelected(food);
+                          setTimeout(() => {
+                            justSelectedManuallyRef.current = false;
+                          }, 500);
+                        }}
+                        style={({ pressed }) => [
+                          s.historyItem,
+                          pressed && { opacity: 0.95, transform: [{ scale: 0.997 }] },
+                        ]}
+                      >
+                        <View style={s.historyIcon}>
+                          <MaterialCommunityIcons
+                            name="star"
+                            size={16}
+                            color={colors.brand}
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.historyName}>{food.name}</Text>
+                          <Text style={s.historyMeta}>
+                            {food.kcal_100g ? `${food.kcal_100g} kcal / 100g` : "Alimento favorito"}
+                          </Text>
+                        </View>
+                        <Feather name="chevron-right" size={16} color={colors.textSecondary} />
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Recientes - Solo cuando no hay búsqueda */}
+            {!query.trim() && recentFoods.length > 0 && (
+              <View style={{ gap: 8, marginTop: 12 }}>
+                <View style={s.sectionHeader}>
+                  <MaterialCommunityIcons
+                    name="clock-outline"
+                    size={18}
+                    color={colors.textPrimary}
+                  />
+                  <Text style={s.sectionTitle}>Recientemente consumidos 🕒</Text>
+                </View>
+                <View style={{ gap: 8 }}>
+                  {recentFoods.map((recent) => {
+                    // Buscar el alimento completo en favoritos o recetas
+                    const foodItem = favoriteFoods.find(f => f.key === recent.key) ||
+                                   myRecipes.find(r => r.key === recent.key);
+
+                    return (
+                      <Pressable
+                        key={recent.key}
+                        onPress={async () => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          
+                          // Si ya tenemos el alimento completo, usarlo
+                          if (foodItem) {
+                            justSelectedManuallyRef.current = true;
+                            setSelected(foodItem);
+                            setTimeout(() => {
+                              justSelectedManuallyRef.current = false;
+                            }, 500);
+                            return;
+                          }
+
+                          // Si no, buscar desde generic_foods o user_foods
+                          if (recent.food_id) {
+                            const foodRes = await genericFoodsRepository.getByIds([recent.food_id]);
+                            if (foodRes.ok && foodRes.data.length > 0) {
+                              const fullFood = mapGenericFoodDbArrayToSearchItems(foodRes.data)[0];
+                              justSelectedManuallyRef.current = true;
+                              setSelected(fullFood);
+                              setTimeout(() => {
+                                justSelectedManuallyRef.current = false;
+                              }, 500);
+                              return;
+                            }
+                          } else if (recent.user_food_id) {
+                            const userFoodRes = await userFoodsRepository.getById(recent.user_food_id);
+                            if (userFoodRes.ok && userFoodRes.data) {
+                              const fullFood = mapUserFoodDbArrayToSearchItems([userFoodRes.data])[0];
+                              justSelectedManuallyRef.current = true;
+                              setSelected(fullFood);
+                              setTimeout(() => {
+                                justSelectedManuallyRef.current = false;
+                              }, 500);
+                              return;
+                            }
+                          }
+
+                          // Si no se puede cargar, mostrar error
+                          showToast({
+                            message: "No se pudo cargar el alimento",
+                            type: "error",
+                          });
+                        }}
+                        style={({ pressed }) => [
+                          s.historyItem,
+                          pressed && { opacity: 0.95, transform: [{ scale: 0.997 }] },
+                        ]}
+                      >
+                        <View style={s.historyIcon}>
+                          <MaterialCommunityIcons
+                            name="clock-outline"
+                            size={16}
+                            color={colors.textSecondary}
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.historyName}>{recent.name}</Text>
+                          <Text style={s.historyMeta}>
+                            {foodItem?.kcal_100g ? `${foodItem.kcal_100g} kcal / 100g` : "Recientemente agregado"}
+                          </Text>
+                        </View>
+                        <Feather name="chevron-right" size={16} color={colors.textSecondary} />
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+
             {/* Mis Recetas - Siempre visible */}
             {myRecipes.length > 0 && (
               <View style={{ gap: 8, marginTop: 12 }}>
@@ -1172,59 +1358,95 @@ export default function AddFoodScreen() {
 
             {/* Results */}
             <View style={{ marginTop: 10, gap: 10 }}>
-              {results.map((it) => (
-                <Pressable
-                  key={it.key}
-                  style={({ pressed }) => [
-                    s.result,
-                    pressed && { opacity: 0.95, transform: [{ scale: 0.997 }] },
-                  ]}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    justSelectedManuallyRef.current = true; // Marcar que el usuario seleccionó manualmente
-                    setSelected(it);
-                    // Resetear el flag después de un delay para permitir que useFocusEffect lo proteja
-                    setTimeout(() => {
-                      justSelectedManuallyRef.current = false;
-                    }, 500);
-                  }}
-                >
-                  <View style={s.resultIcon}>
-                    <MaterialCommunityIcons
-                      name={iconFor(it)}
+              {results.map((it) => {
+                const favorite = it.food_id ? isFavorite(it.food_id) : false;
+                return (
+                  <Pressable
+                    key={it.key}
+                    style={({ pressed }) => [
+                      s.result,
+                      pressed && { opacity: 0.95, transform: [{ scale: 0.997 }] },
+                    ]}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      justSelectedManuallyRef.current = true; // Marcar que el usuario seleccionó manualmente
+                      setSelected(it);
+                      // Resetear el flag después de un delay para permitir que useFocusEffect lo proteja
+                      setTimeout(() => {
+                        justSelectedManuallyRef.current = false;
+                      }, 500);
+                    }}
+                  >
+                    <View style={s.resultIcon}>
+                      <MaterialCommunityIcons
+                        name={iconFor(it)}
+                        size={18}
+                        color={colors.textSecondary}
+                      />
+                    </View>
+
+                    <View style={{ flex: 1, gap: 4 }}>
+                      <Text style={s.resultName} numberOfLines={1}>
+                        {it.name}
+                      </Text>
+
+                      <Text style={s.resultMeta} numberOfLines={1}>
+                        {it.meta ?? badgeText(it)}
+                      </Text>
+
+                      <View style={s.kcalBadge}>
+                        <MaterialCommunityIcons
+                          name="fire"
+                          size={14}
+                          color={colors.textSecondary}
+                        />
+                        <Text style={s.kcalBadgeText}>
+                          {it.kcal_100g ?? "?"} kcal / 100g · {badgeText(it)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Icono de favorito - Solo para alimentos de generic_foods */}
+                    {it.food_id && it.source === "food" && (
+                      <Pressable
+                        onPress={async (e) => {
+                          e.stopPropagation();
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          try {
+                            await toggleFavorite(it.food_id!);
+                            Haptics.notificationAsync(
+                              favorite
+                                ? Haptics.NotificationFeedbackType.Warning
+                                : Haptics.NotificationFeedbackType.Success
+                            );
+                          } catch (error) {
+                            showToast({
+                              message: error instanceof Error ? error.message : "Error al actualizar favorito",
+                              type: "error",
+                            });
+                          }
+                        }}
+                        style={({ pressed }) => [
+                          s.favoriteButton,
+                          pressed && { opacity: 0.7 },
+                        ]}
+                      >
+                        <MaterialCommunityIcons
+                          name={favorite ? "heart" : "heart-outline"}
+                          size={20}
+                          color={favorite ? "#EF4444" : colors.textSecondary}
+                        />
+                      </Pressable>
+                    )}
+
+                    <Feather
+                      name="chevron-right"
                       size={18}
                       color={colors.textSecondary}
                     />
-                  </View>
-
-                  <View style={{ flex: 1, gap: 4 }}>
-                    <Text style={s.resultName} numberOfLines={1}>
-                      {it.name}
-                    </Text>
-
-                    <Text style={s.resultMeta} numberOfLines={1}>
-                      {it.meta ?? badgeText(it)}
-                    </Text>
-
-                    <View style={s.kcalBadge}>
-                      <MaterialCommunityIcons
-                        name="fire"
-                        size={14}
-                        color={colors.textSecondary}
-                      />
-                      <Text style={s.kcalBadgeText}>
-                        {it.kcal_100g ?? "?"} kcal / 100g · {badgeText(it)}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <Feather
-                    name="chevron-right"
-                    size={18}
-                    color={colors.textSecondary}
-                  />
-                </Pressable>
-              ))}
+                  </Pressable>
+                );
+              })}
 
               {!isSearchingLocal &&
                 !isSearchingMore &&
@@ -1734,6 +1956,10 @@ function makeStyles(colors: any, typography: any) {
       fontFamily: typography.body?.fontFamily,
       color: colors.textSecondary,
       fontSize: 12,
+    },
+    favoriteButton: {
+      padding: 6,
+      marginRight: 4,
     },
 
     kcalBadge: {

@@ -65,6 +65,22 @@ export const userFoodsRepository = {
     return { ok: true, data: (data as UserFoodDb[]) ?? [] };
   },
 
+  async getById(id: string): Promise<RepoResult<UserFoodDb>> {
+    const uidRes = await getUid();
+    if (!uidRes.ok) return uidRes;
+
+    const { data, error } = await supabase
+      .from("user_foods")
+      .select("*")
+      .eq("id", id)
+      .eq("user_id", uidRes.data)
+      .maybeSingle();
+
+    if (error) return { ok: false, message: error.message, code: error.code };
+    if (!data) return { ok: false, message: "Alimento no encontrado" };
+    return { ok: true, data: data as UserFoodDb };
+  },
+
   async create(input: Omit<UserFoodDb, "id" | "user_id" | "created_at">) {
     const uidRes = await getUid();
     if (!uidRes.ok) return uidRes;

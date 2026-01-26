@@ -326,4 +326,31 @@ export const genericFoodsRepository = {
       };
     }
   },
+
+  /**
+   * Obtiene alimentos por sus IDs (útil para favoritos)
+   */
+  async getByIds(foodIds: string[]): Promise<RepoResult<GenericFoodDb[]>> {
+    if (!foodIds || foodIds.length === 0) {
+      return { ok: true, data: [] };
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("generic_foods")
+        .select(
+          "id, name_es, name_norm, aliases_search, kcal_100g, protein_100g, carbs_100g, fat_100g, unit_label_es, grams_per_unit, tags, created_at",
+        )
+        .in("id", foodIds)
+        .order("created_at", { ascending: false });
+
+      if (error) return { ok: false, message: error.message, code: error.code };
+      return { ok: true, data: (data as GenericFoodDb[]) ?? [] };
+    } catch (error) {
+      return {
+        ok: false,
+        message: error instanceof Error ? error.message : "Error al obtener alimentos",
+      };
+    }
+  },
 };

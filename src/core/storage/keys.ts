@@ -6,6 +6,8 @@ export const StorageKeys = {
   PENDING_PROFILE_SYNC: "pending_profile_sync",
   SEARCH_HISTORY: "search_history",
   AI_SCAN_DAILY_LIMIT: "ai_scan_daily_limit",
+  FAVORITES_CACHE: "favorites_cache",
+  RECENT_FOODS: "recent_foods",
 } as const;
 
 export type StorageKey = (typeof StorageKeys)[keyof typeof StorageKeys];
