@@ -40,6 +40,7 @@ import {
 } from "@/domain/mappers/foodMappers";
 import type { OffProduct } from "@/domain/models/offProduct";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
+import { useFavorites } from "@/presentation/hooks/food/useFavorites";
 import { useStaggerAnimation } from "@/presentation/hooks/ui/useStaggerAnimation";
 import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
@@ -119,6 +120,160 @@ async function searchLocalFoods(q: string): Promise<ExtendedFoodSearchItem[]> {
     : [];
 
   return [...userFoods, ...generics];
+}
+
+/**
+ * Componente de item de favorito con swipe para eliminar
+ */
+function FavoriteFoodItem({
+  food,
+  index,
+  colors,
+  typography,
+  styles,
+  animations,
+  onPress,
+  onRemoveFavorite,
+}: {
+  food: FoodSearchItem;
+  index: number;
+  colors: any;
+  typography: any;
+  styles: any;
+  animations: Animated.Value[];
+  onPress: () => void;
+  onRemoveFavorite: (foodId: string) => void;
+}) {
+  const swipeableRef = useRef<React.ComponentRef<typeof Swipeable>>(null);
+
+  const renderRightActions = () => {
+    // Obtener el ID correcto del alimento (food_id es el ID de generic_foods)
+    const foodIdToRemove = food.food_id || food.key.split(":")[1] || food.key;
+    
+    return (
+      <View style={styles.swipeActionContainer}>
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            swipeableRef.current?.close();
+            onRemoveFavorite(foodIdToRemove);
+          }}
+          style={({ pressed }) => [
+            styles.swipeDeleteButton,
+            pressed && styles.swipeDeleteButtonPressed,
+          ]}
+        >
+          <MaterialCommunityIcons
+            name="heart-off"
+            size={22}
+            color={colors.onCta}
+          />
+          <Text style={styles.swipeDeleteText}>Quitar</Text>
+        </Pressable>
+      </View>
+    );
+  };
+
+  return (
+    <Animated.View
+      style={[
+        {
+          opacity: animations[index] || new Animated.Value(1),
+          transform: [
+            {
+              translateY: (
+                animations[index] || new Animated.Value(1)
+              ).interpolate({
+                inputRange: [0, 1],
+                outputRange: [20, 0],
+              }),
+            },
+          ],
+        },
+      ]}
+    >
+      <Swipeable
+        ref={swipeableRef}
+        renderRightActions={renderRightActions}
+        onSwipeableOpen={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }}
+        overshootRight={false}
+        friction={2}
+        rightThreshold={40}
+      >
+        <Pressable
+          onPress={onPress}
+          style={({ pressed }) => [
+            styles.foodCard,
+            pressed && { opacity: 0.7 },
+          ]}
+        >
+          <View style={{ flex: 1, gap: 8 }}>
+            <View style={styles.foodHeader}>
+              <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <MaterialCommunityIcons
+                  name="heart"
+                  size={16}
+                  color={colors.cta}
+                />
+                <Text style={styles.foodName} numberOfLines={1}>
+                  {food.name}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.macrosRow}>
+              <View style={styles.macroChip}>
+                <MaterialCommunityIcons
+                  name="fire"
+                  size={14}
+                  color={colors.textSecondary}
+                />
+                <Text style={styles.macroText}>
+                  {Math.round(food.kcal_100g || 0)} kcal
+                </Text>
+              </View>
+              <View style={styles.macroChip}>
+                <MaterialCommunityIcons
+                  name="food-steak"
+                  size={14}
+                  color={colors.textSecondary}
+                />
+                <Text style={styles.macroText}>
+                  P {food.protein_100g?.toFixed(1) || "0.0"}g
+                </Text>
+              </View>
+              <View style={styles.macroChip}>
+                <MaterialCommunityIcons
+                  name="bread-slice"
+                  size={14}
+                  color={colors.textSecondary}
+                />
+                <Text style={styles.macroText}>
+                  C {food.carbs_100g?.toFixed(1) || "0.0"}g
+                </Text>
+              </View>
+              <View style={styles.macroChip}>
+                <MaterialCommunityIcons
+                  name="peanut"
+                  size={14}
+                  color={colors.textSecondary}
+                />
+                <Text style={styles.macroText}>
+                  F {food.fat_100g?.toFixed(1) || "0.0"}g
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.portionText}>
+              Por 100g
+            </Text>
+          </View>
+        </Pressable>
+      </Swipeable>
+    </Animated.View>
+  );
 }
 
 /**
@@ -526,6 +681,11 @@ export default function MyFoodsScreen() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // Favoritos
+  const { favorites, isFavorite, toggleFavorite } = useFavorites();
+  const [favoriteFoods, setFavoriteFoods] = useState<FoodSearchItem[]>([]);
+  const [loadingFavorites, setLoadingFavorites] = useState(false);
+
   // Crear receta
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [recipeName, setRecipeName] = useState("");
@@ -564,6 +724,36 @@ export default function MyFoodsScreen() {
 
     setLoading(false);
   }, []);
+
+  // Cargar alimentos favoritos
+  const loadFavoriteFoods = useCallback(async (favoriteIds: string[]) => {
+    if (favoriteIds.length === 0) {
+      setFavoriteFoods([]);
+      return;
+    }
+
+    setLoadingFavorites(true);
+    try {
+      const favoritesRes = await genericFoodsRepository.getByIds(favoriteIds);
+      if (favoritesRes.ok) {
+        const favoriteItems = mapGenericFoodDbArrayToSearchItems(favoritesRes.data);
+        setFavoriteFoods(favoriteItems);
+      }
+    } catch (error) {
+      console.error("[MyFoodsScreen] Error loading favorite foods:", error);
+    } finally {
+      setLoadingFavorites(false);
+    }
+  }, []);
+
+  // Cargar favoritos cuando cambian los IDs
+  useEffect(() => {
+    if (favorites.length > 0) {
+      loadFavoriteFoods(favorites);
+    } else {
+      setFavoriteFoods([]);
+    }
+  }, [favorites, loadFavoriteFoods]);
 
   useFocusEffect(
     useCallback(() => {
@@ -921,6 +1111,37 @@ export default function MyFoodsScreen() {
   }, []);
 
   const animations = useStaggerAnimation(myFoods.length, 50, 100);
+  const favoriteAnimations = useStaggerAnimation(favoriteFoods.length, 50, 100);
+
+  const handleFavoritePress = useCallback((food: FoodSearchItem) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push({
+      pathname: "/(tabs)/add-food",
+      params: { 
+        foodId: food.key,
+        source: food.source,
+      },
+    });
+  }, []);
+
+  const handleRemoveFavorite = useCallback(
+    async (foodId: string) => {
+      try {
+        await toggleFavorite(foodId);
+        showToast({
+          message: "Producto eliminado de favoritos",
+          type: "success",
+        });
+        // Los favoritos se actualizarán automáticamente cuando cambie el estado
+      } catch (error) {
+        showToast({
+          message: "Error al eliminar de favoritos",
+          type: "error",
+        });
+      }
+    },
+    [toggleFavorite, showToast],
+  );
 
   return (
     <SafeAreaView style={s.safe}>
@@ -1005,6 +1226,74 @@ export default function MyFoodsScreen() {
                 onDelete={handleDeleteFood}
               />
             ))}
+          </View>
+        )}
+
+        {/* Sección de Favoritos */}
+        {favoriteFoods.length > 0 && (
+          <View style={{ marginTop: 32, gap: 12 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <MaterialCommunityIcons
+                name="heart"
+                size={20}
+                color={colors.cta}
+              />
+              <Text style={s.kicker}>Mis Favoritos</Text>
+            </View>
+            <Text style={[s.title, { fontSize: 24, marginBottom: 8 }]}>
+              Productos favoritos
+            </Text>
+            
+            {loadingFavorites ? (
+              <View style={{ padding: 20, alignItems: "center" }}>
+                <ActivityIndicator size="small" color={colors.brand} />
+              </View>
+            ) : (
+              <View style={{ gap: 12 }}>
+                {favoriteFoods.map((food, index) => (
+                  <FavoriteFoodItem
+                    key={food.key}
+                    food={food}
+                    index={index}
+                    colors={colors}
+                    typography={typography}
+                    styles={s}
+                    animations={favoriteAnimations}
+                    onPress={() => handleFavoritePress(food)}
+                    onRemoveFavorite={handleRemoveFavorite}
+                  />
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
+        {favoriteFoods.length === 0 && !loadingFavorites && favorites.length === 0 && (
+          <View style={{ marginTop: 32, gap: 8 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <MaterialCommunityIcons
+                name="heart-outline"
+                size={20}
+                color={colors.textSecondary}
+              />
+              <Text style={[s.kicker, { color: colors.textSecondary }]}>Mis Favoritos</Text>
+            </View>
+            <Text style={[s.title, { fontSize: 24, marginBottom: 8, color: colors.textSecondary }]}>
+              Productos favoritos
+            </Text>
+            <View style={s.emptyCard}>
+              <View style={s.emptyIcon}>
+                <MaterialCommunityIcons
+                  name="heart-outline"
+                  size={24}
+                  color={colors.textSecondary}
+                />
+              </View>
+              <Text style={s.emptyTitle}>Aún no tienes favoritos</Text>
+              <Text style={s.emptyText}>
+                Marca productos como favoritos desde la búsqueda para acceder rápidamente a ellos.
+              </Text>
+            </View>
           </View>
         )}
 
