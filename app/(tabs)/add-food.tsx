@@ -33,7 +33,6 @@ import {
 } from "@/domain/mappers/foodMappers";
 import type { MealType } from "@/domain/models/foodLogDb";
 import type { OffProduct } from "@/domain/models/offProduct";
-import CreateFoodModal from "@/presentation/components/nutrition/CreateFoodModal";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
@@ -265,7 +264,6 @@ export default function AddFoodScreen() {
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [myRecipes, setMyRecipes] = useState<ExtendedFoodSearchItem[]>([]);
   const [loadingRecipes, setLoadingRecipes] = useState(false);
-  const [showCreateFoodModal, setShowCreateFoodModal] = useState(false);
 
   const [gramsStr, setGramsStr] = useState("100");
   const [unitsStr, setUnitsStr] = useState("1");
@@ -1194,7 +1192,10 @@ export default function AddFoodScreen() {
                   <Pressable
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                      setShowCreateFoodModal(true);
+                      router.push({
+                        pathname: "/(tabs)/create-food",
+                        params: { initialName: query.trim() },
+                      });
                     }}
                     style={({ pressed }) => [
                       s.createFoodCard,
@@ -1446,21 +1447,6 @@ export default function AddFoodScreen() {
 
         <View style={{ height: 20 }} />
       </ScrollView>
-
-      {/* Modal para crear alimento */}
-      <CreateFoodModal
-        visible={showCreateFoodModal}
-        onClose={() => setShowCreateFoodModal(false)}
-        onSuccess={() => {
-          // Refrescar búsqueda después de crear
-          if (query.trim().length >= 2) {
-            searchLocalFoods(query).then((merged) => {
-              setResults(merged);
-            });
-          }
-        }}
-        initialName={query.trim()}
-      />
     </SafeAreaView>
   );
 }
