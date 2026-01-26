@@ -628,6 +628,14 @@ export default function AddFoodScreen() {
     ) ?? false;
   }, [selected]);
 
+  // Detectar si es una pizza (por unidad de consumo)
+  const isPizza = useMemo(() => {
+    if (!selected) return false;
+    const nameLower = selected.name.toLowerCase();
+    return (nameLower.includes("pizza") && nameLower.includes("slice")) || 
+           (nameLower.includes("pizza") && hasUnits && selected.unit_label_es?.toLowerCase().includes("slice"));
+  }, [selected, hasUnits]);
+
   // Si es Fast Food, bloquear gramos (solo unidades permitidas)
   const isFastFoodLocked = useMemo(() => {
     return isFastFood && hasUnits;
@@ -1562,8 +1570,12 @@ export default function AddFoodScreen() {
 
             <View style={{ marginTop: 12 }}>
               <View style={s.labelRow}>
-                <Text style={s.label}>
-                  {hasUnits ? "Cantidad" : "Gramos consumidos"}
+                <Text style={[s.label, isPizza ? { fontSize: 16, fontWeight: "600" } : null]}>
+                  {isPizza && hasUnits 
+                    ? `Cantidad de ${selected.unit_label_es || "slices"}`
+                    : hasUnits 
+                      ? "Cantidad" 
+                      : "Gramos consumidos"}
                 </Text>
                 {hasUnits && (
                   <View style={s.modeToggle}>
@@ -1613,11 +1625,14 @@ export default function AddFoodScreen() {
                 )}
               </View>
               
-              <View style={s.gramsRow}>
+              <View style={[
+                s.gramsRow,
+                ...(isPizza && inputMode === "units" ? [s.pizzaInputRow] : [])
+              ]}>
                 <MaterialCommunityIcons
                   name={inputMode === "units" ? "package-variant" : "scale"}
-                  size={18}
-                  color={colors.textSecondary}
+                  size={isPizza && inputMode === "units" ? 24 : 18}
+                  color={isPizza && inputMode === "units" ? colors.brand : colors.textSecondary}
                 />
                 <TextInput
                   value={inputMode === "units" ? unitsStr : gramsStr}
@@ -1639,16 +1654,55 @@ export default function AddFoodScreen() {
                     }
                   }}
                   keyboardType="decimal-pad"
-                  style={s.gramsInput}
+                  style={[
+                    s.gramsInput,
+                    ...(isPizza && inputMode === "units" ? [s.pizzaInput] : [])
+                  ]}
                   placeholder={inputMode === "units" ? "1" : "100"}
                   placeholderTextColor={colors.textSecondary}
                 />
-                <Text style={s.gramsUnit}>
+                <Text style={[
+                  s.gramsUnit,
+                  ...(isPizza && inputMode === "units" ? [s.pizzaUnit] : [])
+                ]}>
                   {inputMode === "units" 
                     ? (selected.unit_label_es || "unidad") 
                     : "g"}
                 </Text>
               </View>
+
+              {/* Display visual del cálculo para pizzas */}
+              {isPizza && hasUnits && inputMode === "units" && Number.isFinite(unitsNum) && unitsNum > 0 && preview && selected.grams_per_unit && (() => {
+                // Extraer solo el texto de la unidad sin el número inicial si existe
+                const unitLabel = selected.unit_label_es || "slice";
+                // Si el label ya incluye un número al inicio (ej: "1 trozo"), extraer solo la parte del texto
+                const unitText = unitLabel.replace(/^\d+\s*/, "").trim() || unitLabel;
+                // Construir el display: número + texto de unidad
+                const unitDisplay = unitsNum === 1 
+                  ? `1 ${unitText}`
+                  : `${unitsNum.toFixed(1)} ${unitText}`;
+                
+                return (
+                  <View style={s.pizzaCalculationBox}>
+                    <View style={s.pizzaCalculationRow}>
+                      <Text style={s.pizzaCalculationText}>
+                        {unitDisplay}
+                      </Text>
+                      <Text style={s.pizzaCalculationOperator}>×</Text>
+                      <Text style={s.pizzaCalculationText}>
+                        {Math.round((preview.kcal / unitsNum))} kcal
+                      </Text>
+                      <Text style={s.pizzaCalculationOperator}>=</Text>
+                      <Text style={s.pizzaCalculationTotal}>
+                        {Math.round(preview.kcal)} kcal
+                      </Text>
+                    </View>
+                    <Text style={s.pizzaCalculationSubtext}>
+                      {unitDisplay} = {Math.round(gramsNum)}g
+                    </Text>
+                  </View>
+                );
+              })()}
               
               {/* Mostrar peso total destacado si es fast food */}
               {isFastFood && (
@@ -2254,6 +2308,13 @@ const MacroChip = React.memo(function MacroChip({
       alignItems: "center",
       gap: 10,
     },
+    pizzaInputRow: {
+      height: 64,
+      borderWidth: 2,
+      borderColor: colors.brand + "40",
+      backgroundColor: colors.brand + "08",
+      paddingHorizontal: 16,
+    },
     gramsInput: {
       flex: 1,
       color: colors.textPrimary,
@@ -2261,9 +2322,61 @@ const MacroChip = React.memo(function MacroChip({
       fontSize: 16,
       paddingVertical: 0,
     },
+    pizzaInput: {
+      fontSize: 24,
+      fontWeight: "700",
+      fontFamily: typography.title?.fontFamily,
+    },
     gramsUnit: {
       color: colors.textSecondary,
       fontFamily: typography.body?.fontFamily,
+    },
+    pizzaUnit: {
+      fontSize: 18,
+      fontWeight: "600",
+      color: colors.brand,
+      fontFamily: typography.subtitle?.fontFamily,
+    },
+    pizzaCalculationBox: {
+      marginTop: 12,
+      padding: 16,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.brand + "30",
+      borderRadius: 16,
+      gap: 8,
+    },
+    pizzaCalculationRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      flexWrap: "wrap",
+    },
+    pizzaCalculationText: {
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 16,
+      color: colors.textPrimary,
+      fontWeight: "600",
+    },
+    pizzaCalculationOperator: {
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 18,
+      color: colors.textSecondary,
+      fontWeight: "600",
+    },
+    pizzaCalculationTotal: {
+      fontFamily: typography.title?.fontFamily,
+      fontSize: 20,
+      color: colors.brand,
+      fontWeight: "700",
+    },
+    pizzaCalculationSubtext: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 13,
+      color: colors.textSecondary,
+      textAlign: "center",
+      marginTop: 4,
     },
 
     errorSmall: {
