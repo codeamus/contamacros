@@ -277,6 +277,7 @@ export default function AddFoodScreen() {
   const isInitializingRef = useRef(false);
   const isBarcodeSearchRef = useRef(false); // Ref para rastrear si hay búsqueda de barcode en curso
   const justProcessedBarcodeRef = useRef(false); // Ref para rastrear si acabamos de procesar un barcode exitosamente
+  const justSelectedManuallyRef = useRef(false); // Ref para proteger cuando el usuario selecciona manualmente un alimento
 
   // Cargar historial y recetas al montar
   useEffect(() => {
@@ -316,10 +317,10 @@ export default function AddFoodScreen() {
         return;
       }
       
-      // NO limpiar selected si acabamos de procesar un barcode exitosamente
+      // NO limpiar selected si acabamos de procesar un barcode exitosamente O si el usuario seleccionó manualmente
       // Esto evita que se limpie el alimento que acabamos de seleccionar
-      if (justProcessedBarcodeRef.current && selected) {
-        console.log("[AddFoodScreen] ⏸️ Acabamos de procesar barcode exitosamente, no limpiando selected");
+      if ((justProcessedBarcodeRef.current || justSelectedManuallyRef.current) && selected) {
+        console.log("[AddFoodScreen] ⏸️ Protegiendo selected (barcode o selección manual)");
         // NO resetear el flag aquí, lo haremos después de un delay para proteger múltiples ejecuciones de useFocusEffect
         // Solo limpiar otros estados, pero mantener selected
         if (!query) {
@@ -331,9 +332,9 @@ export default function AddFoodScreen() {
       }
       
       if (!hasBarcode) {
-        // Solo limpiar si NO hay barcode pendiente Y no acabamos de procesar un barcode
-        // Esto evita que se limpie el alimento inmediatamente después de escanear
-        if (!justProcessedBarcodeRef.current) {
+        // Solo limpiar si NO hay barcode pendiente Y no acabamos de procesar un barcode Y no hay selección manual reciente
+        // Esto evita que se limpie el alimento inmediatamente después de seleccionarlo
+        if (!justProcessedBarcodeRef.current && !justSelectedManuallyRef.current) {
           setSelected(null);
           setQuery("");
           setResults([]);
@@ -344,7 +345,7 @@ export default function AddFoodScreen() {
           setIsSearchingLocal(false);
           setIsSearchingMore(false);
         } else {
-          console.log("[AddFoodScreen] ⏸️ No limpiando porque acabamos de procesar barcode, protegiendo selected");
+          console.log("[AddFoodScreen] ⏸️ No limpiando porque hay selección protegida (barcode o manual)");
         }
       } else {
         console.log("[AddFoodScreen] ⏸️ No limpiando estado porque hay barcode pendiente");
@@ -673,12 +674,31 @@ export default function AddFoodScreen() {
   const preview = useMemo(() => {
     if (!selected) return null;
     const g = Number.isFinite(gramsNum) ? clamp(gramsNum, 1, 2000) : 100;
-    return computeFrom100gMacros(
-      {
+    
+    // Validar que al menos algunos valores nutricionales existan
+    const hasAnyMacros = 
+      (selected.kcal_100g != null && selected.kcal_100g > 0) ||
+      (selected.protein_100g != null && selected.protein_100g > 0) ||
+      (selected.carbs_100g != null && selected.carbs_100g > 0) ||
+      (selected.fat_100g != null && selected.fat_100g > 0);
+    
+    if (!hasAnyMacros) {
+      console.warn("[AddFoodScreen] ⚠️ Alimento sin valores nutricionales:", {
+        name: selected.name,
         kcal_100g: selected.kcal_100g,
         protein_100g: selected.protein_100g,
         carbs_100g: selected.carbs_100g,
         fat_100g: selected.fat_100g,
+      });
+      return null;
+    }
+    
+    return computeFrom100gMacros(
+      {
+        kcal_100g: selected.kcal_100g ?? 0,
+        protein_100g: selected.protein_100g ?? 0,
+        carbs_100g: selected.carbs_100g ?? 0,
+        fat_100g: selected.fat_100g ?? 0,
       },
       g,
     );
@@ -772,16 +792,35 @@ export default function AddFoodScreen() {
   }, []);
 
   const onAdd = useCallback(async () => {
-    if (!selected) return;
+    if (!selected) {
+      console.log("[AddFoodScreen] ❌ onAdd: No hay alimento seleccionado");
+      return;
+    }
     setErr(null);
 
     if (gramsError) {
+      console.log("[AddFoodScreen] ❌ onAdd: Error en gramos:", gramsError);
       setErr(gramsError);
       return;
     }
-    if (!preview) return;
+    if (!preview) {
+      console.log("[AddFoodScreen] ❌ onAdd: No hay preview calculado", {
+        selected: selected.name,
+        kcal_100g: selected.kcal_100g,
+        protein_100g: selected.protein_100g,
+        gramsNum,
+      });
+      setErr("No se pudo calcular la información nutricional. Verifica que el alimento tenga valores válidos.");
+      return;
+    }
 
     const g = Number.isFinite(gramsNum) ? clamp(gramsNum, 1, 2000) : 100;
+
+    console.log("[AddFoodScreen] ✅ onAdd: Guardando alimento", {
+      name: selected.name,
+      grams: g,
+      preview,
+    });
 
     setSaveLoading(true);
 
@@ -827,9 +866,12 @@ export default function AddFoodScreen() {
     setSaveLoading(false);
 
     if (!res.ok) {
+      console.error("[AddFoodScreen] ❌ Error al guardar:", res.message);
       setErr(res.message ?? "No pudimos guardar el alimento.");
       return;
     }
+
+    console.log("[AddFoodScreen] ✅ Alimento guardado exitosamente");
 
     // Guardar en historial
     await addToSearchHistory(selected.name);
@@ -886,7 +928,14 @@ export default function AddFoodScreen() {
         <View style={s.header}>
           <Pressable
             style={s.iconBtn}
-            onPress={() => (selected ? setSelected(null) : router.back())}
+            onPress={() => {
+              if (selected) {
+                justSelectedManuallyRef.current = false; // Resetear el flag
+                setSelected(null);
+              } else {
+                router.back();
+              }
+            }}
           >
             <Feather name="arrow-left" size={18} color={colors.textPrimary} />
           </Pressable>
@@ -1033,8 +1082,12 @@ export default function AddFoodScreen() {
                       key={recipe.key}
                       onPress={() => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        justSelectedManuallyRef.current = true; // Marcar que el usuario seleccionó manualmente
                         setSelected(recipe);
-                        // La inicialización se hará automáticamente en useEffect
+                        // Resetear el flag después de un delay para permitir que useFocusEffect lo proteja
+                        setTimeout(() => {
+                          justSelectedManuallyRef.current = false;
+                        }, 500);
                       }}
                       style={({ pressed }) => [
                         s.historyItem,
@@ -1144,8 +1197,13 @@ export default function AddFoodScreen() {
                     pressed && { opacity: 0.95, transform: [{ scale: 0.997 }] },
                   ]}
                   onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    justSelectedManuallyRef.current = true; // Marcar que el usuario seleccionó manualmente
                     setSelected(it);
-                    // La inicialización se hará automáticamente en useEffect
+                    // Resetear el flag después de un delay para permitir que useFocusEffect lo proteja
+                    setTimeout(() => {
+                      justSelectedManuallyRef.current = false;
+                    }, 500);
                   }}
                 >
                   <View style={s.resultIcon}>
@@ -1433,7 +1491,10 @@ export default function AddFoodScreen() {
             />
 
             <Pressable
-              onPress={() => setSelected(null)}
+              onPress={() => {
+                justSelectedManuallyRef.current = false; // Resetear el flag
+                setSelected(null);
+              }}
               style={{ marginTop: 10 }}
             >
               {({ pressed }) => (
