@@ -15,24 +15,32 @@ Estos campos permiten que el usuario registre sin necesidad de una pesa de alime
 - **Cálculo de Macros:** - **Fórmula:** `(Macro_100g / 100) * (Cantidad_Unidades * grams_per_unit)`
 
 ### 2. Jerarquía de Búsqueda Unificada
-1.  **`generic_foods`**: Fuente única de verdad. Contiene alimentos base, genéricos, productos de marcas y cadenas de Fast Food (McDonalds, Starbucks, etc.).
-2.  **`user_foods`**: Alimentos personalizados creados específicamente por el usuario.
+1.  **`generic_foods`**: Fuente única de verdad para alimentos comunitarios. Contiene alimentos base, genéricos, productos de marcas y cadenas de Fast Food (McDonalds, Starbucks, etc.). Todos los valores nutricionales están normalizados a 100g (`kcal_100g`, `protein_100g`, `carbs_100g`, `fat_100g`).
+2.  **`user_foods`**: Alimentos personalizados y recetas creadas específicamente por el usuario.
+
+**Nota**: La tabla `foods` ha sido deprecada. Toda la lógica de búsqueda y mapeo de alimentos genéricos ahora utiliza exclusivamente `generic_foods`.
 
 ---
 
 ## 📋 Esquema de Base de Datos (Supabase)
 
-### Tabla Principal: `generic_foods`
+### Tabla Principal: `generic_foods` (Única fuente de alimentos comunitarios)
 | Campo | Tipo | Descripción |
 | :--- | :--- | :--- |
-| `name_es` | text | Nombre limpio (ej: "Plátano", "Big Mac"). Sin sufijos de peso. |
-| `aliases_search` | text | Términos de búsqueda (ej: "palta aguacate vianesa"). |
-| `kcal_100g` | numeric | Calorías por cada 100g de producto. |
-| `protein_100g` | numeric | Proteínas (g) por cada 100g. |
-| `carbs_100g` | numeric | Carbohidratos (g) por cada 100g. |
-| `fat_100g` | numeric | Grasas (g) por cada 100g. |
+| `id` | uuid | Identificador único del alimento |
+| `name_es` | text | Nombre limpio en español (ej: "Plátano", "Big Mac"). Sin sufijos de peso. |
+| `name_norm` | text | Nombre normalizado (sin tildes, minúsculas) para búsqueda eficiente |
+| `aliases_search` | text | Términos de búsqueda normalizados (ej: "palta aguacate vianesa"). Usado para búsquedas flexibles. |
+| `kcal_100g` | numeric | **Calorías por cada 100g de producto** (siempre normalizado a 100g) |
+| `protein_100g` | numeric | **Proteínas (g) por cada 100g** (siempre normalizado a 100g) |
+| `carbs_100g` | numeric | **Carbohidratos (g) por cada 100g** (siempre normalizado a 100g) |
+| `fat_100g` | numeric | **Grasas (g) por cada 100g** (siempre normalizado a 100g) |
 | `unit_label_es` | text | **Etiqueta natural (ej: "1 unidad", "1 slice", "1 presa")**. |
-| `grams_per_unit` | numeric | Peso real en gramos de la unidad descrita. |
+| `grams_per_unit` | numeric | Peso real en gramos de la unidad descrita. Usado para calcular macros cuando el usuario ingresa por unidades. |
+| `tags` | text[] | Tags para categorización (ej: ["proteina", "fastfood"]) |
+| `created_at` | timestamp | Fecha de creación |
+
+**Importante**: Todos los valores nutricionales en `generic_foods` están normalizados a 100g. Para calcular macros de una cantidad específica, usar la fórmula: `(valor_100g / 100) * cantidad_en_gramos`.
 
 ### Tabla: `profiles`
 | Campo | Tipo | Descripción |
@@ -63,7 +71,24 @@ Estos campos permiten que el usuario registre sin necesidad de una pesa de alime
 ---
 
 ## ⚠️ Reglas Técnicas y de Limpieza
-- **Búsquedas**: Usa `ILIKE '%termino%'` sobre `name_es` y `aliases_search`.
+
+### Búsqueda de Alimentos
+- **Tabla única**: Usar exclusivamente `generic_foods` para alimentos comunitarios.
+- **Campos de búsqueda**: 
+  - `name_norm`: Nombre normalizado (sin tildes, minúsculas) - búsqueda exacta
+  - `aliases_search`: Términos de búsqueda normalizados - búsqueda flexible
+- **Query normalizada**: Siempre normalizar la query del usuario antes de buscar (quitar tildes, minúsculas).
+- **Ejemplo de búsqueda**: 
+  ```sql
+  .or(`name_norm.ilike.%${normalizedQuery}%,aliases_search.ilike.%${normalizedQuery}%`)
+  ```
+
+### Cálculo de Macros
+- **Base siempre 100g**: Todos los valores en `generic_foods` están normalizados a 100g.
+- **Fórmula**: `(valor_100g / 100) * cantidad_en_gramos`
+- **Para unidades**: Si el usuario ingresa por unidades, primero convertir a gramos: `cantidad_unidades * grams_per_unit`, luego aplicar la fórmula.
+
+### Otros
 - **Fechas**: Los registros en `food_logs` deben guardarse con el campo `day` en formato `YYYY-MM-DD`.
 - **Limpieza de Escala**: Si detectas valores de `kcal_100g` absurdos (ej: > 900), asume que el dato requiere normalización (dividir por 100).
 - **Formato de Salida**: 

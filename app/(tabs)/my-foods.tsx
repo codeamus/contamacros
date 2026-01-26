@@ -19,10 +19,8 @@ import * as Haptics from "expo-haptics";
 
 import { userFoodsRepository, type UserFoodDb } from "@/data/food/userFoodsRepository";
 import { genericFoodsRepository } from "@/data/food/genericFoodsRepository";
-import { foodsRepository } from "@/data/food/foodsRepository";
 import { openFoodFactsService } from "@/data/openfoodfacts/openFoodFactsService";
 import {
-  mapFoodDbArrayToSearchItems,
   mapGenericFoodDbArrayToSearchItems,
   mapUserFoodDbArrayToSearchItems,
   type FoodSearchItem,
@@ -95,21 +93,19 @@ function calculateRecipeTotals(ingredients: RecipeIngredient[]) {
 }
 
 async function searchLocalFoods(q: string): Promise<ExtendedFoodSearchItem[]> {
-  const [userFoodsRes, foodsRes, genericsRes] = await Promise.all([
+  const [userFoodsRes, genericsRes] = await Promise.all([
     userFoodsRepository.search(q),
-    foodsRepository.search(q),
     genericFoodsRepository.search(q),
   ]);
 
   const userFoods = userFoodsRes.ok
     ? mapUserFoodDbArrayToSearchItems(userFoodsRes.data)
     : [];
-  const foods = foodsRes.ok ? mapFoodDbArrayToSearchItems(foodsRes.data) : [];
   const generics = genericsRes.ok
     ? mapGenericFoodDbArrayToSearchItems(genericsRes.data)
     : [];
 
-  return [...userFoods, ...foods, ...generics];
+  return [...userFoods, ...generics];
 }
 
 /**

@@ -47,8 +47,7 @@ src/data/
 │   └── authRepository.ts
 ├── food/
 │   ├── foodLogRepository.ts      # Registro de comidas (incluye getBentoStats para reportes)
-│   ├── foodsRepository.ts        # Alimentos genéricos (legacy)
-│   ├── genericFoodsRepository.ts # Alimentos comunitarios (fuente principal)
+│   ├── genericFoodsRepository.ts # Alimentos comunitarios (fuente única de alimentos genéricos)
 │   └── userFoodsRepository.ts   # Alimentos/recetas del usuario
 ├── openfoodfacts/
 │   └── openFoodFactsService.ts   # Integración con OpenFoodFacts
@@ -159,12 +158,14 @@ src/presentation/hooks/
    - Las tablas relacionadas usan `user_id` como FK (excepto `user_stats` que usa `id` como PK y relación directa con `profiles.id`)
 
 3. **Tablas Principales:**
-   - `profiles`: Perfil del usuario (id = UUID del auth.users)
-   - `user_stats`: Estadísticas de gamificación (id = UUID, relación directa con profiles.id)
-   - `generic_foods`: Alimentos comunitarios (fuente principal)
-   - `user_foods`: Alimentos/recetas personalizados del usuario
-   - `food_logs`: Registro diario de comidas
-   - `user_achievements`: Logros desbloqueados
+    - `profiles`: Perfil del usuario (id = UUID del auth.users)
+    - `user_stats`: Estadísticas de gamificación (id = UUID, relación directa con profiles.id)
+    - `generic_foods`: **Única fuente de alimentos comunitarios** (todos los valores normalizados a 100g)
+    - `user_foods`: Alimentos/recetas personalizados del usuario
+    - `food_logs`: Registro diario de comidas
+    - `user_achievements`: Logros desbloqueados
+    
+    **Nota**: La tabla `foods` ha sido deprecada. Toda la lógica ahora utiliza exclusivamente `generic_foods`.
 
 4. **Relaciones:**
    - `user_stats.id` → `profiles.id` (relación directa, no usa `user_id`)
@@ -187,8 +188,10 @@ src/presentation/hooks/
 
 ### Lógica de Negocio
 1. **Cálculo de Macros:**
-   - Fórmula: `(Macro_100g / 100) * cantidad_gramos`
-   - Si hay `grams_per_unit`, usar: `(Macro_100g / 100) * (unidades * grams_per_unit)`
+   - **Base siempre 100g**: Todos los valores en `generic_foods` están normalizados a 100g (`kcal_100g`, `protein_100g`, `carbs_100g`, `fat_100g`).
+   - **Fórmula base**: `(valor_100g / 100) * cantidad_en_gramos`
+   - **Para unidades**: Si el usuario ingresa por unidades, primero convertir a gramos: `cantidad_unidades * grams_per_unit`, luego aplicar la fórmula base.
+   - **Ejemplo**: Si un alimento tiene `protein_100g: 25` y el usuario ingresa 150g, el cálculo es: `(25 / 100) * 150 = 37.5g de proteína`.
 
 2. **Gamificación:**
    - Crear alimento: +50 XP

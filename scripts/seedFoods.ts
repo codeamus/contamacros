@@ -1,6 +1,8 @@
 /* scripts/seedFoods.ts
    pnpm ts-node scripts/seedFoods.ts
-   (opcional) SEED_TO_FOODS=true pnpm ts-node scripts/seedFoods.ts
+   
+   NOTA: SEED_TO_FOODS está deprecado. La tabla `foods` ya no se usa.
+   Toda la lógica ahora utiliza exclusivamente `generic_foods`.
 */
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
@@ -582,6 +584,10 @@ async function upsertRecipes(items: RecipeSeed[]) {
 }
 
 /**
+ * @deprecated Esta función está obsoleta. La tabla `foods` ha sido deprecada.
+ * Toda la lógica ahora usa exclusivamente `generic_foods`.
+ * Esta función se mantiene solo para referencia histórica y puede ser eliminada.
+ * 
  * Opcional: Copia genéricos a public.foods (para que tu AddFood los encuentre).
  * - category y portion_* se infieren.
  * - source = 'manual_seed', verified=true, country_scope='CL/LATAM'

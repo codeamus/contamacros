@@ -26,7 +26,6 @@ import { userFoodsRepository } from "@/data/food/userFoodsRepository";
 import { openFoodFactsService } from "@/data/openfoodfacts/openFoodFactsService";
 import { supabase } from "@/data/supabase/supabaseClient";
 import {
-  mapFoodDbArrayToSearchItems,
   mapGenericFoodDbArrayToSearchItems,
   mapUserFoodDbArrayToSearchItems,
   type FoodSearchItem,
@@ -138,8 +137,8 @@ async function searchLocalFoods(q: string): Promise<ExtendedFoodSearchItem[]> {
   const normalizedQ = normalizeSearch(q);
   const originalQ = q.trim().toLowerCase();
 
-  // Para user_foods y foods, necesitamos filtrar después porque
-  // las tablas no tienen campos normalizados como generic_foods
+  // Para user_foods, necesitamos filtrar después porque
+  // la tabla no tiene campos normalizados como generic_foods
   // Obtenemos más resultados y filtramos por coincidencia normalizada
   const searchTerms = originalQ === normalizedQ 
     ? [originalQ] 
@@ -148,7 +147,7 @@ async function searchLocalFoods(q: string): Promise<ExtendedFoodSearchItem[]> {
   // Construir condiciones para buscar ambas versiones (con y sin tildes)
   const orConditions = searchTerms.map(term => `name.ilike.%${term}%`).join(",");
 
-  // Obtener resultados de user_foods y foods
+  // Obtener resultados de user_foods
   const userFoodsPromise = uid
     ? supabase
         .from("user_foods")
@@ -159,25 +158,16 @@ async function searchLocalFoods(q: string): Promise<ExtendedFoodSearchItem[]> {
         .limit(50) // Obtener más para filtrar después
     : Promise.resolve({ data: [], error: null } as any);
 
-  const foodsPromise = supabase
-    .from("foods")
-    .select("id, name, calories, protein, carbs, fat, verified, source, brand")
-    .or(orConditions)
-    .order("verified", { ascending: false })
-    .limit(100); // Obtener más para filtrar después
-
-  // generic_foods ya normaliza internamente
+  // generic_foods ya normaliza internamente usando name_norm y aliases_search
   const genericPromise = genericFoodsRepository.search(q);
 
-  const [ufRes, fRes, gRes] = await Promise.all([
+  const [ufRes, gRes] = await Promise.all([
     userFoodsPromise as any,
-    foodsPromise,
     genericPromise,
   ]);
 
   // ✅ si hay error, explota (para no ocultar RLS)
   if (ufRes?.error) throw new Error(ufRes.error.message);
-  if (fRes.error) throw new Error(fRes.error.message);
   if (!gRes.ok) throw new Error(gRes.message);
 
   // Filtrar resultados normalizando nombres para permitir búsqueda sin tildes
@@ -189,18 +179,11 @@ async function searchLocalFoods(q: string): Promise<ExtendedFoodSearchItem[]> {
            item.name.toLowerCase().includes(originalQ);
   }).slice(0, 25); // Limitar después del filtro
 
-  const filteredFoods = (fRes.data ?? []).filter((item: any) => {
-    const nameNorm = normalizeForSearch(item.name);
-    return nameNorm.includes(normalizedQ) || 
-           item.name.toLowerCase().includes(originalQ);
-  }).slice(0, 50); // Limitar después del filtro
-
   // Usar mappers para transformar datos
   const userFoods = mapUserFoodDbArrayToSearchItems(filteredUserFoods);
-  const foods = mapFoodDbArrayToSearchItems(filteredFoods);
   const generics = mapGenericFoodDbArrayToSearchItems(gRes.data ?? []);
 
-  return [...userFoods, ...foods, ...generics];
+  return [...userFoods, ...generics];
 }
 
 // Funciones para manejar historial de búsqueda
@@ -840,21 +823,21 @@ export default function AddFoodScreen() {
         selected.source === "off"
           ? "openfoodfacts"
           : selected.source === "food"
-            ? "foods"
+            ? "generic_foods" // Todos los alimentos comunitarios vienen de generic_foods
             : "user_foods",
 
       off_id: selected.source === "off" ? (selected.off?.id ?? null) : null,
 
       source_type:
         selected.source === "food" && selected.food_id
-          ? "food"
+          ? "food" // Mantener "food" para compatibilidad con food_logs
           : selected.source === "user_food"
             ? "user_food"
             : "manual",
 
       food_id:
         selected.source === "food" && selected.food_id
-          ? selected.food_id
+          ? selected.food_id // Este ID ahora siempre apunta a generic_foods.id
           : null,
 
       user_food_id:
