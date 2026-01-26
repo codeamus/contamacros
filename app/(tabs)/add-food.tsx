@@ -270,6 +270,7 @@ export default function AddFoodScreen() {
   const justProcessedBarcodeRef = useRef(false); // Ref para rastrear si acabamos de procesar un barcode exitosamente
   const justSelectedManuallyRef = useRef(false); // Ref para proteger cuando el usuario selecciona manualmente un alimento
   const lastFavoritesKeyRef = useRef<string>(""); // Ref para rastrear la última clave de favoritos cargada
+  const scrollViewRef = useRef<ScrollView>(null);
 
   // Cargar historial, recetas y favoritos al montar
   useEffect(() => {
@@ -973,6 +974,7 @@ export default function AddFoodScreen() {
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
         <ScrollView
+          ref={scrollViewRef}
           contentContainerStyle={[
             s.container,
             isInputFocused && s.containerFocused, // Agregar espacio cuando el input tiene focus
@@ -1063,7 +1065,13 @@ export default function AddFoodScreen() {
                   setQuery(t);
                   setErr(null);
                 }}
-                onFocus={() => setIsInputFocused(true)}
+                onFocus={() => {
+                  setIsInputFocused(true);
+                  // Hacer scroll suave hacia el input cuando tiene focus
+                  setTimeout(() => {
+                    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+                  }, 100);
+                }}
                 onBlur={() => setTimeout(() => setIsInputFocused(false), 200)}
                 placeholder="Ej: arroz, yogurt, pollo..."
                 placeholderTextColor={colors.textSecondary}
@@ -1125,6 +1133,44 @@ export default function AddFoodScreen() {
                 },
               )}
             </ScrollView>
+
+            {/* Historial de búsqueda - Mostrar PRIMERO cuando hay focus y el input está vacío */}
+            {isInputFocused && !query.trim() && searchHistory.length > 0 && (
+              <View style={[s.searchHistoryContainer, { marginTop: 12 }]}>
+                <View style={s.sectionHeader}>
+                  <Feather name="clock" size={18} color={colors.textPrimary} />
+                  <Text style={s.sectionTitle}>Búsquedas recientes</Text>
+                </View>
+                <View style={{ gap: 6 }}>
+                  {searchHistory.map((historyItem) => (
+                    <Pressable
+                      key={historyItem}
+                      onPress={() => handleSelectFromHistory(historyItem)}
+                      style={({ pressed }) => [
+                        s.historyItem,
+                        pressed && { opacity: 0.95, transform: [{ scale: 0.997 }] },
+                      ]}
+                    >
+                      <View style={s.historyIcon}>
+                        <Feather name="clock" size={16} color={colors.textSecondary} />
+                      </View>
+                      <Text style={[s.historyName, { flex: 1 }]}>
+                        {historyItem}
+                      </Text>
+                      <Pressable
+                        onPress={(e) => handleRemoveHistoryItem(historyItem, e)}
+                        style={({ pressed }) => [
+                          s.historyRemoveBtn,
+                          pressed && { opacity: 0.7 },
+                        ]}
+                      >
+                        <Feather name="x" size={14} color={colors.textSecondary} />
+                      </Pressable>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            )}
 
             {/* Favoritos - Solo cuando no hay búsqueda */}
             {!query.trim() && favoriteFoods.length > 0 && (
@@ -1319,43 +1365,6 @@ export default function AddFoodScreen() {
               </View>
             )}
 
-            {/* Historial de búsqueda - Solo cuando hay focus y el input está vacío */}
-            {isInputFocused && !query.trim() && searchHistory.length > 0 && (
-              <View style={[s.searchHistoryContainer, { marginTop: 12 }]}>
-                <View style={s.sectionHeader}>
-                  <Feather name="clock" size={18} color={colors.textPrimary} />
-                  <Text style={s.sectionTitle}>Búsquedas recientes</Text>
-                </View>
-                <View style={{ gap: 6 }}>
-                  {searchHistory.map((historyItem) => (
-                    <Pressable
-                      key={historyItem}
-                      onPress={() => handleSelectFromHistory(historyItem)}
-                      style={({ pressed }) => [
-                        s.historyItem,
-                        pressed && { opacity: 0.95, transform: [{ scale: 0.997 }] },
-                      ]}
-                    >
-                      <View style={s.historyIcon}>
-                        <Feather name="clock" size={16} color={colors.textSecondary} />
-                      </View>
-                      <Text style={[s.historyName, { flex: 1 }]}>
-                        {historyItem}
-                      </Text>
-                      <Pressable
-                        onPress={(e) => handleRemoveHistoryItem(historyItem, e)}
-                        style={({ pressed }) => [
-                          s.historyRemoveBtn,
-                          pressed && { opacity: 0.7 },
-                        ]}
-                      >
-                        <Feather name="x" size={14} color={colors.textSecondary} />
-                      </Pressable>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-            )}
 
             {(isSearchingLocal || isSearchingMore) && (
               <View style={s.loadingBox}>
