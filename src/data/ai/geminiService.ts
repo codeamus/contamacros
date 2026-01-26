@@ -6,8 +6,8 @@ import { AppError, ErrorCode } from "@/core/errors/AppError";
 
 const API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
 
-// Modelo primario: gemini-2.0-flash (con facturación activada, ya no necesitamos fallbacks)
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
+// Modelo primario: gemini-1.5-flash (costo-eficiente para producción)
+const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
 
 // Flag para ejecutar listAvailableModels solo una vez por sesión
 let didListModels = false;
@@ -176,7 +176,7 @@ export const analyzeFoodImage = async (base64Image: string): Promise<MacroAnalys
     contents: [{
       parts: [
         { 
-          text: "Analiza la imagen y responde ÚNICAMENTE con un JSON: { \"foodName\": string, \"calories\": number, \"protein\": number, \"carbs\": number, \"fats\": number, \"servingSize\": string }. No añadas explicaciones ni markdown." 
+          text: "Eres un nutricionista chileno. Analiza la imagen y responde SOLO JSON: { \"foodName\": string, \"calories\": number, \"protein\": number, \"carbs\": number, \"fats\": number, \"servingSize\": string }. Usa nombres de alimentos en español y términos chilenos (ej: 'Palta' no 'Aguacate', 'Zapallo italiano' no 'Calabacín', 'Marraqueta' en lugar de 'pan francés')." 
         },
         { 
           inlineData: { 
@@ -195,8 +195,8 @@ export const analyzeFoodImage = async (base64Image: string): Promise<MacroAnalys
   };
 
   // Diagnóstico: imprimir URL final (sin la key completa)
-  const urlForLog = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY?.substring(0, 4)}...`;
-  console.log(`[geminiService] 🎯 Usando modelo: gemini-2.0-flash (${urlForLog})`);
+  const urlForLog = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY?.substring(0, 4)}...`;
+  console.log(`[geminiService] 🎯 Usando modelo: gemini-1.5-flash (${urlForLog})`);
 
   // Resiliencia: reintento automático en caso de error de red
   const maxRetries = 2;
@@ -235,7 +235,7 @@ export const analyzeFoodImage = async (base64Image: string): Promise<MacroAnalys
       console.log("[geminiService] data:", JSON.stringify(data, null, 2));
 
       if (response.ok) {
-        console.log(`[geminiService] ✅ Éxito con gemini-2.0-flash`);
+        console.log(`[geminiService] ✅ Éxito con gemini-1.5-flash`);
         return processApiResponse(data);
       }
 
