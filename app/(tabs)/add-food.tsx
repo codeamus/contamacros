@@ -1077,7 +1077,12 @@ export default function AddFoodScreen() {
             </View>
 
             {/* Meal chips */}
-            <View style={s.mealRow}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={s.mealRow}
+              style={s.mealRowContainer}
+            >
               {(["breakfast", "lunch", "dinner", "snack"] as MealType[]).map(
                 (m) => {
                   const active = meal === m;
@@ -1108,7 +1113,7 @@ export default function AddFoodScreen() {
                   );
                 },
               )}
-            </View>
+            </ScrollView>
 
             {/* Favoritos - Solo cuando no hay búsqueda */}
             {!query.trim() && favoriteFoods.length > 0 && (
@@ -1924,7 +1929,12 @@ function makeStyles(colors: any, typography: any) {
       fontSize: 13,
     },
 
-    mealRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12 },
+    mealRowContainer: { marginTop: 12 },
+    mealRow: {
+      flexDirection: "row",
+      gap: 10,
+      paddingHorizontal: 2, // Pequeño padding para que el primer y último item no se corten
+    },
     mealChip: {
       flexDirection: "row",
       alignItems: "center",
