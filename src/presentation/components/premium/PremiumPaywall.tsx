@@ -21,6 +21,7 @@ import {
   View,
 } from "react-native";
 import type { PurchasesOffering } from "react-native-purchases";
+import { PACKAGE_TYPE } from "react-native-purchases";
 
 // Tipo local para PurchasesPackage con storeProduct
 type PurchasesPackage = {
@@ -165,6 +166,7 @@ export default function PremiumPaywall({
               .filter((pkg: any) => pkg.product != null || pkg.storeProduct != null)
               .map((pkg: any) => ({
                 identifier: pkg.identifier,
+                packageType: pkg.packageType,
                 productId: pkg.product?.identifier || pkg.storeProduct?.identifier,
                 productPrice: pkg.product?.priceString || pkg.storeProduct?.priceString,
                 currencyCode: pkg.product?.currencyCode || pkg.storeProduct?.currencyCode,
@@ -188,7 +190,7 @@ export default function PremiumPaywall({
     }
   }, [visible]);
 
-  // Mapear packages de RevenueCat a planes locales
+  // Mapear packages de RevenueCat a planes locales usando PACKAGE_TYPE
   const planPackages = useMemo(() => {
     if (!currentOffering?.availablePackages) return null;
 
@@ -204,38 +206,25 @@ export default function PremiumPaywall({
     }
 
     const packages: Record<string, PurchasesPackage> = {};
+    
     for (const pkg of validPackages) {
-      // Mapear por identifier del package y también por productId
-      const identifier = pkg.identifier.toLowerCase();
-      const productId = (pkg.product?.identifier || pkg.storeProduct?.identifier || "").toLowerCase();
-      
-      // Mapear por identifier del package (RevenueCat usa "$rc_monthly", "$rc_annual", etc.)
-      if (identifier.includes("monthly") || identifier.includes("$rc_monthly")) {
-        packages.monthly = pkg;
-      } else if (
-        identifier.includes("annual") ||
-        identifier.includes("yearly") ||
-        identifier.includes("$rc_annual")
-      ) {
-        packages.annual = pkg;
-      } else if (
-        identifier.includes("lifetime") ||
-        identifier.includes("$rc_lifetime")
-      ) {
-        packages.lifetime = pkg;
-      }
-      
-      // También mapear por productId (contamacros_month, contamacros_yearly)
-      if (productId === "contamacros_month" || productId.includes("month")) {
-        packages.monthly = pkg;
-      } else if (productId === "contamacros_yearly" || productId.includes("yearly") || productId.includes("annual")) {
-        packages.annual = pkg;
-      } else if (productId.includes("lifetime")) {
-        packages.lifetime = pkg;
+      switch (pkg.packageType) {
+        case PACKAGE_TYPE.MONTHLY:
+          packages.monthly = pkg;
+          break;
+        case PACKAGE_TYPE.ANNUAL:
+          packages.annual = pkg;
+          break;
+        case PACKAGE_TYPE.LIFETIME:
+          packages.lifetime = pkg;
+          break;
+        default:
+          // Ignorar tipos desconocidos
+          break;
       }
     }
 
-    // Si no encontramos packages con esos nombres, usar los primeros disponibles
+    // Fallback de seguridad: si el mapeo por tipo falla, usar los primeros disponibles
     if (Object.keys(packages).length === 0 && validPackages.length > 0) {
       if (validPackages[0]) packages.monthly = validPackages[0];
       if (validPackages[1]) packages.annual = validPackages[1];
