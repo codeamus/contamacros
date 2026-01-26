@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Swipeable } from "react-native-gesture-handler";
 import * as Haptics from "expo-haptics";
 
 import { foodLogRepository } from "@/data/food/foodLogRepository";
@@ -204,7 +205,7 @@ function AnimatedMacroProgress({
 const MacroProgress = React.memo(AnimatedMacroProgress);
 
 /**
- * Componente de item de comida con animación
+ * Componente de item de comida con animación y swipe para eliminar
  */
 function FoodItem({
   item,
@@ -214,6 +215,7 @@ function FoodItem({
   styles,
   onPress,
   onLongPress,
+  onDelete,
 }: {
   item: FoodLogDb;
   index: number;
@@ -222,8 +224,10 @@ function FoodItem({
   styles: any;
   onPress: () => void;
   onLongPress: () => void;
+  onDelete: () => void;
 }) {
   const itemAnim = useRef(new Animated.Value(0)).current;
+  const swipeableRef = useRef<Swipeable>(null);
 
   useEffect(() => {
     Animated.timing(itemAnim, {
@@ -234,6 +238,34 @@ function FoodItem({
       useNativeDriver: true,
     }).start();
   }, [itemAnim, index]);
+
+    const renderRightActions = (
+    progress: Animated.AnimatedInterpolation<number>,
+    dragX: Animated.AnimatedInterpolation<number>,
+  ) => {
+    return (
+      <View style={styles.swipeActionContainer}>
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            swipeableRef.current?.close();
+            onDelete();
+          }}
+          style={({ pressed }) => [
+            styles.swipeDeleteButton,
+            pressed && styles.swipeDeleteButtonPressed,
+          ]}
+        >
+          <MaterialCommunityIcons
+            name="delete"
+            size={22}
+            color={colors.onCta}
+          />
+          <Text style={styles.swipeDeleteText}>Eliminar</Text>
+        </Pressable>
+      </View>
+    );
+  };
 
   return (
     <Animated.View
@@ -249,75 +281,86 @@ function FoodItem({
         ],
       }}
     >
-      <Pressable
-        style={({ pressed }) => [
-          styles.item,
-          pressed && {
-            opacity: 0.95,
-            transform: [{ scale: 0.997 }],
-          },
-        ]}
-        onPress={onPress}
-        onLongPress={onLongPress}
+      <Swipeable
+        ref={swipeableRef}
+        renderRightActions={renderRightActions}
+        onSwipeableOpen={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }}
+        overshootRight={false}
+        friction={2}
+        rightThreshold={40}
       >
-        <View style={{ flex: 1, gap: 6 }}>
-          <Text style={styles.itemName} numberOfLines={1}>
-            {item.name}
-          </Text>
+        <Pressable
+          style={({ pressed }) => [
+            styles.item,
+            pressed && {
+              opacity: 0.95,
+              transform: [{ scale: 0.997 }],
+            },
+          ]}
+          onPress={onPress}
+          onLongPress={onLongPress}
+        >
+          <View style={{ flex: 1, gap: 6 }}>
+            <Text style={styles.itemName} numberOfLines={1}>
+              {item.name}
+            </Text>
 
-          <View style={styles.itemMetaRow}>
-            <View style={styles.metaChip}>
-              <MaterialCommunityIcons
-                name="fire"
-                size={14}
-                color={colors.textSecondary}
-              />
-              <Text style={styles.metaChipText}>
-                {Math.round(item.calories || 0)} kcal
-              </Text>
-            </View>
+            <View style={styles.itemMetaRow}>
+              <View style={styles.metaChip}>
+                <MaterialCommunityIcons
+                  name="fire"
+                  size={14}
+                  color={colors.textSecondary}
+                />
+                <Text style={styles.metaChipText}>
+                  {Math.round(item.calories || 0)} kcal
+                </Text>
+              </View>
 
-            <View style={styles.metaChip}>
-              <MaterialCommunityIcons
-                name="food-steak"
-                size={14}
-                color={colors.textSecondary}
-              />
-              <Text style={styles.metaChipText}>
-                P {Math.round(item.protein_g || 0)}
-              </Text>
-            </View>
+              <View style={styles.metaChip}>
+                <MaterialCommunityIcons
+                  name="food-steak"
+                  size={14}
+                  color={colors.textSecondary}
+                />
+                <Text style={styles.metaChipText}>
+                  P {Math.round(item.protein_g || 0)}
+                </Text>
+              </View>
 
-            <View style={styles.metaChip}>
-              <MaterialCommunityIcons
-                name="bread-slice"
-                size={14}
-                color={colors.textSecondary}
-              />
-              <Text style={styles.metaChipText}>
-                C {Math.round(item.carbs_g || 0)}
-              </Text>
-            </View>
+              <View style={styles.metaChip}>
+                <MaterialCommunityIcons
+                  name="bread-slice"
+                  size={14}
+                  color={colors.textSecondary}
+                />
+                <Text style={styles.metaChipText}>
+                  C {Math.round(item.carbs_g || 0)}
+                </Text>
+              </View>
 
-            <View style={styles.metaChip}>
-              <MaterialCommunityIcons
-                name="peanut"
-                size={14}
-                color={colors.textSecondary}
-              />
-              <Text style={styles.metaChipText}>
-                F {Math.round(item.fat_g || 0)}
-              </Text>
+              <View style={styles.metaChip}>
+                <MaterialCommunityIcons
+                  name="peanut"
+                  size={14}
+                  color={colors.textSecondary}
+                />
+                <Text style={styles.metaChipText}>
+                  F {Math.round(item.fat_g || 0)}
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
 
-        <MaterialCommunityIcons
-          name="dots-vertical"
-          size={18}
-          color={colors.textSecondary}
-        />
-      </Pressable>
+          <MaterialCommunityIcons
+            name="dots-vertical"
+            size={18}
+            color={colors.textSecondary}
+          />
+        </Pressable>
+      </Swipeable>
     </Animated.View>
   );
 }
@@ -404,24 +447,32 @@ export default function DiaryScreen() {
     }, [load, params.day]),
   );
 
-  async function onDelete(id: string) {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert("Eliminar", "¿Eliminar este item del diario?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Eliminar",
-        style: "destructive",
-        onPress: async () => {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          const res = await foodLogRepository.remove(id);
-          if (!res.ok) {
-            setErr(res.message);
-            return;
-          }
-          setLogs((prev) => prev.filter((x) => x.id !== id));
+  async function onDelete(id: string, skipConfirm = false) {
+    if (!skipConfirm) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      Alert.alert("Eliminar", "¿Eliminar este item del diario?", [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            await performDelete(id);
+          },
         },
-      },
-    ]);
+      ]);
+    } else {
+      await performDelete(id);
+    }
+  }
+
+  async function performDelete(id: string) {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const res = await foodLogRepository.remove(id);
+    if (!res.ok) {
+      setErr(res.message);
+      return;
+    }
+    setLogs((prev) => prev.filter((x) => x.id !== id));
   }
 
   function onOpenItemActions(it: FoodLogDb) {
@@ -920,6 +971,7 @@ export default function DiaryScreen() {
                         styles={s}
                         onPress={() => onOpenItemActions(it)}
                         onLongPress={() => onDelete(it.id)}
+                        onDelete={() => onDelete(it.id, true)}
                       />
                     ))}
                   </View>
@@ -1276,6 +1328,42 @@ function makeStyles(colors: any, typography: any) {
       fontSize: 12,
       color: colors.textSecondary,
       textAlign: "center",
+    },
+
+    swipeActionContainer: {
+      width: 110,
+      justifyContent: "center",
+      alignItems: "flex-end",
+      marginRight: 0,
+      paddingRight: 8,
+      overflow: "hidden",
+    },
+    swipeDeleteButton: {
+      width: 90,
+      height: "100%",
+      backgroundColor: colors.cta,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      justifyContent: "center",
+      alignItems: "center",
+      gap: 6,
+      marginRight: 0,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    swipeDeleteButtonPressed: {
+      opacity: 0.85,
+      transform: [{ scale: 0.95 }],
+    },
+    swipeDeleteText: {
+      color: colors.onCta,
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 12,
+      fontWeight: "600",
     },
   });
 }
