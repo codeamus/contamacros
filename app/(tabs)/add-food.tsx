@@ -9,6 +9,8 @@ import React, {
 } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -965,10 +967,19 @@ export default function AddFoodScreen() {
 
   return (
     <SafeAreaView style={s.safe}>
-      <ScrollView
-        contentContainerStyle={s.container}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
+        <ScrollView
+          contentContainerStyle={[
+            s.container,
+            isInputFocused && s.containerFocused, // Agregar espacio cuando el input tiene focus
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
         {/* Header */}
         <View style={s.header}>
           <Pressable
@@ -1310,7 +1321,7 @@ export default function AddFoodScreen() {
 
             {/* Historial de búsqueda - Solo cuando hay focus y el input está vacío */}
             {isInputFocused && !query.trim() && searchHistory.length > 0 && (
-              <View style={{ gap: 8, marginTop: 12 }}>
+              <View style={[s.searchHistoryContainer, { marginTop: 12 }]}>
                 <View style={s.sectionHeader}>
                   <Feather name="clock" size={18} color={colors.textPrimary} />
                   <Text style={s.sectionTitle}>Búsquedas recientes</Text>
@@ -1738,6 +1749,7 @@ export default function AddFoodScreen() {
 
         <View style={{ height: 20 }} />
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -1817,10 +1829,11 @@ const MacroChip = React.memo(function MacroChip({
   );
 });
 
-function makeStyles(colors: any, typography: any) {
+  function makeStyles(colors: any, typography: any) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
     container: { padding: 18, gap: 14 },
+    containerFocused: { paddingBottom: 40 }, // Espacio adicional cuando el input tiene focus
 
     header: {
       flexDirection: "row",
@@ -2031,6 +2044,10 @@ function makeStyles(colors: any, typography: any) {
       fontSize: 14,
       color: colors.textPrimary,
       fontWeight: "600",
+    },
+    searchHistoryContainer: {
+      gap: 8,
+      paddingBottom: 20, // Espacio adicional cuando el input tiene focus
     },
     historyItem: {
       backgroundColor: colors.surface,
