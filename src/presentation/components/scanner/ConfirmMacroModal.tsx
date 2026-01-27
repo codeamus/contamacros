@@ -1,5 +1,5 @@
 // src/presentation/components/scanner/ConfirmMacroModal.tsx
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Modal,
   View,
@@ -44,19 +44,26 @@ export function ConfirmMacroModal({
   const [grams, setGrams] = useState("100");
   const [saving, setSaving] = useState(false);
 
-  // Parsear servingSize para obtener un valor numérico por defecto
+  // Parsear servingSize para obtener los gramos que sugiere la IA (ej. "1 plato aprox 400g" → 400)
   const defaultGrams = useMemo(() => {
     if (!analysisResult?.servingSize) return 100;
-    
+
     const servingSize = analysisResult.servingSize.toLowerCase();
     const match = servingSize.match(/(\d+)\s*(g|gr|gramos?|ml|mililitros?)/);
     if (match) {
       return parseInt(match[1], 10);
     }
-    
+
     // Si dice "unidad" o similar, usar 100g por defecto
     return 100;
   }, [analysisResult]);
+
+  // Al abrir el modal o cambiar el resultado, prellenar gramos con lo que detectó la IA
+  useEffect(() => {
+    if (visible && analysisResult) {
+      setGrams(String(defaultGrams));
+    }
+  }, [visible, analysisResult, defaultGrams]);
 
   // Calcular macros para la porción ingresada
   const calculatedMacros = useMemo(() => {

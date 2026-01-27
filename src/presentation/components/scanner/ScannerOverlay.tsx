@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
   },
   hintContainer: {
     position: "absolute",
-    bottom: 100,
+    bottom: 150, // Por encima del botón de captura (~80px alto + bottom 50)
     left: 0,
     right: 0,
     alignItems: "center",
