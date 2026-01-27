@@ -106,7 +106,10 @@ export type CalculateGoalOptions = {
 
 function isValidYyyyMmDd(s: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
-  const [y, m, d] = s.split("-").map(Number);
+  const parts = s.split("-").map(Number);
+  const y = parts[0] ?? 0;
+  const m = parts[1] ?? 1;
+  const d = parts[2] ?? 1;
   const dt = new Date(y, m - 1, d);
   return (
     dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d
@@ -114,7 +117,10 @@ function isValidYyyyMmDd(s: string) {
 }
 
 function calcAgeYears(birthDate: string, now = new Date()): number {
-  const [y, m, d] = birthDate.split("-").map(Number);
+  const parts = birthDate.split("-").map(Number);
+  const y = parts[0] ?? 0;
+  const m = parts[1] ?? 1;
+  const d = parts[2] ?? 1;
   const bd = new Date(y, m - 1, d);
 
   let age = now.getFullYear() - bd.getFullYear();
@@ -234,4 +240,83 @@ export function calculateCalorieGoal(
       delta: targetRounded - tdeeRounded,
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Única fuente de verdad para cambio de objetivo en Settings
+// ---------------------------------------------------------------------------
+
+export type GoalDb = "deficit" | "maintain" | "surplus";
+
+function goalDbToGoalType(db: GoalDb): GoalType {
+  if (db === "maintain") return "maintenance";
+  return db as GoalType;
+}
+
+function ensureNumber(v: unknown, fallback: number): number {
+  if (v === null || v === undefined) return fallback;
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    const n = parseFloat(v.replace(",", "."));
+    return Number.isFinite(n) ? n : fallback;
+  }
+  return fallback;
+}
+
+/**
+ * Perfil base: solo datos de cuerpo y actividad. Sin daily_calorie_target ni goal_adjustment.
+ */
+export type CleanProfileForGoal = {
+  gender?: string | null;
+  birth_date?: string | null;
+  activity_level?: string | null;
+  height_cm?: number | null;
+  weight_kg?: number | null;
+};
+
+/**
+ * Única fuente de verdad para recalcular calorías al cambiar objetivo en Settings.
+ * Usa solo: gender, birth_date, height_cm, weight_kg, activity_level.
+ * goalAdjustment sale siempre de DEFAULT_GOAL_ADJUSTMENT[newGoalDb].
+ * Ej.: 80kg, 175cm, 30a, moderado → Mantenimiento ~2710 kcal, Déficit ~2300 kcal.
+ */
+export function calculateCalorieGoalFromProfile(
+  profile: CleanProfileForGoal,
+  newGoalDb: GoalDb,
+): CalorieGoalResult {
+  const gender =
+    profile.gender === "male" || profile.gender === "female"
+      ? profile.gender
+      : "male";
+  const birthDate =
+    typeof profile.birth_date === "string" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(profile.birth_date)
+      ? profile.birth_date
+      : "1990-01-01";
+  const heightCm = ensureNumber(profile.height_cm, 170);
+  const weightKg = ensureNumber(profile.weight_kg, 70);
+  const activityLevel =
+    ["sedentary", "light", "moderate", "high", "very_high"].includes(
+      String(profile.activity_level ?? ""),
+    )
+      ? (profile.activity_level as ActivityLevel)
+      : "moderate";
+
+  const goalType = goalDbToGoalType(newGoalDb);
+
+  return calculateCalorieGoal(
+    {
+      gender: gender as Gender,
+      birthDate,
+      heightCm,
+      weightKg,
+      activityLevel,
+      goalType,
+    },
+    {
+      roundTo: 10,
+      allowedDeficitAdjustments: [-0.1, -0.15],
+      allowedSurplusAdjustments: [0.05, 0.1, 0.15],
+    },
+  );
 }

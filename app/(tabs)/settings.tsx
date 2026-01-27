@@ -19,6 +19,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import type { ActivityLevelDb, GoalDb } from "@/domain/models/profileDb";
 import {
   calculateCalorieGoal,
+  calculateCalorieGoalFromProfile,
   type GoalType,
 } from "@/domain/services/calorieGoals";
 import { computeMacroTargets } from "@/domain/services/macroTargets";
@@ -240,32 +241,22 @@ export default function SettingsScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       try {
-        // Convertir "maintain" (DB) a "maintenance" (dominio) para el cálculo
-        const goalForCalc: GoalType = 
-          newGoal === "maintain" 
-            ? "maintenance" 
-            : (newGoal === "deficit" ? "deficit" : "surplus");
-        
-        // Al cambiar el objetivo, usar el valor por defecto del nuevo objetivo
-        // No usar el goal_adjustment anterior ya que puede estar fuera de rango
-        const calorieResult = calculateCalorieGoal({
-          gender: profile.gender || "male",
-          birthDate: profile.birth_date || "1990-01-01",
-          heightCm: profile.height_cm || 170,
-          weightKg: profile.weight_kg || 70,
-          activityLevel: profile.activity_level || "moderate",
-          goalType: goalForCalc,
-          // No pasar goalAdjustment para que use el valor por defecto del nuevo objetivo
-        });
+        // Única fuente de verdad: calculateCalorieGoalFromProfile (solo cuerpo + actividad + nuevo objetivo)
+        const baseProfile = {
+          gender: profile.gender,
+          birth_date: profile.birth_date,
+          height_cm: profile.height_cm,
+          weight_kg: profile.weight_kg,
+          activity_level: profile.activity_level,
+        };
+        const calorieResult = calculateCalorieGoalFromProfile(baseProfile, newGoal);
 
-        // Recalcular macros
         const macros = computeMacroTargets({
           calories: calorieResult.dailyCalorieTarget,
           weightKg: profile.weight_kg || 70,
         });
 
-        // Actualizar perfil (newGoal ya está en formato DB: "deficit" | "maintain" | "surplus")
-        // También actualizar goal_adjustment con el valor calculado
+        // Enviar exactamente lo que calcula la App (la BD ya no tiene trigger que lo sobrescriba)
         const res = await updateProfile({
           goal: newGoal,
           goal_adjustment: calorieResult.goalAdjustment,
