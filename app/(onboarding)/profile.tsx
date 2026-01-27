@@ -6,7 +6,7 @@ import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useRef, useMemo, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -43,6 +43,19 @@ export default function ProfileScreen() {
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+
+  // Scroll suave para que los inputs queden visibles sobre el teclado
+  const scrollToHeight = () => {
+    setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: 240, animated: true });
+    }, 100);
+  };
+  const scrollToWeight = () => {
+    setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: 340, animated: true });
+    }, 100);
+  };
 
   const heightNum = useMemo(() => toIntSafe(height), [height]);
   const weightNum = useMemo(() => toFloatSafe(weight), [weight]);
@@ -103,8 +116,18 @@ export default function ProfileScreen() {
       >
         <Feather name="arrow-left" size={26} color="#fff" />
       </Pressable>
-      <ScrollView>
-        <View style={styles.screen}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.safe}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+      >
+        <ScrollView
+          ref={scrollRef}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          <View style={styles.screen}>
           {/* HERO (idéntico a goal/about/activity) */}
           <View style={styles.heroFrame}>
             <View style={styles.heroHalo} />
@@ -117,10 +140,7 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            style={styles.sheetWrap}
-          >
+          <View style={styles.sheetWrap}>
             <View style={styles.sheet}>
               <View style={styles.header}>
                 <View style={styles.logoBadge}>
@@ -148,6 +168,7 @@ export default function ProfileScreen() {
                   placeholder="Ej: 175"
                   keyboardType="numeric"
                   error={heightError}
+                  onFocus={scrollToHeight}
                   leftIcon={
                     <Feather
                       name="arrow-up"
@@ -164,6 +185,7 @@ export default function ProfileScreen() {
                   placeholder="Ej: 80"
                   keyboardType="numeric"
                   error={weightError}
+                  onFocus={scrollToWeight}
                   leftIcon={
                     <Feather
                       name="activity"
@@ -192,9 +214,10 @@ export default function ProfileScreen() {
                 />
               </View>
             </View>
-          </KeyboardAvoidingView>
+          </View>
         </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -202,6 +225,9 @@ export default function ProfileScreen() {
 function makeStyles(colors: any, typography: any) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
+    scrollContent: {
+      paddingBottom: 120,
+    },
     backButton: {
       position: "absolute",
       left: 16,

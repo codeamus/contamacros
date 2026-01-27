@@ -98,8 +98,14 @@ export default function AuthTextField({
           // ✅ reduce glitches de iOS autofill
           textContentType={inputProps.textContentType}
           autoComplete={inputProps.autoComplete as any}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onFocus={(e) => {
+            setFocused(true);
+            inputProps.onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            inputProps.onBlur?.(e);
+          }}
         />
 
         {rightIcon && (
