@@ -238,7 +238,7 @@ src/presentation/hooks/
 
 - ✅ **Home Screen:**
   - Resumen diario (calorías, macros)
-  - Smart Coach Pro (solo premium)
+  - **Smart Coach Pro** (solo premium): recomendaciones de comida o ejercicio según déficit/superávit y macros. Documentación completa en `.cursor/rules/smart-coach-pro.md` — consultar y actualizar ese archivo en cada cambio relacionado.
   - Sincronización con Apple Health/Health Connect (solo premium)
   - Barras de progreso animadas
 
