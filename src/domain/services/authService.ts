@@ -132,6 +132,7 @@ export const AuthService = {
         | "carbs_g"
         | "fat_g"
         | "is_premium"
+        | "dietary_preference"
       >
     >,
   ): Promise<AuthResult<ProfileDb>> {

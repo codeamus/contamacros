@@ -64,6 +64,8 @@ type SmartCoachProProps = {
   caloriesConsumed?: number;
   /** Meta de calorías del día (para mensaje dinámico en estado no premium) */
   caloriesTarget?: number;
+  /** Preferencia dietética para personalizar el mensaje (ej. "omnívoro", "vegetariano") */
+  dietaryPreference?: string | null;
   onUpgrade?: () => void;
   onFoodAdded?: () => void;
   onShowPaywall?: () => void;
@@ -75,6 +77,7 @@ export default function SmartCoachPro({
   isPremium,
   caloriesConsumed = 0,
   caloriesTarget = 0,
+  dietaryPreference = null,
   onUpgrade,
   onFoodAdded,
   onShowPaywall,
@@ -197,16 +200,25 @@ export default function SmartCoachPro({
     return "dinner";
   }
 
-  // Estado no premium: tarjeta persuasiva, fondo limpio y acentos de paleta
+  // Estado no premium: tarjeta persuasiva, reconoce dieta y momento del día
   if (!isPremium) {
     const consumed = Number(caloriesConsumed) || 0;
     const target = Number(caloriesTarget) || 0;
     const deficit = target > 0 && consumed < target ? Math.round(target - consumed) : 0;
     const momentLabel = getMomentOfDayLabel();
+    const dietLabel =
+      dietaryPreference === "omnivore"
+        ? "omnívoro"
+        : dietaryPreference === "vegetarian"
+          ? "vegetariano"
+          : dietaryPreference === "vegan"
+            ? "vegano"
+            : dietaryPreference === "pescatarian"
+              ? "pescetariano"
+              : null;
+    const dietText = dietLabel ? `perfil ${dietLabel}` : "tu perfil";
 
-    const dynamicMessage = deficit > 0
-      ? `Smart Coach Pro analizó que te faltan ${deficit} kcal. Para tu ${momentLabel}, tiene una recomendación ideal para ti…`
-      : `Smart Coach Pro tiene una recomendación personalizada para tu ${momentLabel}. Desbloquea Pro para verla.`;
+    const dynamicMessage = `Analizando tu ${dietText}… Tengo una recomendación para tu ${momentLabel}. Desbloquea Pro para verla.`;
 
     const brandSoft = hexToRgba(colors.brand, 0.08);
 
@@ -252,7 +264,10 @@ export default function SmartCoachPro({
             <Pressable
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push("/(tabs)/about-smart-coach-pro");
+                router.push({
+                  pathname: "/(tabs)/about-smart-coach-pro",
+                  params: deficit > 0 ? { calorieGap: String(deficit) } : {},
+                });
               }}
               style={({ pressed }) => [s.aboutLink, pressed && { opacity: 0.7 }]}
             >

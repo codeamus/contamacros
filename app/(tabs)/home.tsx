@@ -302,6 +302,7 @@ export default function HomeScreen() {
               isPremium={isPremium}
               caloriesConsumed={totals.calories}
               caloriesTarget={effectiveTargetForCoach}
+              dietaryPreference={profile?.dietary_preference ?? undefined}
               onFoodAdded={handleFoodAdded}
               onShowPaywall={() => setPaywallVisible(true)}
             />

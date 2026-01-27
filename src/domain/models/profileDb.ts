@@ -9,6 +9,12 @@ export type ActivityLevelDb =
   | "high"
   | "very_high";
 
+export type DietaryPreferenceDb =
+  | "omnivore"
+  | "vegetarian"
+  | "vegan"
+  | "pescatarian";
+
 export type ProfileDb = {
   id: string;
   email: string | null;
@@ -23,6 +29,7 @@ export type ProfileDb = {
   gender: GenderDb | null;
   birth_date: string | null; // YYYY-MM-DD
   activity_level: ActivityLevelDb | null;
+  dietary_preference: DietaryPreferenceDb | null;
 
   goal_adjustment: number | null;
   daily_calorie_target: number | null;
