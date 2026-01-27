@@ -6,42 +6,10 @@ import { AppError, ErrorCode } from "@/core/errors/AppError";
 
 const API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
 
-// Modelo primario: gemini-1.5-flash (costo-eficiente para producción)
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+// Modelo estable disponible (alias de larga duración; evita 404 por región/cuenta)
+const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${API_KEY}`;
 
-// Flag para ejecutar listAvailableModels solo una vez por sesión
-let didListModels = false;
-
-/**
- * Lista los modelos disponibles en la API de Google
- * Función de autodescubrimiento para debugging
- * Se ejecuta solo una vez por sesión para evitar requests extra
- */
-async function listAvailableModels(): Promise<void> {
-  if (!API_KEY || didListModels) return;
-
-  try {
-    const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${API_KEY}`;
-    console.log("[geminiService] 🔍 Consultando modelos disponibles...");
-    
-    const response = await fetch(listUrl);
-    const data = await response.json();
-
-    if (response.ok && data.models) {
-      console.log("[geminiService] ✅ Modelos disponibles:");
-      data.models.forEach((model: any) => {
-        console.log(`  - ${model.name} (${model.displayName || "Sin nombre"})`);
-      });
-      didListModels = true; // Marcar como ejecutado
-    } else {
-      console.warn("[geminiService] ⚠️ No se pudieron listar modelos:", data);
-      didListModels = true; // Marcar como ejecutado incluso si falla para no reintentar
-    }
-  } catch (error) {
-    console.warn("[geminiService] ⚠️ Error al listar modelos:", error);
-    didListModels = true; // Marcar como ejecutado para no reintentar
-  }
-}
+// --- listAvailableModels eliminada: ya confirmamos modelo gemini-flash-latest disponible ---
 
 /**
  * Extrae el retryDelay en segundos del payload de error de Google
@@ -153,19 +121,8 @@ function processApiResponse(data: any): MacroAnalysisResult {
 }
 
 export const analyzeFoodImage = async (base64Image: string): Promise<MacroAnalysisResult> => {
-  // Log de diagnóstico para verificar que el .env está cargando
-  console.log("🔍 Verificando API Key:", API_KEY ? "Cargada ✅" : "VACÍA ❌");
-  
-  // Diagnóstico: primeros 4 caracteres para confirmar que Xcode lee el .env correcto
-  console.log("🔑 Usando Key iniciando en:", API_KEY?.substring(0, 4) || "N/A");
-  
   if (!API_KEY) {
     throw new AppError("API Key no configurada", ErrorCode.VALIDATION_ERROR);
-  }
-
-  // Autodescubrimiento: listar modelos disponibles (solo en desarrollo, una vez por sesión)
-  if (__DEV__) {
-    await listAvailableModels();
   }
 
   // Normalizar base64 (eliminar prefijo data:image si existe)
@@ -176,7 +133,7 @@ export const analyzeFoodImage = async (base64Image: string): Promise<MacroAnalys
     contents: [{
       parts: [
         { 
-          text: "Eres un nutricionista chileno. Analiza la imagen y responde SOLO JSON: { \"foodName\": string, \"calories\": number, \"protein\": number, \"carbs\": number, \"fats\": number, \"servingSize\": string }. Usa nombres de alimentos en español y términos chilenos (ej: 'Palta' no 'Aguacate', 'Zapallo italiano' no 'Calabacín', 'Marraqueta' en lugar de 'pan francés')." 
+          text: "Eres un nutricionista chileno. Analiza la imagen y responde SOLO JSON: { \"foodName\": string, \"calories\": number, \"protein\": number, \"carbs\": number, \"fats\": number, \"servingSize\": string }. Usa términos chilenos (ej: 'Palta', 'Marraqueta', 'Zapallo italiano')." 
         },
         { 
           inlineData: { 
@@ -193,10 +150,6 @@ export const analyzeFoodImage = async (base64Image: string): Promise<MacroAnalys
     'Content-Type': 'application/json',
     'x-goog-api-client': 'expo-react-native/1.0',
   };
-
-  // Diagnóstico: imprimir URL final (sin la key completa)
-  const urlForLog = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY?.substring(0, 4)}...`;
-  console.log(`[geminiService] 🎯 Usando modelo: gemini-1.5-flash (${urlForLog})`);
 
   // Resiliencia: reintento automático en caso de error de red
   const maxRetries = 2;
@@ -230,12 +183,7 @@ export const analyzeFoodImage = async (base64Image: string): Promise<MacroAnalys
         data = { error: { message: "Error al procesar respuesta del servidor" } };
       }
 
-      // Logs de debugging temporales
-      console.log("[geminiService] status:", response?.status);
-      console.log("[geminiService] data:", JSON.stringify(data, null, 2));
-
       if (response.ok) {
-        console.log(`[geminiService] ✅ Éxito con gemini-1.5-flash`);
         return processApiResponse(data);
       }
 
