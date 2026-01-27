@@ -56,45 +56,77 @@ type PremiumPaywallProps = {
   onSuccess?: () => void;
 };
 
-const BENEFIT_ICON_AI = "#38BDF8";   // Celeste IA — vibrante en dark
-const BENEFIT_ICON_PRO = "#FBBF24";  // Destellos — ámbar, coherente con dark
+const BENEFIT_ICON_AI = "#38BDF8"; // Celeste IA — vibrante en dark
+const BENEFIT_ICON_PRO = "#FBBF24"; // Destellos — ámbar, coherente con dark
 
 const BENEFITS = [
   {
     icon: "camera-iris" as const,
     title: "Escáner Nutricional IA Ilimitado",
-    description: "Análisis instantáneo de platos y alimentos con Gemini 2.0 Flash. Versión gratuita limitada a 3 escaneos por día.",
+    description:
+      "Análisis instantáneo de platos y alimentos con Gemini 2.0 Flash. Versión gratuita limitada a 3 escaneos por día.",
     iconColor: BENEFIT_ICON_AI,
   },
   {
     icon: "creation" as const,
     title: "Tu Futuro Pro",
-    description: "Visualiza tu peso y progreso proyectado a 30 días basándonos en tu ritmo real.",
+    description:
+      "Visualiza tu peso y progreso proyectado a 30 días basándonos en tu ritmo real.",
     iconColor: BENEFIT_ICON_PRO,
   },
   {
     icon: "brain" as const,
     title: "Smart Coach Pro",
-    description: "Recomendaciones exactas de macros basadas en tu historial y metas.",
+    description:
+      "Recomendaciones exactas de macros basadas en tu historial y metas.",
   },
   {
     icon: "file-chart" as const,
     title: "Reportes para descargar",
-    description: "Exporta tus reportes en PDF y lleva tu progreso de calorías y macros donde quieras.",
+    description:
+      "Exporta tus reportes en PDF y lleva tu progreso de calorías y macros donde quieras.",
   },
 ];
 
 // Función helper para formatear precios según la moneda
 // En Chile (CLP) usamos puntos como separador de miles en lugar de comas
-const formatPriceForCurrency = (priceString: string, currencyCode?: string): string => {
+const formatPriceForCurrency = (
+  priceString: string,
+  currencyCode?: string,
+): string => {
   if (!priceString || priceString === "—") return priceString;
-  
+
   // Si es CLP, reemplazar comas por puntos
   if (currencyCode === "CLP") {
     return priceString.replace(/,/g, ".");
   }
-  
+
   return priceString;
+};
+
+// Precio formateado sin decimales (ej. $2.499 en vez de $2.499,17) — para plan lifetime
+const formatRoundedPrice = (price: number, currencyCode: string): string => {
+  const rounded = Math.round(price);
+  if (currencyCode === "CLP") {
+    return `$${rounded.toLocaleString("es-CL", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  }
+  try {
+    return rounded.toLocaleString(undefined, {
+      style: "currency",
+      currency: currencyCode,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    });
+  } catch {
+    return `$${rounded}`;
+  }
+};
+
+// Quita la parte decimal del string de precio (ej. "$2.499.17" -> "$2.499", "2.499,17" -> "2.499")
+const stripPriceDecimals = (formatted: string): string => {
+  if (!formatted || formatted === "—") return formatted;
+  // Quitar decimales al final: .17 o ,17 (punto o coma + 1-3 dígitos al final)
+  return formatted.replace(/[.,]\d{1,3}$/, "");
 };
 
 // Los precios se obtendrán dinámicamente de RevenueCat
@@ -112,9 +144,12 @@ export default function PremiumPaywall({
   const s = makeStyles(colors, typography);
 
   const [isProcessing, setIsProcessing] = useState(false);
-  const [currentOffering, setCurrentOffering] = useState<PurchasesOffering | null>(null);
+  const [currentOffering, setCurrentOffering] =
+    useState<PurchasesOffering | null>(null);
   const [loadingPrices, setLoadingPrices] = useState(true);
-  const [errorLoadingPrices, setErrorLoadingPrices] = useState<string | null>(null);
+  const [errorLoadingPrices, setErrorLoadingPrices] = useState<string | null>(
+    null,
+  );
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -125,37 +160,57 @@ export default function PremiumPaywall({
       // Solo intentar obtener offerings en plataformas nativas
       if (Platform.OS !== "ios" && Platform.OS !== "android") {
         setLoadingPrices(false);
-        setErrorLoadingPrices("RevenueCat no está disponible en esta plataforma");
+        setErrorLoadingPrices(
+          "RevenueCat no está disponible en esta plataforma",
+        );
         return;
       }
 
       try {
         setLoadingPrices(true);
         setErrorLoadingPrices(null);
-        
+
         const result = await RevenueCatService.getOfferings();
 
         if (!result.ok) {
-          console.error("[PremiumPaywall] Error al obtener ofertas:", result.message);
-          
+          console.error(
+            "[PremiumPaywall] Error al obtener ofertas:",
+            result.message,
+          );
+
           // Mensaje más amigable para errores de configuración
           let errorMessage = result.message || "Error al cargar los planes";
           if (result.code === "CONFIGURATION_ERROR") {
-            errorMessage = "Configuración requerida: Para desarrollo, configura StoreKit Configuration en Xcode. Revisa la consola para instrucciones paso a paso.";
+            errorMessage =
+              "Configuración requerida: Para desarrollo, configura StoreKit Configuration en Xcode. Revisa la consola para instrucciones paso a paso.";
           }
-          
+
           setErrorLoadingPrices(errorMessage);
           setCurrentOffering(null);
         } else if (!result.data) {
-          console.warn("[PremiumPaywall] ⚠️ No hay ofertas disponibles (offerings vacío)");
-          console.log("[PremiumPaywall] ℹ️ Verificando productos del StoreKit local...");
+          console.warn(
+            "[PremiumPaywall] ⚠️ No hay ofertas disponibles (offerings vacío)",
+          );
+          console.log(
+            "[PremiumPaywall] ℹ️ Verificando productos del StoreKit local...",
+          );
           console.log("[PremiumPaywall] 💡 Para desarrollo local:");
-          console.log("[PremiumPaywall]   1. Ejecuta: npx expo prebuild --platform ios");
-          console.log("[PremiumPaywall]   2. Abre: open ios/ContaMacros.xcworkspace");
-          console.log("[PremiumPaywall]   3. En Xcode: Product → Scheme → Edit Scheme → Run → Options");
-          console.log("[PremiumPaywall]   4. Selecciona 'ContaMacros.storekit' en StoreKit Configuration");
+          console.log(
+            "[PremiumPaywall]   1. Ejecuta: npx expo prebuild --platform ios",
+          );
+          console.log(
+            "[PremiumPaywall]   2. Abre: open ios/ContaMacros.xcworkspace",
+          );
+          console.log(
+            "[PremiumPaywall]   3. En Xcode: Product → Scheme → Edit Scheme → Run → Options",
+          );
+          console.log(
+            "[PremiumPaywall]   4. Selecciona 'ContaMacros.storekit' en StoreKit Configuration",
+          );
           console.log("[PremiumPaywall]   5. Ejecuta desde Xcode (⌘R)");
-          setErrorLoadingPrices("No hay planes disponibles. Para desarrollo, configura StoreKit Configuration en Xcode.");
+          setErrorLoadingPrices(
+            "No hay planes disponibles. Para desarrollo, configura StoreKit Configuration en Xcode.",
+          );
           setCurrentOffering(null);
         } else {
           const offering = result.data;
@@ -163,13 +218,18 @@ export default function PremiumPaywall({
             identifier: offering.identifier,
             availablePackages: offering.availablePackages.length,
             packages: (offering.availablePackages as any[])
-              .filter((pkg: any) => pkg.product != null || pkg.storeProduct != null)
+              .filter(
+                (pkg: any) => pkg.product != null || pkg.storeProduct != null,
+              )
               .map((pkg: any) => ({
                 identifier: pkg.identifier,
                 packageType: pkg.packageType,
-                productId: pkg.product?.identifier || pkg.storeProduct?.identifier,
-                productPrice: pkg.product?.priceString || pkg.storeProduct?.priceString,
-                currencyCode: pkg.product?.currencyCode || pkg.storeProduct?.currencyCode,
+                productId:
+                  pkg.product?.identifier || pkg.storeProduct?.identifier,
+                productPrice:
+                  pkg.product?.priceString || pkg.storeProduct?.priceString,
+                currencyCode:
+                  pkg.product?.currencyCode || pkg.storeProduct?.currencyCode,
               })),
           });
           setCurrentOffering(offering);
@@ -177,7 +237,7 @@ export default function PremiumPaywall({
       } catch (error) {
         console.error("[PremiumPaywall] Error al obtener ofertas:", error);
         setErrorLoadingPrices(
-          error instanceof Error ? error.message : "Error al cargar los planes"
+          error instanceof Error ? error.message : "Error al cargar los planes",
         );
         setCurrentOffering(null);
       } finally {
@@ -197,16 +257,18 @@ export default function PremiumPaywall({
     // Filtrar packages con product válido (product o storeProduct)
     // En algunos casos storeProduct puede ser null pero product tiene los datos
     const validPackages = (currentOffering.availablePackages as any[]).filter(
-      (pkg: any) => pkg.product != null || pkg.storeProduct != null
+      (pkg: any) => pkg.product != null || pkg.storeProduct != null,
     ) as PurchasesPackage[];
 
     if (validPackages.length === 0) {
-      console.warn("[PremiumPaywall] No hay packages válidos (sin product ni storeProduct)");
+      console.warn(
+        "[PremiumPaywall] No hay packages válidos (sin product ni storeProduct)",
+      );
       return null;
     }
 
     const packages: Record<string, PurchasesPackage> = {};
-    
+
     for (const pkg of validPackages) {
       switch (pkg.packageType) {
         case PACKAGE_TYPE.MONTHLY:
@@ -289,20 +351,48 @@ export default function PremiumPaywall({
     // Los precios se muestran automáticamente según la región del usuario
     // Si el usuario está en Chile, los precios se mostrarán en CLP automáticamente
     // cuando estén configurados en App Store Connect para esa región
-    const monthlyPrice = monthlyPkg?.product?.price ?? monthlyPkg?.storeProduct?.price ?? 0;
-    const monthlyPriceStringRaw = monthlyPkg?.product?.priceString ?? monthlyPkg?.storeProduct?.priceString ?? "—";
-    const monthlyCurrency = monthlyPkg?.product?.currencyCode ?? monthlyPkg?.storeProduct?.currencyCode;
-    const monthlyPriceString = formatPriceForCurrency(monthlyPriceStringRaw, monthlyCurrency);
-    
-    const annualPrice = annualPkg?.product?.price ?? annualPkg?.storeProduct?.price ?? 0;
-    const annualPriceStringRaw = annualPkg?.product?.priceString ?? annualPkg?.storeProduct?.priceString ?? "—";
-    const annualCurrency = annualPkg?.product?.currencyCode ?? annualPkg?.storeProduct?.currencyCode;
-    const annualPriceString = formatPriceForCurrency(annualPriceStringRaw, annualCurrency);
-    
-    const lifetimePrice = lifetimePkg?.product?.price ?? lifetimePkg?.storeProduct?.price ?? 0;
-    const lifetimePriceStringRaw = lifetimePkg?.product?.priceString ?? lifetimePkg?.storeProduct?.priceString ?? "—";
-    const lifetimeCurrency = lifetimePkg?.product?.currencyCode ?? lifetimePkg?.storeProduct?.currencyCode;
-    const lifetimePriceString = formatPriceForCurrency(lifetimePriceStringRaw, lifetimeCurrency);
+    const monthlyPrice =
+      monthlyPkg?.product?.price ?? monthlyPkg?.storeProduct?.price ?? 0;
+    const monthlyPriceStringRaw =
+      monthlyPkg?.product?.priceString ??
+      monthlyPkg?.storeProduct?.priceString ??
+      "—";
+    const monthlyCurrency =
+      monthlyPkg?.product?.currencyCode ??
+      monthlyPkg?.storeProduct?.currencyCode;
+    const monthlyPriceString = formatPriceForCurrency(
+      monthlyPriceStringRaw,
+      monthlyCurrency,
+    );
+
+    const annualPrice =
+      annualPkg?.product?.price ?? annualPkg?.storeProduct?.price ?? 0;
+    const annualPriceStringRaw =
+      annualPkg?.product?.priceString ??
+      annualPkg?.storeProduct?.priceString ??
+      "—";
+    const annualCurrency =
+      annualPkg?.product?.currencyCode ?? annualPkg?.storeProduct?.currencyCode;
+    const annualPriceString = formatPriceForCurrency(
+      annualPriceStringRaw,
+      annualCurrency,
+    );
+
+    const lifetimePrice =
+      lifetimePkg?.product?.price ?? lifetimePkg?.storeProduct?.price ?? 0;
+    const lifetimePriceStringRaw =
+      lifetimePkg?.product?.priceString ??
+      lifetimePkg?.storeProduct?.priceString ??
+      "—";
+    const lifetimeCurrency =
+      lifetimePkg?.product?.currencyCode ??
+      lifetimePkg?.storeProduct?.currencyCode;
+    // Mostrar precio sin decimales (ej. $2.499 en lugar de $2.499,17): primero intentar con número, luego limpiar string
+    const lifetimeFormatted =
+      lifetimePrice > 0 && lifetimeCurrency
+        ? formatRoundedPrice(lifetimePrice, lifetimeCurrency)
+        : formatPriceForCurrency(lifetimePriceStringRaw, lifetimeCurrency);
+    const lifetimePriceString = stripPriceDecimals(lifetimeFormatted);
 
     // Log para debugging: ver qué moneda está usando
     if (monthlyCurrency || annualCurrency) {
@@ -408,15 +498,22 @@ export default function PremiumPaywall({
       console.log("[PremiumPaywall] Procesando suscripción:", {
         plan: selectedPlan,
         packageIdentifier: selectedPackage.identifier,
-        productId: selectedPackage.product?.identifier || selectedPackage.storeProduct?.identifier,
-        price: selectedPackage.product?.priceString || selectedPackage.storeProduct?.priceString,
-        currencyCode: selectedPackage.product?.currencyCode || selectedPackage.storeProduct?.currencyCode,
+        productId:
+          selectedPackage.product?.identifier ||
+          selectedPackage.storeProduct?.identifier,
+        price:
+          selectedPackage.product?.priceString ||
+          selectedPackage.storeProduct?.priceString,
+        currencyCode:
+          selectedPackage.product?.currencyCode ||
+          selectedPackage.storeProduct?.currencyCode,
       });
 
       // Validar que el package tenga product antes de comprar
       if (!selectedPackage?.product?.identifier) {
         showToast({
-          message: "Error: El plan seleccionado no es válido. Por favor, intenta de nuevo.",
+          message:
+            "Error: El plan seleccionado no es válido. Por favor, intenta de nuevo.",
           type: "error",
         });
         setIsProcessing(false);
@@ -425,16 +522,19 @@ export default function PremiumPaywall({
 
       // Comprar package usando RevenueCatService (maneja sincronización automática)
       const purchaseResult = await RevenueCatService.purchasePackage(
-        selectedPackage as any
+        selectedPackage as any,
       );
 
       if (!purchaseResult.ok) {
-        throw new Error(purchaseResult.message || "Error al procesar la compra");
+        throw new Error(
+          purchaseResult.message || "Error al procesar la compra",
+        );
       }
 
       const customerInfo = purchaseResult.data;
-      const hasProEntitlement = customerInfo.entitlements.active["ContaMacros Pro"] !== undefined;
-      
+      const hasProEntitlement =
+        customerInfo.entitlements.active["ContaMacros Pro"] !== undefined;
+
       console.log("[PremiumPaywall] Compra exitosa:", {
         entitlements: Object.keys(customerInfo.entitlements.active),
         hasProEntitlement,
@@ -453,7 +553,10 @@ export default function PremiumPaywall({
         await refreshProfile();
         console.log("[PremiumPaywall] ✅ Perfil actualizado después de compra");
       } catch (profileError) {
-        console.warn("[PremiumPaywall] Error al refrescar perfil (no crítico):", profileError);
+        console.warn(
+          "[PremiumPaywall] Error al refrescar perfil (no crítico):",
+          profileError,
+        );
         // No fallar si esto falla, RevenueCat ya tiene el estado correcto y Supabase ya está sincronizado
       }
 
@@ -473,17 +576,25 @@ export default function PremiumPaywall({
       // RevenueCat lanza errores especiales para cancelaciones de usuario
       // Esto es normal y esperado - no es un error real
       if (error.userCancelled || error.code === "USER_CANCELLED") {
-        console.log("[PremiumPaywall] ℹ️ Compra cancelada por el usuario (comportamiento normal)");
+        console.log(
+          "[PremiumPaywall] ℹ️ Compra cancelada por el usuario (comportamiento normal)",
+        );
         // No mostrar error al usuario, simplemente cerrar el estado de procesamiento
         setIsProcessing(false);
         return;
       }
 
       // Solo mostrar error si NO es una cancelación
-      console.error("[PremiumPaywall] ❌ Error real al procesar compra:", error);
+      console.error(
+        "[PremiumPaywall] ❌ Error real al procesar compra:",
+        error,
+      );
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       showToast({
-        message: error instanceof Error ? error.message : "Error al procesar la suscripción",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Error al procesar la suscripción",
         type: "error",
       });
       setIsProcessing(false);
@@ -514,8 +625,9 @@ export default function PremiumPaywall({
       }
 
       const customerInfo = result.data;
-      const hasProEntitlement = customerInfo.entitlements.active["ContaMacros Pro"] !== undefined;
-      
+      const hasProEntitlement =
+        customerInfo.entitlements.active["ContaMacros Pro"] !== undefined;
+
       console.log("[PremiumPaywall] Compras restauradas:", {
         entitlements: Object.keys(customerInfo.entitlements.active),
         hasProEntitlement,
@@ -532,9 +644,14 @@ export default function PremiumPaywall({
           // Pequeño delay para asegurar que Supabase se haya actualizado
           await new Promise((resolve) => setTimeout(resolve, 500));
           await refreshProfile();
-          console.log("[PremiumPaywall] ✅ Perfil actualizado después de restaurar");
+          console.log(
+            "[PremiumPaywall] ✅ Perfil actualizado después de restaurar",
+          );
         } catch (profileError) {
-          console.warn("[PremiumPaywall] Error al refrescar perfil (no crítico):", profileError);
+          console.warn(
+            "[PremiumPaywall] Error al refrescar perfil (no crítico):",
+            profileError,
+          );
           // No fallar si esto falla, RevenueCat ya tiene el estado correcto y Supabase ya está sincronizado
         }
       }
@@ -563,7 +680,8 @@ export default function PremiumPaywall({
       console.error("[PremiumPaywall] Error al restaurar:", error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       showToast({
-        message: error instanceof Error ? error.message : "Error al restaurar compras",
+        message:
+          error instanceof Error ? error.message : "Error al restaurar compras",
         type: "error",
       });
     } finally {
@@ -580,12 +698,12 @@ export default function PremiumPaywall({
   };
 
   const selectedPlanData = plansData[selectedPlan];
-  
-  // Calcular precio mensual equivalente dinámicamente
+
+  // Calcular precio mensual equivalente dinámicamente (sin decimales, ej. $2.499)
   const monthlyPrice = useMemo(() => {
     let price: number;
     let currencyCode: string | undefined;
-    
+
     if (selectedPlan === "annual" && plansData.annual.price > 0) {
       price = plansData.annual.price / 12;
       currencyCode = plansData.annual.currencyCode;
@@ -595,23 +713,23 @@ export default function PremiumPaywall({
     } else {
       return "—";
     }
-    
-    // Formatear el precio con separador de miles según la moneda
-    const formattedPrice = price.toFixed(2);
-    
-    // Si es CLP, formatear con puntos como separador de miles
+
+    const rounded = Math.round(price);
+
+    // Si es CLP, formatear con puntos como separador de miles, sin decimales
     if (currencyCode === "CLP") {
-      // Separar parte entera y decimal
-      const parts = formattedPrice.split(".");
-      const integerPart = parts[0] || "";
-      const decimalPart = parts[1] || "00";
-      // Agregar puntos como separador de miles
-      const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-      return `${formattedInteger}.${decimalPart}`;
+      const formattedInteger = rounded.toLocaleString("es-CL", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      });
+      return formattedInteger;
     }
-    
-    // Para otras monedas, usar formato estándar (puede tener comas según locale)
-    return formattedPrice;
+
+    // Para otras monedas, entero sin decimales (sin símbolo; el JSX añade $)
+    return rounded.toLocaleString(undefined, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    });
   }, [selectedPlan, plansData]);
 
   return (
@@ -630,15 +748,12 @@ export default function PremiumPaywall({
         ]}
       >
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        
+
         <Animated.View
           style={[
             s.container,
             {
-              transform: [
-                { translateY: slideAnim },
-                { scale: scaleAnim },
-              ],
+              transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
             },
           ]}
         >
@@ -711,7 +826,9 @@ export default function PremiumPaywall({
                     </View>
                     <View style={s.benefitTextContainer}>
                       <Text style={s.benefitTitle}>{benefit.title}</Text>
-                      <Text style={s.benefitDescription}>{benefit.description}</Text>
+                      <Text style={s.benefitDescription}>
+                        {benefit.description}
+                      </Text>
                     </View>
                   </Animated.View>
                 );
@@ -721,12 +838,14 @@ export default function PremiumPaywall({
             {/* Selector de Planes */}
             <View style={s.plansContainer}>
               <Text style={s.plansTitle}>Elige tu plan</Text>
-              
+
               {/* Indicador de carga mientras se obtienen los precios */}
               {loadingPrices && (
                 <View style={s.loadingContainer}>
                   <ActivityIndicator size="large" color={colors.brand} />
-                  <Text style={s.loadingText}>Cargando planes disponibles...</Text>
+                  <Text style={s.loadingText}>
+                    Cargando planes disponibles...
+                  </Text>
                 </View>
               )}
 
@@ -751,11 +870,12 @@ export default function PremiumPaywall({
                     color={colors.cta}
                   />
                   <Text style={s.errorText}>
-                    No hay planes disponibles en este momento. Por favor, intenta más tarde.
+                    No hay planes disponibles en este momento. Por favor,
+                    intenta más tarde.
                   </Text>
                 </View>
               )}
-              
+
               {/* Plan Mensual */}
               {plansData.monthly.package && (
                 <Pressable
@@ -774,7 +894,10 @@ export default function PremiumPaywall({
                       <Text style={s.planLabel}>{plansData.monthly.label}</Text>
                       <Text style={s.planPrice}>
                         {plansData.monthly.priceString}
-                        <Text style={s.planPeriod}> / {plansData.monthly.period}</Text>
+                        <Text style={s.planPeriod}>
+                          {" "}
+                          / {plansData.monthly.period}
+                        </Text>
                       </Text>
                     </View>
                     {selectedPlan === "monthly" && (
@@ -814,15 +937,19 @@ export default function PremiumPaywall({
                       <View style={s.planPriceRow}>
                         <Text style={s.planPrice}>
                           {plansData.annual.priceString}
-                          <Text style={s.planPeriod}> / {plansData.annual.period}</Text>
+                          <Text style={s.planPeriod}>
+                            {" "}
+                            / {plansData.annual.period}
+                          </Text>
                         </Text>
-                        {plansData.annual.savings && plansData.annual.savings > 0 && (
-                          <View style={s.savingsBadge}>
-                            <Text style={s.savingsBadgeText}>
-                              Ahorra {plansData.annual.savings}%
-                            </Text>
-                          </View>
-                        )}
+                        {plansData.annual.savings &&
+                          plansData.annual.savings > 0 && (
+                            <View style={s.savingsBadge}>
+                              <Text style={s.savingsBadgeText}>
+                                Ahorra {plansData.annual.savings}%
+                              </Text>
+                            </View>
+                          )}
                       </View>
                       {monthlyPrice !== "—" && (
                         <Text style={s.planMonthlyEquivalent}>
@@ -843,7 +970,7 @@ export default function PremiumPaywall({
               )}
 
               {/* Plan Lifetime (si está disponible) */}
-              {plansData.lifetime.package && (
+              {/* {plansData.lifetime.package && (
                 <Pressable
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -857,10 +984,15 @@ export default function PremiumPaywall({
                 >
                   <View style={s.planHeader}>
                     <View style={s.planInfo}>
-                      <Text style={s.planLabel}>{plansData.lifetime.label}</Text>
+                      <Text style={s.planLabel}>
+                        {plansData.lifetime.label}
+                      </Text>
                       <Text style={s.planPrice}>
                         {plansData.lifetime.priceString}
-                        <Text style={s.planPeriod}> / {plansData.lifetime.period}</Text>
+                        <Text style={s.planPeriod}>
+                          {" "}
+                          / {plansData.lifetime.period}
+                        </Text>
                       </Text>
                     </View>
                     {selectedPlan === "lifetime" && (
@@ -873,7 +1005,7 @@ export default function PremiumPaywall({
                     )}
                   </View>
                 </Pressable>
-              )}
+              )} */}
             </View>
 
             {/* Prueba Gratuita */}
@@ -885,15 +1017,17 @@ export default function PremiumPaywall({
                   color={colors.brand}
                 />
                 <Text style={s.trialText}>
-                  Pruébalo <Text style={s.trialBold}>GRATIS</Text> por 7 días. Luego{" "}
-                  {plansData.annual.priceString}/año. Cancela cuando quieras.
+                  Pruébalo <Text style={s.trialBold}>GRATIS</Text> por 7 días.
+                  Luego {plansData.annual.priceString}/año. Cancela cuando
+                  quieras.
                 </Text>
               </View>
             )}
 
             {/* Mensaje de cierre */}
             <Text style={s.closingMessage}>
-              Desbloquea el poder de la IA y toma el control total de tu cambio hoy mismo.
+              Desbloquea el poder de la IA y toma el control total de tu cambio
+              hoy mismo.
             </Text>
 
             {/* CTA Principal */}
@@ -955,8 +1089,9 @@ export default function PremiumPaywall({
                 </Text>
               </Pressable>
               <Text style={s.restoreHelperText}>
-                Si ya compraste una suscripción en otro dispositivo o reinstalaste la app, 
-                presiona aquí para recuperar tu acceso premium.
+                Si ya compraste una suscripción en otro dispositivo o
+                reinstalaste la app, presiona aquí para recuperar tu acceso
+                premium.
               </Text>
             </View>
 
@@ -973,10 +1108,7 @@ export default function PremiumPaywall({
           </ScrollView>
 
           {/* Botón cerrar */}
-          <Pressable
-            onPress={onClose}
-            style={s.closeButton}
-          >
+          <Pressable onPress={onClose} style={s.closeButton}>
             <MaterialCommunityIcons
               name="close"
               size={24}
