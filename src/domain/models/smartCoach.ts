@@ -1,6 +1,4 @@
 // src/domain/models/smartCoach.ts
-import type { GenericFoodDb } from "@/data/food/genericFoodsRepository";
-
 /**
  * Tipo de recomendación del SmartCoach Pro
  */
@@ -66,7 +64,7 @@ export type CalorieRecommendation = {
 export type ExerciseRecommendation = {
   type: "exercise";
   message: string;
-  exercises: Array<{
+  exercises: {
     exercise: {
       id: string;
       name_es: string;
@@ -74,7 +72,7 @@ export type ExerciseRecommendation = {
       icon_name: string | null;
     };
     minutesNeeded: number;
-  }>;
+  }[];
   excessCalories: number;
   activityCaloriesBurned?: number; // Calorías ya quemadas desde Apple Health/Health Connect
   remainingExcess?: number; // Exceso restante después de restar actividad
