@@ -253,6 +253,11 @@ src/presentation/hooks/
   - Registro de alimentos con unidades o gramos
   - Historial de búsquedas
 
+- ✅ **IA Scan (Escaneo por IA):**
+  - Análisis de foto de alimento con Gemini (gemini-flash-latest). Límite 3/día gratis; ilimitado en Premium.
+  - Flujo: add-food o scan → cámara → useMacroScanner → geminiService.analyzeFoodImage → ConfirmMacroModal → food_logs con source "ai_scan".
+  - Documentación y guía de reutilización para **chat de agente de IA** (misma API, credenciales, reintentos): `.cursor/rules/ia-scan-and-gemini.md` — consultar y actualizar en cada cambio en Gemini o IA Scan.
+
 - ✅ **My Foods Screen:**
   - Creación de recetas personalizadas
   - Lista de alimentos del usuario
@@ -348,6 +353,11 @@ src/presentation/hooks/
 - Endpoints:
   - Búsqueda: `/cgi/search.pl` (v1)
   - Por barcode: `/api/v2/product/{code}` (v2)
+
+### Google Gemini (IA Scan y futuro chat de agente)
+- Variable de entorno: `EXPO_PUBLIC_GEMINI_API_KEY` (usada en `src/data/ai/geminiService.ts`; también en `env.geminiApiKey` en `src/core/config/env.ts`).
+- Modelo: `gemini-flash-latest`, endpoint `generativelanguage.googleapis.com/v1beta/models/.../generateContent`.
+- Reutilizar este servicio y credencial para otras features (p. ej. chat de agente de IA). Ver `.cursor/rules/ia-scan-and-gemini.md`.
 
 ---
 
