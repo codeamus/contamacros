@@ -9,16 +9,18 @@ import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { getActivityLabel, getGoalLabel } from "@/presentation/utils/labels";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 /**
  * Helpers
@@ -37,6 +39,7 @@ function goalDbToDomain(goal: string) {
 }
 
 export default function ResultScreen() {
+  const insets = useSafeAreaInsets();
   const { profile, refreshProfile, updateProfile } = useAuth();
   const { theme } = useTheme();
   const { colors, typography } = theme;
@@ -178,6 +181,17 @@ export default function ResultScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <Pressable
+        onPress={() => router.back()}
+        style={({ pressed }) => [
+          styles.backButton,
+          { top: insets.top + 8 },
+          pressed && { opacity: 0.8 },
+        ]}
+        hitSlop={12}
+      >
+        <Feather name="arrow-left" size={26} color="#fff" />
+      </Pressable>
       <ScrollView>
         <View style={styles.screen}>
           {/* HERO (idéntico a las otras pantallas) */}
@@ -362,6 +376,17 @@ function Pill({
 function makeStyles(colors: any, typography: any) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
+    backButton: {
+      position: "absolute",
+      left: 16,
+      zIndex: 999,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
     screen: {
       flex: 1,
       backgroundColor:

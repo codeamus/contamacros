@@ -20,7 +20,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -55,6 +55,7 @@ function formatYmdToSpanishLong(ymd: string) {
 }
 
 export default function AboutScreen() {
+  const insets = useSafeAreaInsets();
   const { updateProfile } = useAuth();
   const { theme } = useTheme();
   const { colors, typography } = theme;
@@ -128,6 +129,17 @@ export default function AboutScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <Pressable
+        onPress={() => router.back()}
+        style={({ pressed }) => [
+          styles.backButton,
+          { top: insets.top + 8 },
+          pressed && { opacity: 0.8 },
+        ]}
+        hitSlop={12}
+      >
+        <Feather name="arrow-left" size={26} color="#fff" />
+      </Pressable>
       <ScrollView>
         <View style={styles.screen}>
           {/* HERO (idéntico a goal.tsx) */}
@@ -351,6 +363,17 @@ function OptionRow({
 function makeStyles(colors: any, typography: any) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
+    backButton: {
+      position: "absolute",
+      left: 16,
+      zIndex: 999,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
     screen: {
       flex: 1,
       backgroundColor:

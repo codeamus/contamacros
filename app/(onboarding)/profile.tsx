@@ -10,12 +10,13 @@ import React, { useMemo, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 function toIntSafe(s: string) {
   const n = parseInt(s.replace(/[^\d]/g, ""), 10);
@@ -28,6 +29,7 @@ function toFloatSafe(s: string) {
 }
 
 export default function ProfileScreen() {
+  const insets = useSafeAreaInsets();
   const { profile, updateProfile } = useAuth();
   const { theme } = useTheme();
   const { colors, typography } = theme;
@@ -90,6 +92,17 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <Pressable
+        onPress={() => router.back()}
+        style={({ pressed }) => [
+          styles.backButton,
+          { top: insets.top + 8 },
+          pressed && { opacity: 0.8 },
+        ]}
+        hitSlop={12}
+      >
+        <Feather name="arrow-left" size={26} color="#fff" />
+      </Pressable>
       <ScrollView>
         <View style={styles.screen}>
           {/* HERO (idéntico a goal/about/activity) */}
@@ -189,6 +202,17 @@ export default function ProfileScreen() {
 function makeStyles(colors: any, typography: any) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
+    backButton: {
+      position: "absolute",
+      left: 16,
+      zIndex: 999,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
     screen: {
       flex: 1,
       backgroundColor:
