@@ -18,6 +18,25 @@ import {
 import { todayStrLocal } from "@/presentation/utils/date";
 import * as Haptics from "expo-haptics";
 
+/** Momento del día en español para mensajes personalizados */
+function getMomentOfDayLabel(): "Desayuno" | "Almuerzo" | "Merienda" | "Cena" {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 11) return "Desayuno";
+  if (hour >= 11 && hour < 15) return "Almuerzo";
+  if (hour >= 15 && hour < 19) return "Merienda";
+  return "Cena";
+}
+
+/** Convierte hex a rgba para gradientes (alpha 0–1) */
+function hexToRgba(hex: string, alpha: number): string {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!result) return hex;
+  const r = parseInt(result[1] ?? "0", 16);
+  const g = parseInt(result[2] ?? "0", 16);
+  const b = parseInt(result[3] ?? "0", 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 /**
  * Mapea nombres de iconos inválidos a iconos válidos de MaterialCommunityIcons
  */
@@ -41,6 +60,10 @@ type SmartCoachProProps = {
   recommendation: SmartCoachRecommendation | null;
   loading: boolean;
   isPremium: boolean;
+  /** Calorías consumidas hoy (para mensaje dinámico en estado no premium) */
+  caloriesConsumed?: number;
+  /** Meta de calorías del día (para mensaje dinámico en estado no premium) */
+  caloriesTarget?: number;
   onUpgrade?: () => void;
   onFoodAdded?: () => void;
   onShowPaywall?: () => void;
@@ -50,6 +73,8 @@ export default function SmartCoachPro({
   recommendation,
   loading,
   isPremium,
+  caloriesConsumed = 0,
+  caloriesTarget = 0,
   onUpgrade,
   onFoodAdded,
   onShowPaywall,
@@ -172,27 +197,35 @@ export default function SmartCoachPro({
     return "dinner";
   }
 
-  // Estado no premium (paywall con blur effect)
+  // Estado no premium: tarjeta persuasiva, fondo limpio y acentos de paleta
   if (!isPremium) {
+    const consumed = Number(caloriesConsumed) || 0;
+    const target = Number(caloriesTarget) || 0;
+    const deficit = target > 0 && consumed < target ? Math.round(target - consumed) : 0;
+    const momentLabel = getMomentOfDayLabel();
+
+    const dynamicMessage = deficit > 0
+      ? `Smart Coach Pro analizó que te faltan ${deficit} kcal. Para tu ${momentLabel}, tiene una recomendación ideal para ti…`
+      : `Smart Coach Pro tiene una recomendación personalizada para tu ${momentLabel}. Desbloquea Pro para verla.`;
+
+    const brandSoft = hexToRgba(colors.brand, 0.08);
+
     return (
       <View style={s.container}>
         <View style={[s.card, s.premiumCard]}>
-          {/* Overlay con blur effect */}
-          <View style={[s.blurOverlay, { backgroundColor: colors.surface + "E6" }]} />
-          
+          {/* Acento sutil detrás del icono (solo toque de color, sin llenar la card) */}
+          <View style={[s.premiumCardGlow, { backgroundColor: brandSoft }]} />
           <View style={s.premiumContent}>
             <View style={[s.iconContainer, s.premiumIconContainer]}>
               <MaterialCommunityIcons
-                name="lock"
-                size={32}
+                name="lock-outline"
+                size={36}
                 color={colors.brand}
               />
             </View>
             <View style={s.premiumTextContainer}>
-              <Text style={s.premiumTitle}>Coach Pro 💎</Text>
-              <Text style={s.premiumBody}>
-                Tu Coach Pro está analizando tus datos... Suscríbete para ver el plan de acción personalizado basado en tu historial, macros y actividad física.
-              </Text>
+              <Text style={s.premiumTitle}>Smart Coach Pro</Text>
+              <Text style={s.premiumBody}>{dynamicMessage}</Text>
             </View>
             <Pressable
               onPress={() => {
@@ -205,11 +238,29 @@ export default function SmartCoachPro({
                 pressed && s.upgradeButtonPressed,
               ]}
             >
-              <Text style={s.upgradeButtonText}>Pasar a Pro 💎</Text>
+              <Text style={s.upgradeButtonText} numberOfLines={1}>
+                Ver mi recomendación Pro
+              </Text>
+              <View style={[s.upgradeButtonIconWrap, { backgroundColor: colors.brand }]}>
+                <MaterialCommunityIcons
+                  name="arrow-right"
+                  size={18}
+                  color={colors.onCta}
+                />
+              </View>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push("/(tabs)/about-smart-coach-pro");
+              }}
+              style={({ pressed }) => [s.aboutLink, pressed && { opacity: 0.7 }]}
+            >
+              <Text style={s.aboutLinkText}>¿Cómo funciona el Smart Coach Pro?</Text>
               <MaterialCommunityIcons
-                name="arrow-right"
-                size={18}
-                color={colors.onCta}
+                name="information-outline"
+                size={16}
+                color={colors.brand}
               />
             </Pressable>
           </View>
@@ -269,7 +320,7 @@ export default function SmartCoachPro({
           <View style={s.content}>
             <View style={[s.iconContainer, s.exerciseIconContainer]}>
               <MaterialCommunityIcons
-                name={getValidExerciseIcon(firstExercise.exercise.icon_name)}
+                name={getValidExerciseIcon(firstExercise?.exercise?.icon_name)}
                 size={28}
                 color={colors.cta}
               />
@@ -459,10 +510,61 @@ function makeStyles(colors: any, typography: any) {
     premiumCard: {
       position: "relative",
       overflow: "hidden",
+      borderLeftWidth: 4,
+      borderLeftColor: colors.brand,
+      backgroundColor: colors.surface,
+      shadowColor: colors.textPrimary,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 12,
+      elevation: 3,
+    },
+    premiumCardGlow: {
+      position: "absolute",
+      width: 140,
+      height: 140,
+      borderRadius: 70,
+      top: -40,
+      left: -30,
+      opacity: 1,
     },
     blurOverlay: {
       ...StyleSheet.absoluteFillObject,
       opacity: 0.95,
+    },
+    upgradeButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 14,
+      paddingLeft: 18,
+      paddingRight: 6,
+      borderRadius: 14,
+      borderWidth: 2,
+      borderColor: colors.brand,
+      backgroundColor: colors.brand + "0D",
+      alignSelf: "stretch",
+    },
+    upgradeButtonIconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    aboutLink: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+    },
+    aboutLinkText: {
+      ...typography.caption,
+      fontSize: 13,
+      color: colors.brand,
+      fontWeight: "600",
     },
     premiumIconContainer: {
       borderColor: colors.brand + "40",
@@ -664,23 +766,16 @@ function makeStyles(colors: any, typography: any) {
       textAlign: "center",
       lineHeight: 20,
     },
-    upgradeButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      paddingVertical: 12,
-      paddingHorizontal: 20,
-      borderRadius: 12,
-      backgroundColor: colors.brand,
-    },
     upgradeButtonPressed: {
-      opacity: 0.8,
+      opacity: 0.88,
+      backgroundColor: colors.brand + "18",
     },
     upgradeButtonText: {
       ...typography.button,
-      color: colors.onCta,
-      fontWeight: "600",
+      color: colors.brand,
+      fontWeight: "700",
       fontSize: 15,
+      flex: 1,
     },
   });
 }

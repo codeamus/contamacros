@@ -300,6 +300,8 @@ export default function HomeScreen() {
               recommendation={smartCoach.recommendation}
               loading={smartCoach.loading}
               isPremium={isPremium}
+              caloriesConsumed={totals.calories}
+              caloriesTarget={effectiveTargetForCoach}
               onFoodAdded={handleFoodAdded}
               onShowPaywall={() => setPaywallVisible(true)}
             />

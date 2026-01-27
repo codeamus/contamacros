@@ -22,8 +22,9 @@ La UI muestra la recomendación en una tarjeta con mensaje personalizado, y en e
 |--------|-----|
 | `src/domain/models/smartCoach.ts` | Tipos: `SmartCoachRecommendation`, `MacroRecommendation`, `CalorieRecommendation`, `ExerciseRecommendation`, `SmartCoachState`. |
 | `src/presentation/hooks/smartCoach/useSmartCoachPro.ts` | Toda la lógica: cálculo de gaps, selección de escenario, búsqueda de alimentos, cálculo de minutos de ejercicio, mensajes. |
-| `src/presentation/components/smartCoach/SmartCoachPro.tsx` | UI: estados (no premium, loading, sin recomendación, ejercicio, comida), Quick Add, sincronización Health, paywall. |
-| `app/(tabs)/home.tsx` | Integración: llama `useSmartCoachPro` con `profile`, targets, `totals`, `isPremium`; pasa `effectiveTargetForCoach`; renderiza `<SmartCoachPro>` con `onFoodAdded` y `onShowPaywall`. |
+| `src/presentation/components/smartCoach/SmartCoachPro.tsx` | UI: estados (no premium con mensaje dinámico y CTA persuasivo, loading, sin recomendación, ejercicio, comida), Quick Add, sincronización Health, paywall, enlace "¿Cómo funciona?" → AboutSmartCoachPro. |
+| `app/(tabs)/home.tsx` | Integración: llama `useSmartCoachPro` con `profile`, targets, `totals`, `isPremium`; pasa `effectiveTargetForCoach`, `totals.calories`; renderiza `<SmartCoachPro>` con `caloriesConsumed`, `caloriesTarget`, `onFoodAdded`, `onShowPaywall`. |
+| `app/about-smart-coach-pro.tsx` | Pantalla informativa "¿Cómo funciona el Smart Coach Pro?"; navegación desde el enlace en la tarjeta no premium. |
 
 **Repositorios/servicios usados por el hook:**
 
@@ -129,26 +130,31 @@ La UI muestra la recomendación en una tarjeta con mensaje personalizado, y en e
 ### 5.1 Props
 
 - `recommendation`, `loading`, `isPremium`.
+- `caloriesConsumed?`, `caloriesTarget?`: usados solo en estado no premium para el mensaje dinámico (déficit y momento del día).
 - `onUpgrade?`: deprecated en favor de paywall.
 - `onFoodAdded?`: llamado después de agregar la comida con Quick Add (para refrescar Home/summary).
 - `onShowPaywall?`: abre el paywall (ej. `setPaywallVisible(true)`).
 
-### 5.2 Estados de UI
+### 5.2 Helper "Momento del día"
 
-1. **No premium:** Tarjeta con blur, icono de candado, texto “Coach Pro 💎” y botón “Pasar a Pro 💎” que llama `onShowPaywall?.()` y `onUpgrade?.()`.
+- `getMomentOfDayLabel()`: "Desayuno" (5–11h), "Almuerzo" (11–15h), "Merienda" (15–19h), "Cena" (resto). Usado en el copy de la tarjeta no premium.
+
+### 5.3 Estados de UI
+
+1. **No premium (conversión):** Tarjeta con gradiente (LinearGradient), icono lock-outline, título "Smart Coach Pro". Mensaje dinámico: si déficit, "te faltan [X] kcal" + momento del día; si no, "recomendación personalizada para tu [momento]. Desbloquea Pro para verla." Botón "Revelar recomendación inteligente" (gradiente) → onShowPaywall. Enlace "¿Cómo funciona el Smart Coach Pro?" → router.push("/about-smart-coach-pro").
 2. **Loading:** Spinner + “Analizando tu progreso...”.
 3. **Sin recomendación:** Si es premium y `caloriesBurned > 0` (Health), muestra mensaje de éxito (actividad compensó el balance). Si no, devuelve `null` (no se muestra nada).
 4. **Recomendación tipo ejercicio:** Tarjeta con icono del primer ejercicio, mensaje, opcionalmente línea “Ya quemaste X kcal hoy con actividad física”, botón de sincronizar Apple Health/Health Connect (si premium), y lista de ejercicios con minutos.
 5. **Recomendación tipo macro o caloría:** Tarjeta con icono de comida, mensaje, badge “De tu historial” si `source === "history"`, info nutricional (cantidad + kcal), opcionalmente “Lo has comido X veces en los últimos 30 días”, y botón **Agregar** (Quick Add).
 
-### 5.3 Quick Add (solo recomendación de comida)
+### 5.4 Quick Add (solo recomendación de comida)
 
 - Calcula gramos y factores: `factor = recommendedAmount / 100`, calorías y macros = valores por 100g * factor.
 - Determina comida del día por hora: 5–11 breakfast, 11–15 lunch, 15–19 snack, resto dinner.
 - `foodLogRepository.create(day, meal, name, grams, calories, protein_g, carbs_g, fat_g, source: null, off_id: null, ...)`.
 - Toast de éxito o error, haptic, delay 300 ms y luego `onFoodAdded?.()` para refrescar.
 
-### 5.4 Iconos de ejercicio
+### 5.5 Iconos de ejercicio
 
 - Mapeo de nombres de icono a MaterialCommunityIcons válidos (ej. "droplet" → "water", "zap" → "lightning-bolt"). Por defecto "run".
 
