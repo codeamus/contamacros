@@ -1,59 +1,57 @@
 // app/(tabs)/about-smart-coach-pro.tsx
+// Landing premium de Smart Coach Pro
 import type { DietaryPreferenceDb } from "@/domain/models/profileDb";
 import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
-import { useStaggerAnimation } from "@/presentation/hooks/ui/useStaggerAnimation";
-import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { useToast } from "@/presentation/hooks/ui/useToast";
+import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useState } from "react";
 import {
-  ActivityIndicator,
-  Animated,
-  Easing,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import * as Haptics from "expo-haptics";
 
-const DIETARY_OPTIONS: { value: DietaryPreferenceDb; label: string; emoji: string }[] = [
-  { value: "omnivore", label: "Omnívoro", emoji: "🥩" },
-  { value: "vegetarian", label: "Vegetariano", emoji: "🥗" },
-  { value: "vegan", label: "Vegano", emoji: "🌿" },
-  { value: "pescatarian", label: "Pescetariano", emoji: "🐟" },
+const SECTION_PADDING = 20;
+
+const DIETARY_OPTIONS: {
+  value: DietaryPreferenceDb;
+  label: string;
+  icon: "food-steak" | "leaf" | "sprout" | "fish";
+}[] = [
+  { value: "omnivore", label: "Omnívoro", icon: "food-steak" },
+  { value: "vegetarian", label: "Vegetariano", icon: "leaf" },
+  { value: "vegan", label: "Vegano", icon: "sprout" },
+  { value: "pescatarian", label: "Pescetariano", icon: "fish" },
 ];
 
-const FEATURES: Array<{
-  icon: "lightbulb-on-outline" | "food-apple" | "run" | "plus-circle";
+const PILLARS: {
+  icon: "brain" | "history" | "robot-confused-outline";
   title: string;
   body: string;
-  bodyDefault?: string;
-}> = [
+}[] = [
   {
-    icon: "lightbulb-on-outline",
-    title: "¿Qué hace el Smart Coach Pro?",
-    body: "Analiza tu progreso del día (calorías y macros vs. tu meta) y te da una recomendación personalizada: qué comer para completar tu déficit o qué ejercicio hacer si te pasaste, usando tu historial y actividad física.",
-    bodyDefault: "Analiza tu progreso del día (calorías y macros vs. tu meta) y te da una recomendación personalizada: qué comer para completar tu déficit o qué ejercicio hacer si te pasaste, usando tu historial y actividad física.",
+    icon: "brain",
+    title: "Inteligencia Contextual",
+    body: "No son recetas al azar; es lo que tu cuerpo necesita según lo que ya comiste hoy.",
   },
   {
-    icon: "food-apple" as const,
-    title: "Cuando te falta llegar a tu meta",
-    body: "Prioriza el nutriente que más te falta y sugiere alimentos ideales (tu historial, recetas o base comunitaria), con cantidad sugerida en gramos o unidades.",
+    icon: "history",
+    title: "Tu Historial Primero",
+    body: "Priorizamos los alimentos que ya tienes en casa y que te gustan.",
   },
   {
-    icon: "run" as const,
-    title: "Cuando te pasaste de calorías",
-    body: "Te sugiere ejercicios concretos y cuántos minutos hacer. Si tienes Apple Health o Health Connect, los tiene en cuenta y te muestra solo el esfuerzo restante.",
-  },
-  {
-    icon: "plus-circle" as const,
-    title: "Un toque para agregar",
-    body: "Cuando la recomendación es un alimento, lo agregas al diario con un solo toque en «Agregar», sin buscar ni editar porciones.",
+    icon: "robot-confused-outline",
+    title: "Ajuste por Chat",
+    body: "¿No tienes el ingrediente? ¿Estás en un restaurante? Chatea con la IA y obtén una alternativa al instante.",
   },
 ];
 
@@ -64,46 +62,39 @@ export default function AboutSmartCoachProScreen() {
   const { profile, updateProfile } = useAuth();
   const { showToast } = useToast();
   const params = useLocalSearchParams<{ calorieGap?: string }>();
-  const calorieGap = params.calorieGap != null ? Math.round(Number(params.calorieGap)) : undefined;
+  const calorieGap =
+    params.calorieGap != null
+      ? Math.round(Number(params.calorieGap))
+      : undefined;
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [savingPreference, setSavingPreference] = useState(false);
-  const selectedPreference = (profile?.dietary_preference ?? null) as DietaryPreferenceDb | null;
+  const selectedPreference = (profile?.dietary_preference ??
+    null) as DietaryPreferenceDb | null;
 
-  const heroOpacity = useRef(new Animated.Value(0)).current;
-  const heroScale = useRef(new Animated.Value(0.85)).current;
-  const staggerAnims = useStaggerAnimation(FEATURES.length + 2, 100, 200);
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(heroOpacity, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-        easing: Easing.out(Easing.cubic),
-      }),
-      Animated.spring(heroScale, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 60,
-        friction: 10,
-      }),
-    ]).start();
-  }, [heroOpacity, heroScale]);
+  const handleClose = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.replace("/(tabs)/home");
+  };
 
   return (
-    <SafeAreaView style={[s.safe, { backgroundColor: colors.background }]} edges={["top"]}>
-      <View style={s.header}>
+    <SafeAreaView
+      style={[s.safe, { backgroundColor: colors.background }]}
+      edges={["top"]}
+    >
+      {/* Header */}
+      <View style={[s.header, { backgroundColor: colors.background }]}>
+        <Text style={s.headerTitle}>Smart Coach Pro</Text>
         <Pressable
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.replace("/(tabs)/home");
-          }}
-          style={({ pressed }) => [s.backBtn, pressed && { opacity: 0.7 }]}
+          onPress={handleClose}
+          style={({ pressed }) => [s.closeBtn, pressed && { opacity: 0.7 }]}
+          hitSlop={12}
         >
-          <MaterialCommunityIcons name="arrow-left" size={24} color={colors.textPrimary} />
+          <MaterialCommunityIcons
+            name="close"
+            size={24}
+            color={colors.textPrimary}
+          />
         </Pressable>
-        <Text style={s.title}>Cómo funciona</Text>
-        <View style={s.backBtn} />
       </View>
 
       <ScrollView
@@ -111,43 +102,43 @@ export default function AboutSmartCoachProScreen() {
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero */}
-        <Animated.View
-          style={[
-            s.hero,
-            {
-              opacity: heroOpacity,
-              transform: [{ scale: heroScale }],
-            },
-          ]}
-        >
-          <View style={[s.heroIconWrap, { backgroundColor: colors.brand + "18" }]}>
-            <MaterialCommunityIcons name="arm-flex" size={44} color={colors.brand} />
+        {/* Sección 1: El análisis en tiempo real (solo si hay calorieGap) */}
+        {calorieGap != null && calorieGap > 0 && (
+          <View style={s.section}>
+            <View style={s.gradientCardWrap}>
+              <LinearGradient
+                colors={[colors.brand + "22", colors.brand + "08"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={s.gradientCard}
+              >
+                <View
+                  style={[
+                    s.gradientCardIconWrap,
+                    { backgroundColor: colors.brand + "25" },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="target"
+                    size={32}
+                    color={colors.brand}
+                  />
+                </View>
+                <Text style={s.gradientCardTitle}>
+                  Hoy tienes un margen de {calorieGap} kcal
+                </Text>
+                <Text style={s.gradientCardSubtext}>
+                  Sin una estrategia, es fácil perder el progreso. Smart Coach
+                  Pro diseña el cierre perfecto de tu día.
+                </Text>
+              </LinearGradient>
+            </View>
           </View>
-          <Text style={s.heroTitle}>Smart Coach Pro</Text>
-          <Text style={s.heroSubtitle}>
-            Tu plan de acción del día, en una tarjeta
-          </Text>
-        </Animated.View>
+        )}
 
-        {/* Dietary preference chips */}
-        <Animated.View
-          style={[
-            s.chipsSection,
-            {
-              opacity: staggerAnims[0],
-              transform: [
-                {
-                  translateY: staggerAnims[0]!.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [20, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <Text style={s.chipsLabel}>Tu tipo de dieta</Text>
+        {/* Sección 2: Personalización - Preferencia alimentaria */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Tu Preferencia Alimentaria</Text>
           <View style={s.chipsRow}>
             {DIETARY_OPTIONS.map((opt) => {
               const isSelected = selectedPreference === opt.value;
@@ -158,7 +149,9 @@ export default function AboutSmartCoachProScreen() {
                     if (savingPreference || isSelected) return;
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     setSavingPreference(true);
-                    const res = await updateProfile({ dietary_preference: opt.value });
+                    const res = await updateProfile({
+                      dietary_preference: opt.value,
+                    });
                     setSavingPreference(false);
                     if (res.ok) {
                       showToast({
@@ -166,14 +159,17 @@ export default function AboutSmartCoachProScreen() {
                         type: "success",
                       });
                     } else {
-                      showToast({ message: res.message ?? "Error al guardar", type: "error" });
+                      showToast({
+                        message: res.message ?? "Error al guardar",
+                        type: "error",
+                      });
                     }
                   }}
                   disabled={savingPreference}
                   style={[
                     s.chip,
                     {
-                      backgroundColor: isSelected ? colors.brand + "20" : colors.surface,
+                      backgroundColor: colors.surface,
                       borderColor: isSelected ? colors.brand : colors.border,
                       borderWidth: isSelected ? 2 : 1,
                     },
@@ -184,11 +180,20 @@ export default function AboutSmartCoachProScreen() {
                     <ActivityIndicator size="small" color={colors.brand} />
                   ) : (
                     <>
-                      <Text style={s.chipEmoji}>{opt.emoji}</Text>
+                      <MaterialCommunityIcons
+                        name={opt.icon}
+                        size={20}
+                        color={isSelected ? colors.brand : colors.textSecondary}
+                        style={s.chipIcon}
+                      />
                       <Text
                         style={[
                           s.chipLabel,
-                          { color: isSelected ? colors.brand : colors.textSecondary },
+                          {
+                            color: isSelected
+                              ? colors.brand
+                              : colors.textSecondary,
+                          },
                         ]}
                         numberOfLines={1}
                       >
@@ -200,78 +205,73 @@ export default function AboutSmartCoachProScreen() {
               );
             })}
           </View>
-        </Animated.View>
+        </View>
 
-        {/* Feature cards */}
-        {FEATURES.map((item, index) => {
-          const anim = staggerAnims[index + 1];
-          if (!anim) return null;
-          const isFirst = index === 0;
-          const defaultBody = item.bodyDefault ?? item.body;
-          const firstBody =
-            calorieGap != null && calorieGap > 0
-              ? `Hoy necesitas completar ${calorieGap} kcal con precisión. ${defaultBody}`
-              : defaultBody;
-          const body = isFirst ? firstBody : item.body;
-          return (
-            <Animated.View
-              key={item.title}
-              style={[
-                s.card,
-                {
-                  borderColor: colors.border,
-                  backgroundColor: colors.surface,
-                  opacity: anim,
-                  transform: [
-                    {
-                      translateY: anim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [20, 0],
-                      }),
-                    },
-                  ],
-                },
-              ]}
+        {/* Sección 3: Los 3 pilares */}
+        <View style={s.section}>
+          {PILLARS.map((item) => (
+            <View
+              key={item.icon}
+              style={[s.pillarRow, { borderColor: colors.border }]}
             >
-              <View style={[s.cardIconWrap, { backgroundColor: colors.brand + "15" }]}>
+              <View
+                style={[
+                  s.pillarIconWrap,
+                  { backgroundColor: colors.brand + "18" },
+                ]}
+              >
                 <MaterialCommunityIcons
                   name={item.icon}
                   size={26}
                   color={colors.brand}
                 />
               </View>
-              <View style={s.cardText}>
-                <Text style={s.cardTitle}>{item.title}</Text>
-                <Text style={s.cardBody}>{body}</Text>
+              <View style={s.pillarText}>
+                <Text style={[s.pillarTitle, { color: colors.textPrimary }]}>
+                  {item.title}
+                </Text>
+                <Text style={[s.pillarBody, { color: colors.textSecondary }]}>
+                  {item.body}
+                </Text>
               </View>
-            </Animated.View>
-          );
-        })}
+            </View>
+          ))}
+        </View>
 
-        {/* CTA block */}
-        <Animated.View
-          style={[
-            s.ctaBlock,
-            {
-              opacity: staggerAnims[FEATURES.length] ?? staggerAnims[0],
-              transform: [
-                {
-                  translateY: (staggerAnims[FEATURES.length] ?? staggerAnims[0]!).interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [20, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <View style={[s.ctaCard, { backgroundColor: colors.brand + "12", borderColor: colors.brand + "30" }]}>
-            <MaterialCommunityIcons name="crown" size={28} color={colors.brand} />
-            <Text style={s.ctaTitle}>Desbloquea todo el potencial</Text>
-            <Text style={s.ctaBody}>
-              Con ContaMacros Pro ves tu recomendación cada día en Inicio.
+        {/* Sección 4: Vista previa - Placeholder Pro */}
+        <View style={s.section}>
+          <View
+            style={[
+              s.previewCard,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <View
+              style={[s.previewBadge, { backgroundColor: colors.brand + "20" }]}
+            >
+              <Text style={[s.previewBadgeText, { color: colors.brand }]}>
+                EJEMPLO DE SUGERENCIA PRO
+              </Text>
+            </View>
+            <Text style={[s.previewTitle, { color: colors.textPrimary }]}>
+              Bowl de Quinoa y Atún
             </Text>
+            <View style={s.previewMacros}>
+              <Text style={[s.previewMacro, { color: colors.textSecondary }]}>
+                P: 30g
+              </Text>
+              <Text style={[s.previewMacro, { color: colors.textSecondary }]}>
+                C: 45g
+              </Text>
+              <Text style={[s.previewMacro, { color: colors.textSecondary }]}>
+                G: 12g
+              </Text>
+            </View>
           </View>
+        </View>
+
+        {/* Footer CTA */}
+        <View style={[s.section, s.footerSection]}>
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -283,20 +283,19 @@ export default function AboutSmartCoachProScreen() {
               pressed && s.ctaButtonPressed,
             ]}
           >
-            <Text style={s.ctaButtonText}>Ver planes Pro</Text>
-            <MaterialCommunityIcons name="star" size={20} color={colors.onCta} />
+            <Text style={[s.ctaButtonText, { color: colors.onCta }]}>
+              Obtener Smart Coach Pro
+            </Text>
+            <MaterialCommunityIcons
+              name="crown"
+              size={22}
+              color={colors.onCta}
+            />
           </Pressable>
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.replace("/(tabs)/home");
-            }}
-            style={({ pressed }) => [s.ctaButtonSecondary, pressed && { opacity: 0.7 }]}
-          >
-            <Text style={[s.ctaButtonSecondaryText, { color: colors.textSecondary }]}>Volver al Inicio</Text>
-            <MaterialCommunityIcons name="home" size={18} color={colors.textSecondary} />
-          </Pressable>
-        </Animated.View>
+          <Text style={[s.ctaDisclaimer, { color: colors.textSecondary }]}>
+            Cancela en cualquier momento desde tu perfil
+          </Text>
+        </View>
       </ScrollView>
 
       <PremiumPaywall
@@ -311,7 +310,17 @@ export default function AboutSmartCoachProScreen() {
   );
 }
 
-function makeStyles(colors: any, typography: any) {
+function makeStyles(
+  colors: {
+    border: string;
+    textPrimary: string;
+    textSecondary: string;
+    surface: string;
+    brand: string;
+    onCta: string;
+  },
+  typography: { title: object; subtitle: object; body: object },
+) {
   return StyleSheet.create({
     safe: {
       flex: 1,
@@ -320,66 +329,80 @@ function makeStyles(colors: any, typography: any) {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      paddingHorizontal: 8,
-      paddingVertical: 12,
+      paddingHorizontal: SECTION_PADDING,
+      paddingVertical: 14,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
-      backgroundColor: colors.surface,
     },
-    backBtn: {
+    headerTitle: {
+      ...typography.title,
+      fontSize: 22,
+      lineHeight: 28,
+      color: colors.textPrimary,
+      flex: 1,
+    },
+    closeBtn: {
       width: 44,
       height: 44,
       alignItems: "center",
       justifyContent: "center",
     },
-    title: {
+    scroll: {
+      flex: 1,
+      backgroundColor: "transparent",
+    },
+    scrollContent: {
+      padding: SECTION_PADDING,
+      paddingBottom: 48,
+    },
+    section: {
+      marginBottom: SECTION_PADDING,
+    },
+    footerSection: {
+      marginTop: 8,
+      marginBottom: 32,
+    },
+
+    // Sección 1 - Tarjeta con gradiente
+    gradientCardWrap: {
+      borderRadius: 20,
+      overflow: "hidden",
+      borderWidth: 1,
+      borderColor: colors.brand + "30",
+    },
+    gradientCard: {
+      padding: SECTION_PADDING,
+      borderRadius: 20,
+    },
+    gradientCardIconWrap: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 14,
+    },
+    gradientCardTitle: {
       ...typography.title,
       fontSize: 20,
       lineHeight: 26,
       color: colors.textPrimary,
+      marginBottom: 8,
     },
-    scroll: {
-      flex: 1,
-    },
-    scrollContent: {
-      padding: 20,
-      paddingBottom: 48,
-    },
-    hero: {
-      alignItems: "center",
-      marginBottom: 28,
-    },
-    heroIconWrap: {
-      width: 88,
-      height: 88,
-      borderRadius: 44,
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: 16,
-    },
-    heroTitle: {
-      ...typography.title,
-      fontSize: 28,
-      lineHeight: 34,
-      color: colors.textPrimary,
-      textAlign: "center",
-      marginBottom: 6,
-    },
-    heroSubtitle: {
+    gradientCardSubtext: {
       ...typography.body,
-      fontSize: 16,
-      color: colors.textSecondary,
-      textAlign: "center",
-      lineHeight: 22,
-    },
-    chipsSection: {
-      marginBottom: 22,
-    },
-    chipsLabel: {
-      ...typography.subtitle,
       fontSize: 14,
+      lineHeight: 21,
       color: colors.textSecondary,
-      marginBottom: 10,
+    },
+
+    // Sección 2 - Chips
+    sectionTitle: {
+      ...typography.subtitle,
+      fontSize: 16,
+      lineHeight: 22,
+      color: colors.textPrimary,
+      marginBottom: 12,
     },
     chipsRow: {
       flexDirection: "row",
@@ -391,105 +414,113 @@ function makeStyles(colors: any, typography: any) {
       alignItems: "center",
       gap: 6,
       paddingVertical: 10,
-      paddingHorizontal: 14,
-      borderRadius: 12,
+      paddingHorizontal: 12,
+      borderRadius: 14,
       minWidth: 0,
     },
     chipDisabled: {
       opacity: 0.7,
     },
-    chipEmoji: {
-      fontSize: 18,
+    chipIcon: {
+      marginRight: 4,
     },
     chipLabel: {
       ...typography.body,
       fontSize: 13,
       fontWeight: "600",
     },
-    card: {
+
+    // Sección 3 - Pilares
+    pillarRow: {
       flexDirection: "row",
       alignItems: "flex-start",
       padding: 18,
-      borderRadius: 18,
+      borderRadius: 16,
       borderWidth: 1,
-      marginBottom: 14,
-      gap: 16,
+      backgroundColor: colors.surface,
+      marginBottom: 12,
+      gap: 14,
     },
-    cardIconWrap: {
-      width: 52,
-      height: 52,
-      borderRadius: 26,
+    pillarIconWrap: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
       alignItems: "center",
       justifyContent: "center",
     },
-    cardText: {
+    pillarText: {
       flex: 1,
-      gap: 6,
     },
-    cardTitle: {
-      ...typography.title,
-      fontSize: 17,
-      lineHeight: 22,
-      color: colors.textPrimary,
+    pillarTitle: {
+      ...typography.subtitle,
+      fontSize: 15,
+      lineHeight: 20,
+      marginBottom: 4,
     },
-    cardBody: {
+    pillarBody: {
       ...typography.body,
       fontSize: 14,
-      lineHeight: 21,
-      color: colors.textSecondary,
+      lineHeight: 20,
     },
-    ctaBlock: {
-      marginTop: 12,
-      gap: 16,
-    },
-    ctaCard: {
-      padding: 22,
+
+    // Sección 4 - Vista previa
+    previewCard: {
+      padding: SECTION_PADDING,
       borderRadius: 18,
       borderWidth: 1,
-      alignItems: "center",
-      gap: 12,
+      position: "relative",
     },
-    ctaTitle: {
+    previewBadge: {
+      alignSelf: "flex-start",
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 8,
+      marginBottom: 12,
+    },
+    previewBadgeText: {
+      ...typography.subtitle,
+      fontSize: 11,
+      letterSpacing: 0.5,
+    },
+    previewTitle: {
       ...typography.title,
-      fontSize: 20,
-      lineHeight: 26,
-      color: colors.textPrimary,
-      textAlign: "center",
+      fontSize: 18,
+      lineHeight: 24,
+      marginBottom: 8,
     },
-    ctaBody: {
+    previewMacros: {
+      flexDirection: "row",
+      gap: 16,
+    },
+    previewMacro: {
       ...typography.body,
       fontSize: 14,
-      lineHeight: 21,
-      color: colors.textSecondary,
-      textAlign: "center",
     },
+
+    // Footer CTA
     ctaButton: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
       gap: 10,
-      paddingVertical: 16,
+      paddingVertical: 18,
       paddingHorizontal: 24,
-      borderRadius: 14,
+      borderRadius: 16,
     },
     ctaButtonPressed: {
       opacity: 0.9,
     },
     ctaButtonText: {
       ...typography.subtitle,
-      fontSize: 16,
+      fontSize: 17,
       color: colors.onCta,
     },
-    ctaButtonSecondary: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 8,
-      paddingVertical: 12,
-    },
-    ctaButtonSecondaryText: {
+    ctaDisclaimer: {
       ...typography.body,
-      fontSize: 15,
+      fontSize: 12,
+      textAlign: "center",
+      marginTop: 12,
+      lineHeight: 18,
     },
   });
 }
