@@ -32,9 +32,14 @@ function AuthGate() {
   // Esto previene bloqueos causados por errores en hooks o librerías nativas
   useEffect(() => {
     const emergencyTimer = setTimeout(() => {
-      console.log("[AuthGate] ⚠️ TIMEOUT DE SEGURIDAD: Forzando ocultamiento del splash después de 4s");
+      console.log(
+        "[AuthGate] ⚠️ TIMEOUT DE SEGURIDAD: Forzando ocultamiento del splash después de 4s",
+      );
       SplashScreen.hideAsync().catch((error) => {
-        console.warn("[AuthGate] Error al ocultar splash en timeout de seguridad:", error);
+        console.warn(
+          "[AuthGate] Error al ocultar splash en timeout de seguridad:",
+          error,
+        );
       });
     }, 4000);
 
@@ -58,7 +63,7 @@ function AuthGate() {
       return () => clearTimeout(timer);
     }
   }, [showLoader]);
-  
+
   // ✅ FORZAR OCULTAMIENTO cuando initializing cambia a false
   // Esto asegura que el splash se oculte incluso si showLoader sigue siendo true
   useEffect(() => {
@@ -68,7 +73,7 @@ function AuthGate() {
           // Ignorar errores silenciosamente
         });
       }, 200);
-      
+
       return () => clearTimeout(timer);
     }
   }, [initializing]);
@@ -96,8 +101,21 @@ function AuthGate() {
       return;
     }
 
-    if (!inTabs) router.replace("/(tabs)");
-  }, [initializing, session, profile, inAuth, inOnboarding, inTabs, router]);
+    // Pantallas raíz permitidas fuera de (tabs): no redirigir a tabs
+    const allowedRootScreens = ["smart-coach-pro", "recipe-detail"];
+    if (!inTabs && !allowedRootScreens.includes(group)) {
+      router.replace("/(tabs)");
+    }
+  }, [
+    initializing,
+    session,
+    profile,
+    inAuth,
+    inOnboarding,
+    inTabs,
+    group,
+    router,
+  ]);
 
   if (showLoader) {
     return (

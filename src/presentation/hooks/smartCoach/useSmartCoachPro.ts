@@ -6,12 +6,13 @@ import { genericFoodsRepository } from "@/data/food/genericFoodsRepository";
 import { userFoodsRepository } from "@/data/food/userFoodsRepository";
 import type { ProfileDb } from "@/domain/models/profileDb";
 import type {
-  SmartCoachRecommendation,
-  SmartCoachState,
+    CalorieRecommendation,
+    SmartCoachRecommendation,
+    SmartCoachState,
 } from "@/domain/models/smartCoach";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useFocusEffect } from "expo-router";
 import { todayStrLocal } from "@/presentation/utils/date";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * Calcula los minutos necesarios para quemar calorías usando MET
@@ -85,11 +86,46 @@ type FoodMatch = {
   timesEaten?: number;
 };
 
+type DietaryPreference = "omnivore" | "vegetarian" | "vegan" | "pescatarian" | null;
+
+/** Palabras que indican carne/productos no permitidos por preferencia (nombre en minúsculas) */
+const MEAT_KEYWORDS = ["carne", "vacuno", "res", "cerdo", "cordero", "pollo", "pavo", "pato", "ave", "chorizo", "jamon", "jamón", "bacon", "tocino", "salchicha", "vísceras", "visceras"];
+const FISH_KEYWORDS = ["pescado", "atun", "atún", "salmon", "salmón", "mariscos", "camarón", "camaron", "langosta", "calamar", "pulpo"];
+const DAIRY_EGG_KEYWORDS = ["leche", "queso", "mantequilla", "crema", "yogur", "huevo", "huevos"];
+
+function matchesDietaryPreference(
+  name: string,
+  _source: string,
+  dietaryPreference: DietaryPreference,
+  tags?: string[],
+): boolean {
+  if (!dietaryPreference || dietaryPreference === "omnivore") return true;
+  const nameLower = name.toLowerCase().trim();
+  const tagLower = (tags ?? []).map((t) => t.toLowerCase());
+
+  const hasMeat = MEAT_KEYWORDS.some((k) => nameLower.includes(k)) || tagLower.some((t) => ["carne", "meat", "pollo", "cerdo"].some((k) => t.includes(k)));
+  const hasFish = FISH_KEYWORDS.some((k) => nameLower.includes(k)) || tagLower.some((t) => ["pescado", "fish", "marisco"].some((k) => t.includes(k)));
+  const hasDairyEgg = DAIRY_EGG_KEYWORDS.some((k) => nameLower.includes(k)) || tagLower.some((t) => ["dairy", "lacteo", "huevo", "egg"].some((k) => t.includes(k)));
+
+  switch (dietaryPreference) {
+    case "vegan":
+      return !hasMeat && !hasFish && !hasDairyEgg;
+    case "vegetarian":
+      return !hasMeat && !hasFish;
+    case "pescatarian":
+      return !hasMeat;
+    default:
+      return true;
+  }
+}
+
 /**
- * Busca alimentos que calcen perfecto con los requerimientos
+ * Busca alimentos que calcen perfecto con los requerimientos.
+ * Orden de búsqueda: 1) user_foods, 2) food_logs (historial 30 días), 3) generic_foods (searchByTags).
+ * Se filtra por dietary_preference del perfil antes de mostrar.
  */
 async function findPerfectFoodMatch(
-  _gaps: {
+  gaps: {
     protein: number;
     carbs: number;
     fat: number;
@@ -97,13 +133,20 @@ async function findPerfectFoodMatch(
   },
   priorityMacro: "protein" | "carbs" | "fat" | "calories",
   _maxCalories?: number,
+  dietaryPreference: DietaryPreference = null,
 ): Promise<FoodMatch | null> {
   const matches: FoodMatch[] = [];
+  const hasSignificantGap =
+    gaps.protein > 10 ||
+    gaps.carbs > 10 ||
+    gaps.fat > 10 ||
+    gaps.calories > 10;
 
   // 1. Buscar en user_foods (recetas del usuario)
   const userFoodsRes = await userFoodsRepository.getAllForSmartSearch();
   if (userFoodsRes.ok) {
     for (const food of userFoodsRes.data) {
+      if (!matchesDietaryPreference(food.name, "user_food", dietaryPreference)) continue;
       const base = food.portion_base || 100;
       const factor = 100 / base;
       const protein_100g = food.protein * factor;
@@ -111,7 +154,6 @@ async function findPerfectFoodMatch(
       const fat_100g = food.fat * factor;
       const kcal_100g = food.calories * factor;
 
-      // Verificar que tenga el macro prioritario o calorías
       const macroValue =
         priorityMacro === "protein"
           ? protein_100g
@@ -139,6 +181,7 @@ async function findPerfectFoodMatch(
   const historyRes = await foodLogRepository.getUniqueFoodsFromHistory(30);
   if (historyRes.ok) {
     for (const food of historyRes.data) {
+      if (!matchesDietaryPreference(food.name, "history", dietaryPreference)) continue;
       const macroValue =
         priorityMacro === "protein"
           ? food.protein_g
@@ -183,6 +226,7 @@ async function findPerfectFoodMatch(
       ) {
         continue;
       }
+      if (!matchesDietaryPreference(food.name_es, "generic", dietaryPreference, food.tags ?? [])) continue;
 
       const macroValue =
         priorityMacro === "protein"
@@ -193,16 +237,13 @@ async function findPerfectFoodMatch(
               ? food.fat_100g
               : food.kcal_100g;
 
-      // Filtrar alimentos de bajo aporte (vegetales, condimentos)
-      // Excluir alimentos con muy baja densidad calórica o nutricional
       const isLowDensity =
-        food.kcal_100g < 30 || // Muy pocas calorías
-        (priorityMacro === "protein" && food.protein_100g < 2) || // Muy poca proteína
-        (priorityMacro === "carbs" && food.carbs_100g < 5) || // Muy pocos carbohidratos
-        (priorityMacro === "fat" && food.fat_100g < 1) || // Muy poca grasa
-        (priorityMacro === "calories" && food.kcal_100g < 50); // Muy pocas calorías para recomendación calórica
+        food.kcal_100g < 30 ||
+        (priorityMacro === "protein" && food.protein_100g < 2) ||
+        (priorityMacro === "carbs" && food.carbs_100g < 5) ||
+        (priorityMacro === "fat" && food.fat_100g < 1) ||
+        (priorityMacro === "calories" && food.kcal_100g < 50);
 
-      // Excluir nombres comunes de vegetales/condimentos de bajo aporte
       const lowValueFoods = [
         "zanahoria",
         "lechuga",
@@ -266,8 +307,151 @@ async function findPerfectFoodMatch(
     return bMacro - aMacro;
   });
 
-  // Retornar el mejor match
-  return matches.length > 0 ? matches[0] ?? null : null;
+  // Si ya hay match, retornarlo
+  if (matches.length > 0) return matches[0] ?? null;
+
+  // Si hay déficit significativo (>10g o >10 kcal) y no encontramos nada, fallback a generic_foods completo
+  if (hasSignificantGap) {
+    const fallbackRes =
+      await genericFoodsRepository.getAllForSmartSearch();
+    if (fallbackRes.ok && fallbackRes.data.length > 0) {
+      for (const food of fallbackRes.data) {
+        if (
+          !food.kcal_100g ||
+          food.kcal_100g <= 0 ||
+          food.protein_100g == null ||
+          food.carbs_100g == null ||
+          food.fat_100g == null
+        )
+          continue;
+        if (
+          !matchesDietaryPreference(
+            food.name_es,
+            "generic",
+            dietaryPreference,
+            food.tags ?? [],
+          )
+        )
+          continue;
+        const macroValue =
+          priorityMacro === "protein"
+            ? food.protein_100g
+            : priorityMacro === "carbs"
+              ? food.carbs_100g
+              : priorityMacro === "fat"
+                ? food.fat_100g
+                : food.kcal_100g;
+        if (macroValue > 0) {
+          return {
+            name: food.name_es,
+            source: "generic",
+            protein_100g: food.protein_100g,
+            carbs_100g: food.carbs_100g,
+            fat_100g: food.fat_100g,
+            kcal_100g: food.kcal_100g,
+            unitLabel: food.unit_label_es ?? undefined,
+            gramsPerUnit: food.grams_per_unit ?? undefined,
+          };
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+/** Umbral: por debajo se considera usuario sin registros (primera vez) */
+const EMPTY_USER_CAL_THRESHOLD = 20;
+const EMPTY_USER_MACRO_THRESHOLD = 5;
+
+function getMomentOfDayLabel(): string {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 11) return "DESAYUNO";
+  if (hour >= 11 && hour < 15) return "ALMUERZO";
+  if (hour >= 15 && hour < 19) return "MERIENDA";
+  return "CENA";
+}
+
+/**
+ * Primera comida del día / usuario sin registros: va directo a generic_foods,
+ * prioriza alimentos de calidad (proteína, carbohidratos complejos) y sugiere
+ * una porción = meta diaria / 4 (una comida equilibrada).
+ */
+async function findFirstMealSuggestion(
+  profile: ProfileDb | null,
+  caloriesTarget: number,
+  proteinTarget: number,
+  carbsTarget: number,
+  fatTarget: number,
+): Promise<CalorieRecommendation | null> {
+  const dietaryPreference = (profile?.dietary_preference ?? null) as DietaryPreference;
+  const momentLabel = getMomentOfDayLabel();
+
+  const res = await genericFoodsRepository.getAllForSmartSearch();
+  if (!res.ok || !res.data.length) return null;
+
+  const candidates = res.data.filter((food) => {
+    if (
+      !food.kcal_100g ||
+      food.kcal_100g < 40 ||
+      food.protein_100g == null ||
+      food.carbs_100g == null ||
+      food.fat_100g == null
+    )
+      return false;
+    if (
+      !matchesDietaryPreference(
+        food.name_es,
+        "generic",
+        dietaryPreference,
+        food.tags ?? [],
+      )
+    )
+      return false;
+    // Priorizar alimentos con proteína y calorías útiles (evitar condimentos)
+    if (food.protein_100g < 1 && food.kcal_100g < 80) return false;
+    return true;
+  });
+
+  if (candidates.length === 0) return null;
+
+  // Ordenar por calidad: proteína primero, luego calorías equilibradas
+  candidates.sort((a, b) => {
+    const scoreA = (a.protein_100g ?? 0) * 2 + (a.kcal_100g ?? 0) / 50;
+    const scoreB = (b.protein_100g ?? 0) * 2 + (b.kcal_100g ?? 0) / 50;
+    return scoreB - scoreA;
+  });
+
+  const food = candidates[0];
+  if (!food || !food.kcal_100g || food.kcal_100g <= 0) return null;
+
+  // Porción = 1/4 de la meta calórica del día (una comida equilibrada)
+  const targetKcalPerMeal = Math.max(200, Math.min(600, caloriesTarget / 4));
+  let recommendedAmount = Math.round((targetKcalPerMeal * 100) / food.kcal_100g);
+  if (food.grams_per_unit && food.grams_per_unit > 0) {
+    recommendedAmount = Math.round(
+      (recommendedAmount / food.grams_per_unit) * food.grams_per_unit,
+    );
+  }
+  recommendedAmount = Math.max(50, Math.min(500, recommendedAmount));
+
+  const message = `¡Estrenemos tu plan Pro! Para empezar tu ${momentLabel} con energía, te recomiendo:`;
+
+  return {
+    type: "calorie",
+    message,
+    recommendedFood: {
+      name: food.name_es,
+      source: "generic",
+      protein_100g: food.protein_100g ?? 0,
+      carbs_100g: food.carbs_100g ?? 0,
+      fat_100g: food.fat_100g ?? 0,
+      kcal_100g: food.kcal_100g,
+      recommendedAmount,
+      unitLabel: food.unit_label_es ?? undefined,
+    },
+    calorieGap: Math.round(caloriesTarget),
+  };
 }
 
 /**
@@ -345,12 +529,39 @@ export function useSmartCoachPro(
       return;
     }
 
-    // IMPORTANTE: No ejecutar si los datos aún no se han cargado (valores en 0)
-    // Esto evita recomendaciones incorrectas cuando la app se refresca
-    const hasRealData = caloriesConsumed > 0 || proteinConsumed > 0 || carbsConsumed > 0 || fatConsumed > 0;
-    if (!hasRealData) {
-      console.log("[SmartCoach] Datos aún no cargados (valores en 0), esperando...");
-      setRecommendation(null);
+    // Usuario nuevo / sin registros: forzar recomendación de primera comida (generic_foods, bienvenida)
+    const isEmptyUser =
+      caloriesConsumed < EMPTY_USER_CAL_THRESHOLD &&
+      proteinConsumed < EMPTY_USER_MACRO_THRESHOLD &&
+      carbsConsumed < EMPTY_USER_MACRO_THRESHOLD &&
+      fatConsumed < EMPTY_USER_MACRO_THRESHOLD;
+
+    if (isEmptyUser) {
+      console.log("[SmartCoach] Usuario sin registros: generando primera recomendación (generic_foods)");
+      lastExecutionDataRef.current = {
+        caloriesConsumed: Number(caloriesConsumed),
+        caloriesTarget: Number(caloriesTarget),
+      };
+      isProcessingRef.current = true;
+      setLoading(true);
+      setError(null);
+      try {
+        const firstMealRec = await findFirstMealSuggestion(
+          profile,
+          Number(caloriesTarget),
+          Number(profile?.protein_g ?? 0),
+          Number(profile?.carbs_g ?? 0),
+          Number(profile?.fat_g ?? 0),
+        );
+        if (firstMealRec) {
+          setRecommendation(firstMealRec);
+        } else {
+          setRecommendation(null);
+        }
+      } catch (err) {
+        console.warn("[SmartCoach] Error findFirstMealSuggestion:", err);
+        setRecommendation(null);
+      }
       setLoading(false);
       isProcessingRef.current = false;
       return;
@@ -595,7 +806,7 @@ export function useSmartCoachPro(
           priorityMacro = "fat";
         }
 
-        // Buscar alimento perfecto
+        // Buscar alimento perfecto (orden: user_foods → historial → generic; filtro dietary)
         const foodMatch = await findPerfectFoodMatch(
           {
             protein: proteinGap,
@@ -605,6 +816,7 @@ export function useSmartCoachPro(
           },
           priorityMacro,
           caloriesGap,
+          (profile?.dietary_preference as DietaryPreference) ?? null,
         );
 
         if (!foodMatch) {
@@ -711,7 +923,6 @@ export function useSmartCoachPro(
       }
 
       // ESCENARIO B: Faltan calorías pero macros están al día
-      // Buscar alimento equilibrado para completar calorías
       const calorieFoodMatch = await findPerfectFoodMatch(
         {
           protein: 0,
@@ -721,6 +932,7 @@ export function useSmartCoachPro(
         },
         "calories",
         caloriesGap,
+        (profile?.dietary_preference as DietaryPreference) ?? null,
       );
 
       if (!calorieFoodMatch) {

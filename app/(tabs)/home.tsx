@@ -11,23 +11,30 @@ import { useHealthSync } from "@/presentation/hooks/health/useHealthSync";
 import { useSmartCoachPro } from "@/presentation/hooks/smartCoach/useSmartCoachPro";
 import { useRevenueCat } from "@/presentation/hooks/subscriptions/useRevenueCat";
 import { useStaggerAnimation } from "@/presentation/hooks/ui/useStaggerAnimation";
+import { useSmartCoachRecommendationStore } from "@/presentation/state/smartCoachRecommendationStore";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { formatDateToSpanish } from "@/presentation/utils/date";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 import {
-  ActivityIndicator,
-  Animated,
-  Easing,
-  Platform,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Animated,
+    Easing,
+    Platform,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -93,7 +100,11 @@ export default function HomeScreen() {
 
   const { profile } = useAuth();
   const { day, totals, loading, reload: reloadSummary } = useTodaySummary();
-  const { meals, loading: mealsLoading, reload: reloadMeals } = useTodayMeals(day);
+  const {
+    meals,
+    loading: mealsLoading,
+    reload: reloadMeals,
+  } = useTodayMeals(day);
 
   // Targets
   const caloriesTarget = profile?.daily_calorie_target ?? 0;
@@ -107,8 +118,13 @@ export default function HomeScreen() {
   const isPremium = revenueCatPremium || profilePremium; // RevenueCat tiene prioridad
 
   // Health Sync (Premium)
-  const { caloriesBurned, isSyncing, syncCalories, reload: reloadHealth } = useHealthSync(isPremium);
-  
+  const {
+    caloriesBurned,
+    isSyncing,
+    syncCalories,
+    reload: reloadHealth,
+  } = useHealthSync(isPremium);
+
   // Calcular target efectivo para Smart Coach (incluye calorías quemadas si es premium)
   const effectiveTargetForCoach = useMemo(() => {
     if (caloriesTarget <= 0) return caloriesTarget;
@@ -117,7 +133,7 @@ export default function HomeScreen() {
     }
     return caloriesTarget;
   }, [caloriesTarget, isPremium, caloriesBurned]);
-  
+
   const smartCoach = useSmartCoachPro(
     profile,
     effectiveTargetForCoach,
@@ -128,6 +144,13 @@ export default function HomeScreen() {
     isPremium,
   );
 
+  const setSmartCoachRecommendation = useSmartCoachRecommendationStore(
+    (s) => s.setRecommendation,
+  );
+  const openSuccessScreen = useSmartCoachRecommendationStore(
+    (s) => s.openSuccessScreen,
+  );
+
   // La sincronización automática ahora está en useHealthSync hook
 
   const hasTargets =
@@ -135,7 +158,7 @@ export default function HomeScreen() {
 
   // Summary
   const caloriesConsumed = totals.calories;
-  
+
   // Calcular target efectivo: target base + calorías quemadas (solo para premium)
   const effectiveCaloriesTarget = useMemo(() => {
     if (caloriesTarget <= 0) return 0;
@@ -145,7 +168,7 @@ export default function HomeScreen() {
     }
     return caloriesTarget;
   }, [caloriesTarget, isPremium, caloriesBurned]);
-  
+
   const remaining = useMemo(() => {
     if (effectiveCaloriesTarget <= 0) return 0;
     return Math.max(effectiveCaloriesTarget - caloriesConsumed, 0);
@@ -221,13 +244,13 @@ export default function HomeScreen() {
   // Debe funcionar exactamente igual que pull to refresh
   const handleFoodAdded = useCallback(async () => {
     console.log("[Home] ========== INICIO handleFoodAdded ==========");
-    
+
     // Refrescar ambos hooks en paralelo (igual que pull to refresh)
     // El Smart Coach se actualizará automáticamente cuando cambien los totals
     console.log("[Home] Ejecutando reloadSummary() y reloadMeals()...");
     await Promise.all([reloadSummary(), reloadMeals()]);
     console.log("[Home] Hooks refrescados correctamente");
-    
+
     // No necesitamos hacer nada más - el Smart Coach se actualizará automáticamente
     // cuando los totals cambien debido a las dependencias en useSmartCoachPro
     console.log("[Home] ========== FIN handleFoodAdded ==========");
@@ -305,6 +328,22 @@ export default function HomeScreen() {
               dietaryPreference={profile?.dietary_preference ?? undefined}
               onFoodAdded={handleFoodAdded}
               onShowPaywall={() => setPaywallVisible(true)}
+              onViewFullPlan={
+                smartCoach.recommendation
+                  ? () => {
+                      setSmartCoachRecommendation(smartCoach.recommendation!);
+                      router.push("/smart-coach-pro");
+                    }
+                  : undefined
+              }
+              onViewSuccessPlan={
+                isPremium && caloriesBurned > 0
+                  ? () => {
+                      openSuccessScreen(caloriesBurned);
+                      router.push("/smart-coach-pro");
+                    }
+                  : undefined
+              }
             />
           </Animated.View>
         )}
@@ -343,8 +382,11 @@ export default function HomeScreen() {
                   <Text style={s.activitySubtitle}>
                     {Platform.OS === "ios" ? "Apple Health" : "Health Connect"}
                     {caloriesBurned > 0 && (
-                      <Text style={{ color: colors.textSecondary, fontSize: 11 }}>
-                        {" "}• Sincroniza automáticamente
+                      <Text
+                        style={{ color: colors.textSecondary, fontSize: 11 }}
+                      >
+                        {" "}
+                        • Sincroniza automáticamente
                       </Text>
                     )}
                   </Text>
@@ -354,9 +396,13 @@ export default function HomeScreen() {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     try {
                       await syncCalories();
-                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      Haptics.notificationAsync(
+                        Haptics.NotificationFeedbackType.Success,
+                      );
                     } catch (error) {
-                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                      Haptics.notificationAsync(
+                        Haptics.NotificationFeedbackType.Error,
+                      );
                     }
                   }}
                   disabled={isSyncing}
@@ -399,7 +445,8 @@ export default function HomeScreen() {
               {caloriesBurned === 0 && (
                 <View style={s.activityEmptyState}>
                   <Text style={s.activityEmptyText}>
-                    Se sincroniza automáticamente al abrir la app. Toca el botón para forzar sincronización.
+                    Se sincroniza automáticamente al abrir la app. Toca el botón
+                    para forzar sincronización.
                   </Text>
                 </View>
               )}
@@ -548,7 +595,7 @@ export default function HomeScreen() {
             <View style={s.chip}>
               <Feather name="flag" size={14} color={colors.textSecondary} />
               <Text style={s.chipText}>
-                {caloriesTarget 
+                {caloriesTarget
                   ? isPremium && caloriesBurned > 0
                     ? `${caloriesTarget} + ${caloriesBurned} kcal`
                     : `${caloriesTarget} kcal`
@@ -863,8 +910,7 @@ export default function HomeScreen() {
             transform: [{ scale: fabScale }],
           },
         ]}
-      >
-      </Animated.View>
+      ></Animated.View>
 
       <MealPickerSheet
         open={sheetOpen}
@@ -1452,52 +1498,52 @@ const MealRow = React.memo(function MealRow({
         </View>
 
         <View style={{ flex: 1, gap: 6 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Text
-            style={{
-              flex: 1,
-              fontFamily: typography.subtitle?.fontFamily,
-              fontSize: 15,
-              color: colors.textPrimary,
-            }}
-            numberOfLines={1}
-          >
-            {title}
-          </Text>
-
-          <View
-            style={{
-              height: 26,
-              paddingHorizontal: 10,
-              borderRadius: 999,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignItems: "center",
-              justifyContent: "center",
-              opacity: loading ? 0.6 : 1,
-            }}
-          >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Text
               style={{
-                fontFamily: typography.body?.fontFamily,
-                fontSize: 12,
-                color: colors.textSecondary,
+                flex: 1,
+                fontFamily: typography.subtitle?.fontFamily,
+                fontSize: 15,
+                color: colors.textPrimary,
+              }}
+              numberOfLines={1}
+            >
+              {title}
+            </Text>
+
+            <View
+              style={{
+                height: 26,
+                paddingHorizontal: 10,
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: colors.border,
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: loading ? 0.6 : 1,
               }}
             >
-              {loading ? "—" : `${kcal} kcal`}
-            </Text>
+              <Text
+                style={{
+                  fontFamily: typography.body?.fontFamily,
+                  fontSize: 12,
+                  color: colors.textSecondary,
+                }}
+              >
+                {loading ? "—" : `${kcal} kcal`}
+              </Text>
+            </View>
           </View>
-        </View>
 
-        <Text
-          style={{
-            fontFamily: typography.body?.fontFamily,
-            fontSize: 12,
-            color: colors.textSecondary,
-          }}
-        >
-          {subtitle}
-        </Text>
+          <Text
+            style={{
+              fontFamily: typography.body?.fontFamily,
+              fontSize: 12,
+              color: colors.textSecondary,
+            }}
+          >
+            {subtitle}
+          </Text>
 
           <AnimatedProgressBar
             percentage={pct * 100}

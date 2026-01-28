@@ -23,9 +23,12 @@ export type MacroRecommendation = {
     fat_100g: number;
     kcal_100g: number;
     recommendedAmount: number; // Gramos o unidades recomendadas
-    unitLabel?: string; // "gramos", "unidades", etc.
+    unitLabel?: string;
     lastEaten?: string;
     timesEaten?: number;
+    ingredients?: string[];
+    instructions?: string[];
+    imagePrompt?: string;
   };
   macroGaps: {
     protein: { gap: number; consumed: number; target: number };
@@ -53,6 +56,9 @@ export type CalorieRecommendation = {
     unitLabel?: string;
     lastEaten?: string;
     timesEaten?: number;
+    ingredients?: string[];
+    instructions?: string[];
+    imagePrompt?: string;
   };
   calorieGap: number;
 };

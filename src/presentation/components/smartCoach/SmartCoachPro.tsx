@@ -1,10 +1,12 @@
 // src/presentation/components/smartCoach/SmartCoachPro.tsx
 import { foodLogRepository } from "@/data/food/foodLogRepository";
 import type { SmartCoachRecommendation } from "@/domain/models/smartCoach";
-import { useTheme } from "@/presentation/theme/ThemeProvider";
-import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useHealthSync } from "@/presentation/hooks/health/useHealthSync";
+import { useToast } from "@/presentation/hooks/ui/useToast";
+import { useTheme } from "@/presentation/theme/ThemeProvider";
+import { todayStrLocal } from "@/presentation/utils/date";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
@@ -15,8 +17,6 @@ import {
   Text,
   View,
 } from "react-native";
-import { todayStrLocal } from "@/presentation/utils/date";
-import * as Haptics from "expo-haptics";
 
 /** Momento del día en español para mensajes personalizados */
 function getMomentOfDayLabel(): "Desayuno" | "Almuerzo" | "Merienda" | "Cena" {
@@ -40,20 +40,25 @@ function hexToRgba(hex: string, alpha: number): string {
 /**
  * Mapea nombres de iconos inválidos a iconos válidos de MaterialCommunityIcons
  */
-function getValidExerciseIcon(iconName: string | null | undefined): React.ComponentProps<typeof MaterialCommunityIcons>["name"] {
+function getValidExerciseIcon(
+  iconName: string | null | undefined,
+): React.ComponentProps<typeof MaterialCommunityIcons>["name"] {
   if (!iconName) return "run";
-  
-  const iconMap: Record<string, React.ComponentProps<typeof MaterialCommunityIcons>["name"]> = {
-    "droplet": "water", // Natación - usar "water" en lugar de "droplet"
-    "zap": "lightning-bolt", // HIIT
-    "walking": "walk", // Caminata
-    "run": "run", // Running
-    "activity": "dumbbell", // Saltar la cuerda
-    "flower": "flower", // Yoga
-    "bike": "bike", // Bicicleta
+
+  const iconMap: Record<
+    string,
+    React.ComponentProps<typeof MaterialCommunityIcons>["name"]
+  > = {
+    droplet: "water", // Natación - usar "water" en lugar de "droplet"
+    zap: "lightning-bolt", // HIIT
+    walking: "walk", // Caminata
+    run: "run", // Running
+    activity: "dumbbell", // Saltar la cuerda
+    flower: "flower", // Yoga
+    bike: "bike", // Bicicleta
   };
-  
-  return iconMap[iconName.toLowerCase()] || iconName as any || "run";
+
+  return iconMap[iconName.toLowerCase()] || (iconName as any) || "run";
 }
 
 type SmartCoachProProps = {
@@ -69,6 +74,10 @@ type SmartCoachProProps = {
   onUpgrade?: () => void;
   onFoodAdded?: () => void;
   onShowPaywall?: () => void;
+  /** Abre la pantalla principal Smart Coach Pro (recomendación de comida o ejercicio) */
+  onViewFullPlan?: () => void;
+  /** Abre la pantalla Smart Coach Pro en modo "éxito" (actividad compensó el balance). Pasar cuando no hay recomendación y caloriesBurned > 0. */
+  onViewSuccessPlan?: () => void;
 };
 
 export default function SmartCoachPro({
@@ -81,6 +90,8 @@ export default function SmartCoachPro({
   onUpgrade,
   onFoodAdded,
   onShowPaywall,
+  onViewFullPlan,
+  onViewSuccessPlan,
 }: SmartCoachProProps) {
   const { theme } = useTheme();
   const { colors, typography } = theme;
@@ -92,7 +103,9 @@ export default function SmartCoachPro({
   const handleQuickAdd = useCallback(async () => {
     console.log("[SmartCoachPro] handleQuickAdd llamado");
     if (!recommendation || recommendation.type === "exercise") {
-      console.log("[SmartCoachPro] No hay recomendación o es ejercicio, retornando");
+      console.log(
+        "[SmartCoachPro] No hay recomendación o es ejercicio, retornando",
+      );
       return;
     }
 
@@ -147,17 +160,19 @@ export default function SmartCoachPro({
       });
 
       if (res.ok) {
-        console.log("[SmartCoachPro] Comida agregada exitosamente, mostrando toast...");
+        console.log(
+          "[SmartCoachPro] Comida agregada exitosamente, mostrando toast...",
+        );
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         showToast({
           message: `¡${food.name} agregado!`,
           type: "success",
         });
-        
+
         // Pequeño delay para asegurar que la base de datos haya procesado la inserción
         console.log("[SmartCoachPro] Esperando 300ms antes de refrescar...");
         await new Promise((resolve) => setTimeout(resolve, 300));
-        
+
         // Refrescar el home después de agregar la comida
         console.log("[SmartCoachPro] Llamando a onFoodAdded callback...");
         try {
@@ -169,7 +184,10 @@ export default function SmartCoachPro({
             console.warn("[SmartCoachPro] onFoodAdded no está definido");
           }
         } catch (error) {
-          console.error("[SmartCoachPro] Error al refrescar después de agregar comida:", error);
+          console.error(
+            "[SmartCoachPro] Error al refrescar después de agregar comida:",
+            error,
+          );
         }
       } else {
         console.error("[SmartCoachPro] Error al agregar comida:", res.message);
@@ -188,7 +206,9 @@ export default function SmartCoachPro({
       });
     } finally {
       setIsAdding(false);
-      console.log("[SmartCoachPro] handleQuickAdd completado, isAdding = false");
+      console.log(
+        "[SmartCoachPro] handleQuickAdd completado, isAdding = false",
+      );
     }
   }, [recommendation, onFoodAdded, showToast]);
 
@@ -204,7 +224,8 @@ export default function SmartCoachPro({
   if (!isPremium) {
     const consumed = Number(caloriesConsumed) || 0;
     const target = Number(caloriesTarget) || 0;
-    const deficit = target > 0 && consumed < target ? Math.round(target - consumed) : 0;
+    const deficit =
+      target > 0 && consumed < target ? Math.round(target - consumed) : 0;
     const momentLabel = getMomentOfDayLabel();
     const dietLabel =
       dietaryPreference === "omnivore"
@@ -253,7 +274,12 @@ export default function SmartCoachPro({
               <Text style={s.upgradeButtonText} numberOfLines={1}>
                 Ver mi recomendación Pro
               </Text>
-              <View style={[s.upgradeButtonIconWrap, { backgroundColor: colors.brand }]}>
+              <View
+                style={[
+                  s.upgradeButtonIconWrap,
+                  { backgroundColor: colors.brand },
+                ]}
+              >
                 <MaterialCommunityIcons
                   name="arrow-right"
                   size={18}
@@ -269,9 +295,14 @@ export default function SmartCoachPro({
                   params: deficit > 0 ? { calorieGap: String(deficit) } : {},
                 });
               }}
-              style={({ pressed }) => [s.aboutLink, pressed && { opacity: 0.7 }]}
+              style={({ pressed }) => [
+                s.aboutLink,
+                pressed && { opacity: 0.7 },
+              ]}
             >
-              <Text style={s.aboutLinkText}>¿Cómo funciona el Smart Coach Pro?</Text>
+              <Text style={s.aboutLinkText}>
+                ¿Cómo funciona el Smart Coach Pro?
+              </Text>
               <MaterialCommunityIcons
                 name="information-outline"
                 size={16}
@@ -314,8 +345,29 @@ export default function SmartCoachPro({
               <View style={s.textContainer}>
                 <Text style={s.title}>Coach Pro</Text>
                 <Text style={s.message}>
-                  ¡Excelente! Tu actividad física de hoy ({caloriesBurned.toLocaleString()} kcal quemadas) ha compensado tu balance calórico. Mantén este ritmo.
+                  ¡Excelente! Tu actividad física de hoy (
+                  {caloriesBurned.toLocaleString()} kcal quemadas) ha compensado
+                  tu balance calórico. Mantén este ritmo.
                 </Text>
+                {onViewSuccessPlan && (
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      onViewSuccessPlan();
+                    }}
+                    style={({ pressed }) => [
+                      s.aboutLink,
+                      pressed && { opacity: 0.7 },
+                    ]}
+                  >
+                    <Text style={s.aboutLinkText}>Ver plan completo</Text>
+                    <MaterialCommunityIcons
+                      name="arrow-right"
+                      size={16}
+                      color={colors.brand}
+                    />
+                  </Pressable>
+                )}
               </View>
             </View>
           </View>
@@ -343,21 +395,23 @@ export default function SmartCoachPro({
             <View style={s.textContainer}>
               <Text style={s.title}>Coach Pro</Text>
               <Text style={s.message}>{recommendation.message}</Text>
-              
+
               {/* Mostrar información de actividad si está disponible */}
-              {recommendation.activityCaloriesBurned && recommendation.activityCaloriesBurned > 0 && (
-                <View style={s.activityInfo}>
-                  <MaterialCommunityIcons
-                    name="heart-pulse"
-                    size={16}
-                    color={colors.textSecondary}
-                  />
-                  <Text style={s.activityInfoText}>
-                    Ya quemaste {recommendation.activityCaloriesBurned} kcal hoy con actividad física
-                  </Text>
-                </View>
-              )}
-              
+              {recommendation.activityCaloriesBurned &&
+                recommendation.activityCaloriesBurned > 0 && (
+                  <View style={s.activityInfo}>
+                    <MaterialCommunityIcons
+                      name="heart-pulse"
+                      size={16}
+                      color={colors.textSecondary}
+                    />
+                    <Text style={s.activityInfoText}>
+                      Ya quemaste {recommendation.activityCaloriesBurned} kcal
+                      hoy con actividad física
+                    </Text>
+                  </View>
+                )}
+
               {/* Botón para sincronizar con apps de salud */}
               {isPremium && (
                 <Pressable
@@ -366,9 +420,10 @@ export default function SmartCoachPro({
                     try {
                       await syncCalories();
                       showToast({
-                        message: Platform.OS === "ios" 
-                          ? "Sincronizado con Apple Health" 
-                          : "Sincronizado con Health Connect",
+                        message:
+                          Platform.OS === "ios"
+                            ? "Sincronizado con Apple Health"
+                            : "Sincronizado con Health Connect",
                         type: "success",
                       });
                       // Recargar después de sincronizar
@@ -379,7 +434,10 @@ export default function SmartCoachPro({
                       }
                     } catch (error) {
                       showToast({
-                        message: error instanceof Error ? error.message : "Error al sincronizar",
+                        message:
+                          error instanceof Error
+                            ? error.message
+                            : "Error al sincronizar",
                         type: "error",
                       });
                     }
@@ -400,17 +458,17 @@ export default function SmartCoachPro({
                         color={colors.brand}
                       />
                       <Text style={s.syncButtonText}>
-                        {caloriesBurned > 0 
-                          ? `Sincronizar (${caloriesBurned} kcal)` 
-                          : Platform.OS === "ios" 
-                            ? "Sincronizar Apple Health" 
+                        {caloriesBurned > 0
+                          ? `Sincronizar (${caloriesBurned} kcal)`
+                          : Platform.OS === "ios"
+                            ? "Sincronizar Apple Health"
                             : "Sincronizar Health Connect"}
                       </Text>
                     </>
                   )}
                 </Pressable>
               )}
-              
+
               <View style={s.exercisesContainer}>
                 {recommendation.exercises.map(({ exercise, minutesNeeded }) => (
                   <View key={exercise.id} style={s.exerciseItem}>
@@ -425,6 +483,27 @@ export default function SmartCoachPro({
                   </View>
                 ))}
               </View>
+
+              {/* Ver plan completo (pantalla Smart Coach Pro) */}
+              {onViewFullPlan && (
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    onViewFullPlan();
+                  }}
+                  style={({ pressed }) => [
+                    s.aboutLink,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <Text style={s.aboutLinkText}>Ver plan completo</Text>
+                  <MaterialCommunityIcons
+                    name="arrow-right"
+                    size={16}
+                    color={colors.brand}
+                  />
+                </Pressable>
+              )}
             </View>
           </View>
         </View>
@@ -468,9 +547,7 @@ export default function SmartCoachPro({
               <Text style={s.nutritionText}>
                 {food.recommendedAmount}
                 {food.unitLabel ? ` ${food.unitLabel}` : "g"} •{" "}
-                {Math.round(
-                  (food.kcal_100g * food.recommendedAmount) / 100,
-                )}{" "}
+                {Math.round((food.kcal_100g * food.recommendedAmount) / 100)}{" "}
                 kcal
               </Text>
               {food.timesEaten && food.timesEaten > 1 && (
@@ -502,6 +579,27 @@ export default function SmartCoachPro({
                 </>
               )}
             </Pressable>
+
+            {/* Ver plan completo (pantalla Premium) */}
+            {onViewFullPlan && (
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  onViewFullPlan();
+                }}
+                style={({ pressed }) => [
+                  s.aboutLink,
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Text style={s.aboutLinkText}>Ver plan completo</Text>
+                <MaterialCommunityIcons
+                  name="arrow-right"
+                  size={16}
+                  color={colors.brand}
+                />
+              </Pressable>
+            )}
           </View>
         </View>
       </View>
