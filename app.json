@@ -10,7 +10,7 @@
     "icon": "./assets/images/adaptive-icon.png",
     "ios": {
       "bundleIdentifier": "com.codeamusdev2.contamacro",
-      "buildNumber": "5",
+      "buildNumber": "6",
       "supportsTablet": false,
       "usesAppleSignIn": true,
       "appleTeamId": "47CYZ3UYYK",
