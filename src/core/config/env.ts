@@ -10,6 +10,8 @@ export const env = {
   
   // AI Services
   geminiApiKey: process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? "",
+  /** Google Custom Search API key para imágenes de recetas (recipe_images_cache) */
+  googleCseApiKey: process.env.EXPO_PUBLIC_GOOGLE_CSE_API_KEY ?? "",
   
   // Environment
   isDev: __DEV__,

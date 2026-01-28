@@ -29,6 +29,8 @@ export type MacroRecommendation = {
     ingredients?: string[];
     instructions?: string[];
     imagePrompt?: string;
+    image_description?: string;
+    image_search_term?: string;
   };
   macroGaps: {
     protein: { gap: number; consumed: number; target: number };
@@ -59,6 +61,8 @@ export type CalorieRecommendation = {
     ingredients?: string[];
     instructions?: string[];
     imagePrompt?: string;
+    image_description?: string;
+    image_search_term?: string;
   };
   calorieGap: number;
 };

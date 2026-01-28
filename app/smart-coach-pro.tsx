@@ -396,7 +396,8 @@ export default function SmartCoachProScreen() {
           instructions: result.instructions?.length
             ? result.instructions
             : undefined,
-          imagePrompt: result.imagePrompt,
+          image_description: result.image_description,
+          image_search_term: result.image_search_term,
         };
         const newRec: MacroRecommendation | CalorieRecommendation =
           rec.type === "macro"
@@ -1151,6 +1152,8 @@ export default function SmartCoachProScreen() {
                         message: recommendation.message,
                         ingredients: JSON.stringify(f.ingredients ?? []),
                         instructions: JSON.stringify(f.instructions ?? []),
+                        image_description: f.image_description ?? "",
+                        image_search_term: f.image_search_term ?? "",
                       },
                     });
                   }}

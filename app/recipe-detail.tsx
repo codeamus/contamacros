@@ -5,13 +5,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useMemo, useState } from "react";
-import {
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View
-} from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const PAGE_PADDING = 20;
@@ -200,7 +194,7 @@ export default function RecipeDetailScreen() {
         <View style={s.section}>
           <View style={s.sectionHeader}>
             <MaterialCommunityIcons
-              name="chef-hat"
+              name="silverware-clean"
               size={22}
               color={colors.brand}
             />
