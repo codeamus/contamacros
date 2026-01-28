@@ -30,7 +30,6 @@ import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -163,6 +162,7 @@ export default function SmartCoachProScreen() {
   const [refining, setRefining] = useState(false);
   const [chatText, setChatText] = useState("");
   const [isAdding, setIsAdding] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
   /** Mensaje de fallback de Gemini cuando no encuentra alimento exacto */
   const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
   const coldStartAttemptedRef = useRef(false);
@@ -779,11 +779,7 @@ export default function SmartCoachProScreen() {
       style={[s.safe, { backgroundColor: bgColor }]}
       edges={["top", "bottom"]}
     >
-      <KeyboardAvoidingView
-        style={s.mainContainer}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 72 : 0}
-      >
+      <View style={s.mainContainer}>
         <View style={[s.header, { borderBottomColor: colors.border }]}>
           <Pressable
             onPress={handleBack}
@@ -1148,11 +1144,15 @@ export default function SmartCoachProScreen() {
                   maxLength={500}
                   editable={!refining}
                   onFocus={() => {
+                    setInputFocused(true);
                     setTimeout(() => {
                       chatScrollRef.current?.scrollToEnd({
                         animated: true,
                       });
                     }, 350);
+                  }}
+                  onBlur={() => {
+                    setInputFocused(false);
                   }}
                 />
                 <Pressable
@@ -1206,9 +1206,14 @@ export default function SmartCoachProScreen() {
               )}
             </LinearGradient>
           </Pressable>
-          <View style={{ height: scrollBottomPadding }} />
+          {/* Espacio extra dinámico para que el input y el botón queden visibles sobre el teclado */}
+          <View
+            style={{
+              height: scrollBottomPadding + (inputFocused ? 80 : 30),
+            }}
+          />
         </ScrollView>
-      </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
   );
 }
