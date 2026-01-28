@@ -7,6 +7,7 @@ Este archivo actúa como memoria persistente del proyecto **ContaMacros**. Úsal
 ## 📁 Estructura del Proyecto
 
 ### Pantallas (app/)
+
 ```
 app/
 ├── (auth)/              # Flujo de autenticación
@@ -28,9 +29,12 @@ app/
     ├── scan.tsx          # Scanner de códigos de barras (oculta en tabs)
     ├── calendar.tsx      # Vista de calendario (oculta en tabs)
     └── ranking.tsx       # Top Creadores (oculta en tabs)
+├── smart-coach-pro.tsx  # Pantalla completa Smart Coach Pro (chat, refinamiento IA)
+└── recipe-detail.tsx    # Detalle de receta generada por IA (ingredientes, instrucciones)
 ```
 
 ### Servicios (src/domain/services/)
+
 ```
 src/domain/services/
 ├── authService.ts           # Autenticación, perfiles
@@ -41,6 +45,7 @@ src/domain/services/
 ```
 
 ### Repositorios (src/data/)
+
 ```
 src/data/
 ├── auth/
@@ -58,6 +63,7 @@ src/data/
 ```
 
 ### Componentes (src/presentation/components/)
+
 ```
 src/presentation/components/
 ├── auth/
@@ -70,7 +76,7 @@ src/presentation/components/
 │   ├── CustomerCenter.tsx        # Gestión de suscripción
 │   └── PremiumPaywall.tsx       # Paywall de suscripción
 ├── smartCoach/
-│   └── SmartCoachPro.tsx         # Coach inteligente (solo premium)
+│   └── SmartCoachPro.tsx         # Componente Smart Coach Pro para Home (solo premium)
 └── ui/
     ├── DateHeader.tsx
     ├── DonutRing.tsx
@@ -80,6 +86,7 @@ src/presentation/components/
 ```
 
 ### Hooks (src/presentation/hooks/)
+
 ```
 src/presentation/hooks/
 ├── auth/
@@ -106,6 +113,7 @@ src/presentation/hooks/
 ## 🛠 Stack Tecnológico
 
 ### Versiones Principales
+
 - **Expo SDK:** `~54.0.31`
 - **React:** `19.1.0`
 - **React Native:** `0.81.5`
@@ -113,6 +121,7 @@ src/presentation/hooks/
 - **Expo Router:** `~6.0.21`
 
 ### Dependencias Clave
+
 - **Supabase JS:** `^2.90.1`
 - **RevenueCat Purchases:** `^9.7.1`
 - **RevenueCat Purchases UI:** `^9.7.1`
@@ -122,6 +131,7 @@ src/presentation/hooks/
 - **Expo Linear Gradient:** `~15.0.8` (gradientes, actualmente no usado por problemas de módulo nativo)
 
 ### Configuración
+
 - **Bundle ID iOS:** `com.codeamusdev2.contamacro`
 - **Package Android:** `com.codeamusdev2.contamacro`
 - **RevenueCat Entitlement ID:** `"ContaMacros Pro"`
@@ -132,6 +142,7 @@ src/presentation/hooks/
 ## ⚡ Reglas de Oro
 
 ### Convenciones de Código
+
 1. **Nomenclatura:**
    - Variables y funciones: `camelCase`
    - Componentes: `PascalCase`
@@ -149,6 +160,7 @@ src/presentation/hooks/
    - Hooks en `src/presentation/hooks/`
 
 ### Base de Datos (Supabase)
+
 1. **Esquema:**
    - Todas las tablas están en el esquema `public` (por defecto)
    - No especificar esquema explícitamente en queries
@@ -158,14 +170,14 @@ src/presentation/hooks/
    - Las tablas relacionadas usan `user_id` como FK (excepto `user_stats` que usa `id` como PK y relación directa con `profiles.id`)
 
 3. **Tablas Principales:**
-    - `profiles`: Perfil del usuario (id = UUID del auth.users)
-    - `user_stats`: Estadísticas de gamificación (id = UUID, relación directa con profiles.id)
-    - `generic_foods`: **Única fuente de alimentos comunitarios** (todos los valores normalizados a 100g)
-    - `user_foods`: Alimentos/recetas personalizados del usuario
-    - `food_logs`: Registro diario de comidas
-    - `user_achievements`: Logros desbloqueados
-    
-    **Nota**: La tabla `foods` ha sido deprecada. Toda la lógica ahora utiliza exclusivamente `generic_foods`.
+   - `profiles`: Perfil del usuario (id = UUID del auth.users)
+   - `user_stats`: Estadísticas de gamificación (id = UUID, relación directa con profiles.id)
+   - `generic_foods`: **Única fuente de alimentos comunitarios** (todos los valores normalizados a 100g)
+   - `user_foods`: Alimentos/recetas personalizados del usuario
+   - `food_logs`: Registro diario de comidas
+   - `user_achievements`: Logros desbloqueados
+
+   **Nota**: La tabla `foods` ha sido deprecada. Toda la lógica ahora utiliza exclusivamente `generic_foods`.
 
 4. **Relaciones:**
    - `user_stats.id` → `profiles.id` (relación directa, no usa `user_id`)
@@ -187,6 +199,7 @@ src/presentation/hooks/
    - Compresión: Imágenes se comprimen a calidad 0.4 y máximo 500x500px antes de subir
 
 ### Lógica de Negocio
+
 1. **Cálculo de Macros:**
    - **Base siempre 100g**: Todos los valores en `generic_foods` están normalizados a 100g (`kcal_100g`, `protein_100g`, `carbs_100g`, `fat_100g`).
    - **Fórmula base**: `(valor_100g / 100) * cantidad_en_gramos`
@@ -209,6 +222,7 @@ src/presentation/hooks/
    - Si `grams_per_unit > 0`, proponer registro por unidades
 
 ### UI/UX
+
 1. **Tema:**
    - Sistema de temas con soporte para light/dark/system
    - Colores y tipografía centralizados en `src/presentation/theme/`
@@ -227,6 +241,7 @@ src/presentation/hooks/
 ## ✅ Estado Actual de Funcionalidades
 
 ### Completadas y Funcionales
+
 - ✅ **Autenticación:**
   - Login/Registro con email/password
   - OAuth con Google
@@ -238,7 +253,7 @@ src/presentation/hooks/
 
 - ✅ **Home Screen:**
   - Resumen diario (calorías, macros)
-  - **Smart Coach Pro** (solo premium): recomendaciones de comida o ejercicio según déficit/superávit y macros. Documentación completa en `.cursor/rules/smart-coach-pro.md` — consultar y actualizar ese archivo en cada cambio relacionado.
+  - **Smart Coach Pro** (solo premium): recomendaciones de comida o ejercicio según déficit/superávit y macros, con chat de refinamiento usando Gemini 2.5 Flash, pantalla completa dedicada (`/smart-coach-pro`), y navegación a recetas generadas (`/recipe-detail`). Documentación completa en `.cursor/rules/smart-coach-pro.md` — consultar y actualizar ese archivo en cada cambio relacionado.
   - Sincronización con Apple Health/Health Connect (solo premium)
   - Barras de progreso animadas
 
@@ -299,6 +314,7 @@ src/presentation/hooks/
   - Recompensas de XP por contribuciones
 
 ### En Desarrollo / Issues Conocidos
+
 - ⚠️ **Scanner de Códigos de Barras:**
   - Problema: El modal del alimento se oculta después de escanear
   - Estado: Parcialmente funcional (detecta código, busca producto, pero el modal desaparece)
@@ -310,6 +326,7 @@ src/presentation/hooks/
   - Nota: Para usar gradientes reales, reconstruir proyecto nativo
 
 ### Pendientes / Roadmap
+
 - 📋 **Reportes Premium:**
   - Implementar exportación real a PDF (actualmente placeholder)
   - Mejorar visualización de donut de macros (versión actual simplificada)
@@ -329,6 +346,7 @@ src/presentation/hooks/
 ## 🔑 Configuración de Servicios Externos
 
 ### Supabase
+
 - Variables de entorno: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`
 - RLS (Row Level Security): Habilitado en tablas sensibles
 - Políticas necesarias:
@@ -341,6 +359,7 @@ src/presentation/hooks/
   - Ver `supabase/storage-policies-avatars.sql` para las políticas SQL completas
 
 ### RevenueCat
+
 - API Key iOS: `appl_YefJRBImlNCzKtxjKjWOtrUMsSo`
 - Entitlement ID: `"ContaMacros Pro"`
 - Product IDs:
@@ -349,15 +368,17 @@ src/presentation/hooks/
 - Configuración: StoreKit Configuration file en Xcode para desarrollo
 
 ### OpenFoodFacts
+
 - API Base: `https://world.openfoodfacts.org`
 - Endpoints:
   - Búsqueda: `/cgi/search.pl` (v1)
   - Por barcode: `/api/v2/product/{code}` (v2)
 
-### Google Gemini (IA Scan y futuro chat de agente)
+### Google Gemini (IA Scan y Smart Coach Pro)
+
 - Variable de entorno: `EXPO_PUBLIC_GEMINI_API_KEY` (usada en `src/data/ai/geminiService.ts`; también en `env.geminiApiKey` en `src/core/config/env.ts`).
-- Modelo: `gemini-flash-latest`, endpoint `generativelanguage.googleapis.com/v1beta/models/.../generateContent`.
-- Reutilizar este servicio y credencial para otras features (p. ej. chat de agente de IA). Ver `.cursor/rules/ia-scan-and-gemini.md`.
+- **IA Scan:** Modelo `gemini-2.0-flash`, endpoint `generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`. Ver `.cursor/rules/ia-scan-and-gemini.md`.
+- **Smart Coach Pro (refinamiento):** Modelo `gemini-2.5-flash`, endpoint `generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`. Función `askSmartCoach()` genera alternativas de comida con recetas completas. Ver `.cursor/rules/smart-coach-pro.md`.
 
 ---
 
