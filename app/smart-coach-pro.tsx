@@ -20,7 +20,6 @@ import { useHealthSync } from "@/presentation/hooks/health/useHealthSync";
 import { useSmartCoachPro } from "@/presentation/hooks/smartCoach/useSmartCoachPro";
 import { useRevenueCat } from "@/presentation/hooks/subscriptions/useRevenueCat";
 import { useToast } from "@/presentation/hooks/ui/useToast";
-import type { FoodRecommendation } from "@/presentation/state/smartCoachRecommendationStore";
 import { useSmartCoachRecommendationStore } from "@/presentation/state/smartCoachRecommendationStore";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { todayStrLocal } from "@/presentation/utils/date";
@@ -31,6 +30,7 @@ import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -67,18 +67,6 @@ function getMealByHour(): "breakfast" | "lunch" | "dinner" | "snack" {
   if (hour >= 11 && hour < 15) return "lunch";
   if (hour >= 15 && hour < 19) return "snack";
   return "dinner";
-}
-
-function formatAmount(food: FoodRecommendation["recommendedFood"]): string {
-  const { recommendedAmount, unitLabel } = food;
-  // Evitar duplicados: si la unidad tiene números o es muy larga, usar solo "g"
-  let str: string;
-  if (unitLabel && !/\d/.test(unitLabel) && unitLabel.length <= 20)
-    str = `${recommendedAmount} ${unitLabel}`;
-  else str = `${recommendedAmount}g`;
-  // Si el resultado parece duplicado (ej: "500 100g" o "500 100 gramos"), devolver solo número + g
-  if (/\d+\s+\d+/.test(str)) return `${recommendedAmount}g`;
-  return str;
 }
 
 function getValidExerciseIcon(
@@ -784,7 +772,6 @@ export default function SmartCoachProScreen() {
   const proteinG = Math.round(food.protein_100g * factor);
   const carbsG = Math.round(food.carbs_100g * factor);
   const fatG = Math.round(food.fat_100g * factor);
-  const amountLabel = formatAmount(food);
   const momentLabel = getMomentOfDayLabel();
 
   return (
@@ -792,7 +779,11 @@ export default function SmartCoachProScreen() {
       style={[s.safe, { backgroundColor: bgColor }]}
       edges={["top", "bottom"]}
     >
-      <View style={s.mainContainer}>
+      <KeyboardAvoidingView
+        style={s.mainContainer}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 72 : 0}
+      >
         <View style={[s.header, { borderBottomColor: colors.border }]}>
           <Pressable
             onPress={handleBack}
@@ -931,103 +922,15 @@ export default function SmartCoachProScreen() {
             </View>
           </View>
 
-          <View style={s.refineSection}>
-            <Text style={[s.refineTitle, { color: colors.textSecondary }]}>
-              ¿Quieres ajustar algo?
-            </Text>
-            {fallbackMessage ? (
-              <View
-                style={[
-                  s.fallbackBubble,
-                  {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
-                  },
-                ]}
-              >
-                <Text style={[s.fallbackText, { color: colors.textPrimary }]}>
-                  {fallbackMessage}
-                </Text>
-              </View>
-            ) : null}
-            {refining ? (
-              <View
-                style={[
-                  s.optimizingCard,
-                  {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
-                  },
-                ]}
-              >
-                <Skeleton
-                  width="80%"
-                  height={14}
-                  radius={8}
-                  bg={colors.border}
-                />
-                <Skeleton
-                  width="60%"
-                  height={14}
-                  radius={8}
-                  bg={colors.border}
-                  style={{ marginTop: 8 }}
-                />
-                <Text
-                  style={[s.optimizingLabel, { color: colors.textSecondary }]}
-                >
-                  Optimizando tu sugerencia...
-                </Text>
-              </View>
-            ) : (
-              <View style={s.chatRow}>
-                <TextInput
-                  style={[
-                    s.chatInput,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: colors.border,
-                      color: colors.textPrimary,
-                    },
-                  ]}
-                  placeholder="No tengo este ingrediente... o algo más rápido"
-                  placeholderTextColor={colors.textSecondary}
-                  value={chatText}
-                  onChangeText={setChatText}
-                  multiline
-                  maxLength={500}
-                  editable={!refining}
-                  onFocus={() => {
-                    setTimeout(() => {
-                      chatScrollRef.current?.scrollToEnd({
-                        animated: true,
-                      });
-                    }, 350);
-                  }}
-                />
-                <Pressable
-                  onPress={handleSendRefinement}
-                  disabled={!chatText.trim() || refining}
-                  style={[
-                    s.sendBtn,
-                    { backgroundColor: colors.brand },
-                    (!chatText.trim() || refining) && s.sendBtnDisabled,
-                  ]}
-                >
-                  <MaterialCommunityIcons
-                    name="creation"
-                    size={22}
-                    color={colors.onCta}
-                  />
-                </Pressable>
-              </View>
-            )}
-          </View>
-
+          {/* Tarjeta de comida */}
           <View
             style={[
               s.card,
-              { backgroundColor: colors.surface, borderColor: colors.border },
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                opacity: refining ? 0.5 : 1,
+              },
             ]}
           >
             {refining ? (
@@ -1176,12 +1079,109 @@ export default function SmartCoachProScreen() {
             )}
           </View>
 
+          {/* Sección de refinamiento (chat) debajo de la tarjeta */}
+          {/* Sección de refinamiento (chat) debajo de la tarjeta */}
+          <View style={s.refineSection}>
+            <Text style={[s.refineTitle, { color: colors.textSecondary }]}>
+              ¿Quieres ajustar algo?
+            </Text>
+            {fallbackMessage ? (
+              <View
+                style={[
+                  s.fallbackBubble,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
+                <Text style={[s.fallbackText, { color: colors.textPrimary }]}>
+                  {fallbackMessage}
+                </Text>
+              </View>
+            ) : null}
+            {refining ? (
+              <View
+                style={[
+                  s.optimizingCard,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
+                <Skeleton
+                  width="80%"
+                  height={14}
+                  radius={8}
+                  bg={colors.border}
+                />
+                <Skeleton
+                  width="60%"
+                  height={14}
+                  radius={8}
+                  bg={colors.border}
+                  style={{ marginTop: 8 }}
+                />
+                <Text
+                  style={[s.optimizingLabel, { color: colors.textSecondary }]}
+                >
+                  Optimizando tu sugerencia...
+                </Text>
+              </View>
+            ) : (
+              <View style={s.chatRow}>
+                <TextInput
+                  style={[
+                    s.chatInput,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      color: colors.textPrimary,
+                    },
+                  ]}
+                  placeholder="No tengo este ingrediente... o algo más rápido"
+                  placeholderTextColor={colors.textSecondary}
+                  value={chatText}
+                  onChangeText={setChatText}
+                  multiline
+                  maxLength={500}
+                  editable={!refining}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      chatScrollRef.current?.scrollToEnd({
+                        animated: true,
+                      });
+                    }, 350);
+                  }}
+                />
+                <Pressable
+                  onPress={handleSendRefinement}
+                  disabled={!chatText.trim() || refining}
+                  style={[
+                    s.sendBtn,
+                    { backgroundColor: colors.brand },
+                    (!chatText.trim() || refining) && s.sendBtnDisabled,
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="creation"
+                    size={22}
+                    color={colors.onCta}
+                  />
+                </Pressable>
+              </View>
+            )}
+          </View>
+
           <Pressable
             onPress={handleQuickAdd}
-            disabled={isAdding}
+            disabled={isAdding || refining}
             style={({ pressed }) => [
               s.quickAddWrap,
-              (pressed || isAdding) && { opacity: 0.9 },
+              refining
+                ? { opacity: 0.6 }
+                : (pressed || isAdding) && { opacity: 0.9 },
             ]}
           >
             <LinearGradient
@@ -1190,7 +1190,7 @@ export default function SmartCoachProScreen() {
               end={{ x: 1, y: 0 }}
               style={s.quickAddButton}
             >
-              {isAdding ? (
+              {isAdding || refining ? (
                 <ActivityIndicator size="small" color={colors.onCta} />
               ) : (
                 <>
@@ -1200,7 +1200,7 @@ export default function SmartCoachProScreen() {
                     color={colors.onCta}
                   />
                   <Text style={[s.quickAddText, { color: colors.onCta }]}>
-                    Loguear {amountLabel} ahora
+                    Agregar {food.name} ahora
                   </Text>
                 </>
               )}
@@ -1208,7 +1208,7 @@ export default function SmartCoachProScreen() {
           </Pressable>
           <View style={{ height: scrollBottomPadding }} />
         </ScrollView>
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
