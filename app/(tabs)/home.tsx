@@ -18,23 +18,24 @@ import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, {
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
 import {
-    ActivityIndicator,
-    Animated,
-    Easing,
-    Platform,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Animated,
+  Easing,
+  Linking,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -99,6 +100,7 @@ export default function HomeScreen() {
   const s = makeStyles(colors, typography);
 
   const { profile } = useAuth();
+  // loading: único que controla el skeleton general de macros (Restantes, Consumidas, Donut, etc.).
   const { day, totals, loading, reload: reloadSummary } = useTodaySummary();
   const {
     meals,
@@ -122,6 +124,7 @@ export default function HomeScreen() {
     caloriesBurned,
     isSyncing,
     syncCalories,
+    cancelSync,
     reload: reloadHealth,
   } = useHealthSync(isPremium);
 
@@ -224,20 +227,17 @@ export default function HomeScreen() {
     }
   }, [loading, fabScale, fabOpacity]);
 
-  // Función para refrescar todo el contenido
+  // Non-blocking refresh: solo await datos vitales (summary + meals). Salud en segundo plano (fire-and-forget).
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    // Refrescar ambos hooks en paralelo
-    // El Smart Coach se actualizará automáticamente cuando cambien los totals
-    const refreshPromises = [reloadSummary(), reloadMeals()];
-    if (isPremium) {
-      refreshPromises.push(reloadHealth());
-    }
-    await Promise.all(refreshPromises);
-
+    await Promise.all([reloadSummary(), reloadMeals()]);
     setRefreshing(false);
+
+    if (isPremium) {
+      reloadHealth().catch(() => {});
+    }
   }, [reloadSummary, reloadMeals, isPremium, reloadHealth]);
 
   // Función para refrescar después de agregar comida desde Smart Coach
@@ -255,6 +255,20 @@ export default function HomeScreen() {
     // cuando los totals cambien debido a las dependencias en useSmartCoachPro
     console.log("[Home] ========== FIN handleFoodAdded ==========");
   }, [reloadSummary, reloadMeals]);
+
+  // Acceso a Permisos (Deep Linking): abre ajustes del sistema para configurar permisos de salud
+  const handleOpenSettings = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      if (Platform.OS === "ios") {
+        await Linking.openURL("app-settings:");
+      } else {
+        await Linking.openSettings();
+      }
+    } catch (error) {
+      console.error("[Home] Error al abrir ajustes:", error);
+    }
+  }, []);
 
   return (
     <SafeAreaView style={s.safe}>
@@ -396,13 +410,9 @@ export default function HomeScreen() {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     try {
                       await syncCalories();
-                      Haptics.notificationAsync(
-                        Haptics.NotificationFeedbackType.Success,
-                      );
-                    } catch (error) {
-                      Haptics.notificationAsync(
-                        Haptics.NotificationFeedbackType.Error,
-                      );
+                      // Éxito/error y haptics ya los maneja useHealthSync; no bloquear UI
+                    } catch {
+                      // Hook ya hace setIsSyncing(false) y haptic de error; solo evitar que quede bloqueada la UI
                     }
                   }}
                   disabled={isSyncing}
@@ -425,12 +435,37 @@ export default function HomeScreen() {
 
               <View style={s.activityContent}>
                 <View style={s.activityValueContainer}>
-                  <Text style={s.activityValue}>
-                    {caloriesBurned > 0 ? caloriesBurned.toLocaleString() : "—"}
-                  </Text>
-                  <Text style={s.activityUnit}>kcal quemadas</Text>
+                  {isSyncing ? (
+                    <>
+                      <Skeleton
+                        height={32}
+                        width={80}
+                        radius={8}
+                        bg={colors.border}
+                        highlight={colors.border}
+                        style={{ marginBottom: 4 }}
+                      />
+                      <Skeleton
+                        height={14}
+                        width={100}
+                        radius={6}
+                        bg={colors.border}
+                        highlight={colors.border}
+                        style={{ opacity: 0.7 }}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <Text style={s.activityValue}>
+                        {caloriesBurned > 0
+                          ? caloriesBurned.toLocaleString()
+                          : "—"}
+                      </Text>
+                      <Text style={s.activityUnit}>kcal quemadas</Text>
+                    </>
+                  )}
                 </View>
-                {caloriesBurned > 0 && (
+                {caloriesBurned > 0 && !isSyncing && (
                   <View style={s.activityBadge}>
                     <MaterialCommunityIcons
                       name="check-circle"
@@ -443,12 +478,75 @@ export default function HomeScreen() {
               </View>
 
               {caloriesBurned === 0 && (
-                <View style={s.activityEmptyState}>
-                  <Text style={s.activityEmptyText}>
-                    Se sincroniza automáticamente al abrir la app. Toca el botón
-                    para forzar sincronización.
-                  </Text>
-                </View>
+                <>
+                  {isSyncing ? (
+                    <View style={s.activityEmptyState}>
+                      <Text style={s.activityEmptyText}>Buscando datos...</Text>
+                      <Pressable
+                        onPress={() => {
+                          Haptics.impactAsync(
+                            Haptics.ImpactFeedbackStyle.Light,
+                          );
+                          cancelSync();
+                        }}
+                        style={({ pressed }) => [
+                          {
+                            marginTop: 10,
+                            paddingVertical: 6,
+                            paddingHorizontal: 12,
+                          },
+                          pressed && { opacity: 0.7 },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            s.activityEmptyText,
+                            { color: colors.brand, fontSize: 13 },
+                          ]}
+                        >
+                          Cancelar
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <Pressable
+                      onPress={handleOpenSettings}
+                      style={({ pressed }) => [
+                        s.activityEmptyState,
+                        {
+                          backgroundColor: `${colors.brand}14`,
+                          borderWidth: 1,
+                          borderColor: `${colors.brand}40`,
+                          borderRadius: 12,
+                          paddingVertical: 20,
+                          paddingHorizontal: 20,
+                          marginHorizontal: 4,
+                          minHeight: 72,
+                          justifyContent: "center",
+                        },
+                        pressed && {
+                          opacity: 0.85,
+                          backgroundColor: `${colors.brand}22`,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          s.activityEmptyText,
+                          {
+                            fontWeight: "600",
+                            color: colors.brand,
+                            fontSize: 15,
+                            lineHeight: 22,
+                          },
+                        ]}
+                        numberOfLines={2}
+                      >
+                        Configurar permisos de salud en Ajustes
+                      </Text>
+                    </Pressable>
+                  )}
+                </>
               )}
             </View>
           </Animated.View>
@@ -1906,12 +2004,14 @@ function makeStyles(colors: any, typography: any) {
       paddingTop: 12,
       borderTopWidth: 1,
       borderTopColor: colors.border,
+      alignItems: "center",
     },
     activityEmptyText: {
       fontFamily: typography.body?.fontFamily,
       fontSize: 12,
       color: colors.textSecondary,
       lineHeight: 18,
+      textAlign: "center",
     },
   });
 }
