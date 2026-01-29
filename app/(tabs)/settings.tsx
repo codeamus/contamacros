@@ -3,24 +3,28 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Linking,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+    SafeAreaView,
+    useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 import type { ActivityLevelDb, GoalDb } from "@/domain/models/profileDb";
 import {
-  calculateCalorieGoal,
-  calculateCalorieGoalFromProfile,
-  type GoalType,
+    calculateCalorieGoal,
+    calculateCalorieGoalFromProfile,
+    type GoalType,
 } from "@/domain/services/calorieGoals";
 import { computeMacroTargets } from "@/domain/services/macroTargets";
 import { UserService } from "@/domain/services/userService";
@@ -85,11 +89,7 @@ const SettingItem = React.memo(function SettingItem({
           marginRight: 12,
         }}
       >
-        <MaterialCommunityIcons
-          name={icon}
-          size={20}
-          color={colors.brand}
-        />
+        <MaterialCommunityIcons name={icon} size={20} color={colors.brand} />
       </View>
 
       <View style={{ flex: 1 }}>
@@ -117,11 +117,14 @@ const SettingItem = React.memo(function SettingItem({
         )}
       </View>
 
-      {rightElement || (
-        onPress && (
-          <Feather name="chevron-right" size={18} color={colors.textSecondary} />
-        )
-      )}
+      {rightElement ||
+        (onPress && (
+          <Feather
+            name="chevron-right"
+            size={18}
+            color={colors.textSecondary}
+          />
+        ))}
     </Pressable>
   );
 });
@@ -156,9 +159,7 @@ const ThemeOption = React.memo(function ThemeOption({
           borderRadius: 16,
           borderWidth: 2,
           borderColor: selected ? colors.brand : colors.border,
-          backgroundColor: selected
-            ? `${colors.brand}10`
-            : colors.surface,
+          backgroundColor: selected ? `${colors.brand}10` : colors.surface,
           alignItems: "center",
           gap: 8,
           opacity: pressed ? 0.8 : 1,
@@ -189,13 +190,18 @@ export default function SettingsScreen() {
   const { theme, themeMode, setThemeMode } = useTheme();
   const { colors, typography } = theme;
   const { showToast } = useToast();
-  
+
   // Usar RevenueCat como fuente de verdad para premium, con fallback a profile.is_premium
   const { isPremium: revenueCatPremium } = useRevenueCat();
   const profilePremium = profile?.is_premium ?? false;
   const isPremium = revenueCatPremium || profilePremium; // RevenueCat tiene prioridad
-  
-  const { syncCalories, isSyncing, caloriesBurned, error: healthError } = useHealthSync(isPremium);
+
+  const {
+    syncCalories,
+    isSyncing,
+    caloriesBurned,
+    error: healthError,
+  } = useHealthSync(isPremium);
   const insets = useSafeAreaInsets();
   const s = makeStyles(colors, typography, insets);
 
@@ -211,6 +217,7 @@ export default function SettingsScreen() {
   const [nameInput, setNameInput] = useState("");
   const [showPaywall, setShowPaywall] = useState(false);
   const [showCustomerCenter, setShowCustomerCenter] = useState(false);
+  const [showDataSourcesModal, setShowDataSourcesModal] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [avatarCacheKey, setAvatarCacheKey] = useState(Date.now());
 
@@ -227,7 +234,7 @@ export default function SettingsScreen() {
   );
 
   const onLogout = useCallback(() => {
-          setLoading(true);
+    setLoading(true);
     signOut().finally(() => {
       setLoading(false);
     });
@@ -249,7 +256,10 @@ export default function SettingsScreen() {
           weight_kg: profile.weight_kg,
           activity_level: profile.activity_level,
         };
-        const calorieResult = calculateCalorieGoalFromProfile(baseProfile, newGoal);
+        const calorieResult = calculateCalorieGoalFromProfile(
+          baseProfile,
+          newGoal,
+        );
 
         const macros = computeMacroTargets({
           calories: calorieResult.dailyCalorieTarget,
@@ -289,7 +299,7 @@ export default function SettingsScreen() {
           type: "error",
           duration: 3000,
         });
-          } finally {
+      } finally {
         setUpdating(false);
       }
     },
@@ -319,10 +329,13 @@ export default function SettingsScreen() {
         birthDate: profile.birth_date || "1990-01-01",
         heightCm: profile.height_cm || 170,
         weightKg: weightNum,
-          activityLevel: profile.activity_level || "moderate",
-          goalType: (profile.goal === "maintain" ? "maintenance" : (profile.goal as GoalType)) || "maintenance",
-          goalAdjustment: profile.goal_adjustment ?? undefined,
-        });
+        activityLevel: profile.activity_level || "moderate",
+        goalType:
+          (profile.goal === "maintain"
+            ? "maintenance"
+            : (profile.goal as GoalType)) || "maintenance",
+        goalAdjustment: profile.goal_adjustment ?? undefined,
+      });
 
       // Recalcular macros con el nuevo peso
       const macros = computeMacroTargets({
@@ -391,7 +404,10 @@ export default function SettingsScreen() {
         heightCm: heightNum,
         weightKg: profile.weight_kg || 70,
         activityLevel: profile.activity_level || "moderate",
-        goalType: (profile.goal === "maintain" ? "maintenance" : (profile.goal as GoalType)) || "maintenance",
+        goalType:
+          (profile.goal === "maintain"
+            ? "maintenance"
+            : (profile.goal as GoalType)) || "maintenance",
         goalAdjustment: profile.goal_adjustment ?? undefined,
       });
 
@@ -447,15 +463,15 @@ export default function SettingsScreen() {
 
       try {
         // Convertir goal a GoalType para el cálculo
-        const goalForCalc: GoalType = 
-          profile.goal === "maintain" 
-            ? "maintenance" 
-            : profile.goal === "deficit" 
-            ? "deficit" 
-            : profile.goal === "surplus"
-            ? "surplus"
-            : "maintenance";
-        
+        const goalForCalc: GoalType =
+          profile.goal === "maintain"
+            ? "maintenance"
+            : profile.goal === "deficit"
+              ? "deficit"
+              : profile.goal === "surplus"
+                ? "surplus"
+                : "maintenance";
+
         // Recalcular calorías con el nuevo nivel de actividad
         const calorieResult = calculateCalorieGoal({
           gender: profile.gender || "male",
@@ -464,7 +480,10 @@ export default function SettingsScreen() {
           weightKg: profile.weight_kg || 70,
           activityLevel: newActivity,
           goalType: goalForCalc,
-          goalAdjustment: typeof profile.goal_adjustment === "number" ? profile.goal_adjustment : undefined,
+          goalAdjustment:
+            typeof profile.goal_adjustment === "number"
+              ? profile.goal_adjustment
+              : undefined,
         });
 
         // Recalcular macros
@@ -485,7 +504,8 @@ export default function SettingsScreen() {
 
         if (!res.ok) {
           showToast({
-            message: res.message || "No se pudo actualizar el nivel de actividad",
+            message:
+              res.message || "No se pudo actualizar el nivel de actividad",
             type: "error",
             duration: 3000,
           });
@@ -513,79 +533,87 @@ export default function SettingsScreen() {
     [profile, updateProfile, refreshProfile, showToast],
   );
 
-  const handleUpdateName = useCallback(
-    async () => {
-      if (!profile) return;
+  const handleUpdateName = useCallback(async () => {
+    if (!profile) return;
 
-      const trimmedName = nameInput.trim();
-      if (!trimmedName) {
+    const trimmedName = nameInput.trim();
+    if (!trimmedName) {
+      showToast({
+        message: "El nombre no puede estar vacío",
+        type: "error",
+        duration: 2000,
+      });
+      return;
+    }
+
+    if (trimmedName === profile.full_name) {
+      setShowNameModal(false);
+      return;
+    }
+
+    setUpdating(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    try {
+      const res = await updateProfile({
+        full_name: trimmedName,
+      });
+
+      if (!res.ok) {
         showToast({
-          message: "El nombre no puede estar vacío",
-          type: "error",
-          duration: 2000,
-        });
-        return;
-      }
-
-      if (trimmedName === profile.full_name) {
-        setShowNameModal(false);
-        return;
-      }
-
-      setUpdating(true);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-      try {
-        const res = await updateProfile({
-          full_name: trimmedName,
-        });
-
-        if (!res.ok) {
-          showToast({
-            message: res.message || "No se pudo actualizar el nombre",
-            type: "error",
-            duration: 3000,
-          });
-          return;
-        }
-
-        await refreshProfile();
-        setShowNameModal(false);
-        showToast({
-          message: "Nombre actualizado correctamente",
-          type: "success",
-          duration: 2000,
-        });
-      } catch {
-        showToast({
-          message: "Error al actualizar el nombre",
+          message: res.message || "No se pudo actualizar el nombre",
           type: "error",
           duration: 3000,
         });
-      } finally {
-        setUpdating(false);
+        return;
       }
-    },
-    [profile, nameInput, updateProfile, refreshProfile, showToast],
-  );
+
+      await refreshProfile();
+      setShowNameModal(false);
+      showToast({
+        message: "Nombre actualizado correctamente",
+        type: "success",
+        duration: 2000,
+      });
+    } catch {
+      showToast({
+        message: "Error al actualizar el nombre",
+        type: "error",
+        duration: 3000,
+      });
+    } finally {
+      setUpdating(false);
+    }
+  }, [profile, nameInput, updateProfile, refreshProfile, showToast]);
 
   const handlePickAvatar = useCallback(async () => {
-    console.log("[Settings] 🖼️ handlePickAvatar: Iniciando proceso de selección de avatar");
-    console.log("[Settings] ⚠️ NOTA: Si la app crashea aquí, el módulo nativo no está disponible.");
-    console.log("[Settings] ⚠️ SOLUCIÓN: Ejecuta 'npx expo run:ios' para reconstruir la app con el módulo nativo.");
-    
+    console.log(
+      "[Settings] 🖼️ handlePickAvatar: Iniciando proceso de selección de avatar",
+    );
+    console.log(
+      "[Settings] ⚠️ NOTA: Si la app crashea aquí, el módulo nativo no está disponible.",
+    );
+    console.log(
+      "[Settings] ⚠️ SOLUCIÓN: Ejecuta 'npx expo run:ios' para reconstruir la app con el módulo nativo.",
+    );
+
     // Envolver todo en un try-catch para evitar crashes
     try {
-      console.log("[Settings] 📦 Paso 1: Intentando importar expo-image-picker...");
+      console.log(
+        "[Settings] 📦 Paso 1: Intentando importar expo-image-picker...",
+      );
       // Importación dinámica del módulo
       const ImagePickerModule = await import("expo-image-picker");
       console.log("[Settings] ✅ Paso 1: Importación exitosa", {
         hasDefault: !!ImagePickerModule.default,
-        hasRequestMediaLibraryPermissionsAsync: typeof ImagePickerModule.requestMediaLibraryPermissionsAsync === "function",
-        hasLaunchImageLibraryAsync: typeof ImagePickerModule.launchImageLibraryAsync === "function",
+        hasRequestMediaLibraryPermissionsAsync:
+          typeof ImagePickerModule.requestMediaLibraryPermissionsAsync ===
+          "function",
+        hasLaunchImageLibraryAsync:
+          typeof ImagePickerModule.launchImageLibraryAsync === "function",
         moduleKeys: Object.keys(ImagePickerModule),
       });
-      
+
       const ImagePicker = ImagePickerModule.default || ImagePickerModule;
       console.log("[Settings] 📋 Paso 1.1: ImagePicker asignado", {
         type: typeof ImagePicker,
@@ -601,38 +629,57 @@ export default function SettingsScreen() {
       ) {
         console.error("[Settings] ❌ Paso 2: Funciones no disponibles", {
           hasImagePicker: !!ImagePicker,
-          hasRequestMediaLibraryPermissionsAsync: typeof ImagePicker?.requestMediaLibraryPermissionsAsync === "function",
-          hasLaunchImageLibraryAsync: typeof ImagePicker?.launchImageLibraryAsync === "function",
+          hasRequestMediaLibraryPermissionsAsync:
+            typeof ImagePicker?.requestMediaLibraryPermissionsAsync ===
+            "function",
+          hasLaunchImageLibraryAsync:
+            typeof ImagePicker?.launchImageLibraryAsync === "function",
         });
         showToast({
-          message: "El módulo de selección de imágenes no está disponible. Por favor, reconstruye la app nativa ejecutando: npx expo run:ios",
+          message:
+            "El módulo de selección de imágenes no está disponible. Por favor, reconstruye la app nativa ejecutando: npx expo run:ios",
           type: "error",
           duration: 5000,
         });
         return;
       }
-      console.log("[Settings] ✅ Paso 2: Todas las funciones están disponibles");
+      console.log(
+        "[Settings] ✅ Paso 2: Todas las funciones están disponibles",
+      );
 
       // Verificar que launchImageLibraryAsync existe antes de usarlo
-      console.log("[Settings] 🔍 Paso 3: Verificando launchImageLibraryAsync...");
+      console.log(
+        "[Settings] 🔍 Paso 3: Verificando launchImageLibraryAsync...",
+      );
       if (typeof ImagePicker.launchImageLibraryAsync !== "function") {
-        console.error("[Settings] ❌ Paso 3: launchImageLibraryAsync no está disponible");
+        console.error(
+          "[Settings] ❌ Paso 3: launchImageLibraryAsync no está disponible",
+        );
         showToast({
-          message: "La función de selección de imágenes no está disponible. Por favor, reconstruye la app ejecutando: npx expo run:ios",
+          message:
+            "La función de selección de imágenes no está disponible. Por favor, reconstruye la app ejecutando: npx expo run:ios",
           type: "error",
           duration: 5000,
         });
         return;
       }
-      console.log("[Settings] ✅ Paso 3: launchImageLibraryAsync está disponible");
+      console.log(
+        "[Settings] ✅ Paso 3: launchImageLibraryAsync está disponible",
+      );
 
       // Abrir selector de imagen directamente (solicita permisos automáticamente si es necesario)
-      console.log("[Settings] 🖼️ Paso 4: Abriendo selector de imagen directamente...");
-      console.log("[Settings] ⚠️ NOTA: launchImageLibraryAsync solicitará permisos automáticamente si es necesario.");
-      
+      console.log(
+        "[Settings] 🖼️ Paso 4: Abriendo selector de imagen directamente...",
+      );
+      console.log(
+        "[Settings] ⚠️ NOTA: launchImageLibraryAsync solicitará permisos automáticamente si es necesario.",
+      );
+
       let result;
       try {
-        console.log("[Settings] 📋 Paso 4.1: Llamando a launchImageLibraryAsync...");
+        console.log(
+          "[Settings] 📋 Paso 4.1: Llamando a launchImageLibraryAsync...",
+        );
         result = await ImagePicker.launchImageLibraryAsync({
           mediaTypes: ImagePicker.MediaTypeOptions.Images,
           allowsEditing: true,
@@ -645,14 +692,23 @@ export default function SettingsScreen() {
           assetsLength: result.assets?.length || 0,
         });
       } catch (launchError) {
-        console.error("[Settings] ❌ Paso 4: Error al abrir selector de imagen", launchError);
+        console.error(
+          "[Settings] ❌ Paso 4: Error al abrir selector de imagen",
+          launchError,
+        );
         console.error("[Settings] 📋 Detalles del error:", {
           name: launchError instanceof Error ? launchError.name : "Unknown",
-          message: launchError instanceof Error ? launchError.message : String(launchError),
+          message:
+            launchError instanceof Error
+              ? launchError.message
+              : String(launchError),
           stack: launchError instanceof Error ? launchError.stack : undefined,
         });
-        
-        const errorMessage = launchError instanceof Error ? launchError.message : String(launchError);
+
+        const errorMessage =
+          launchError instanceof Error
+            ? launchError.message
+            : String(launchError);
         if (
           errorMessage.includes("Cannot find native module") ||
           errorMessage.includes("ExponentImagePicker") ||
@@ -660,13 +716,15 @@ export default function SettingsScreen() {
           errorMessage.includes("requireNativeModule")
         ) {
           showToast({
-            message: "El módulo nativo no está disponible. Por favor, reconstruye la app ejecutando: npx expo run:ios",
+            message:
+              "El módulo nativo no está disponible. Por favor, reconstruye la app ejecutando: npx expo run:ios",
             type: "error",
             duration: 6000,
           });
         } else {
           showToast({
-            message: "Error al abrir el selector de imágenes. Asegúrate de haber reconstruido la app.",
+            message:
+              "Error al abrir el selector de imágenes. Asegúrate de haber reconstruido la app.",
             type: "error",
             duration: 4000,
           });
@@ -677,16 +735,20 @@ export default function SettingsScreen() {
         canceled: result.canceled,
         hasAssets: !!result.assets,
         assetsLength: result.assets?.length || 0,
-        firstAsset: result.assets?.[0] ? {
-          uri: result.assets[0].uri,
-          width: result.assets[0].width,
-          height: result.assets[0].height,
-          fileSize: result.assets[0].fileSize,
-        } : null,
+        firstAsset: result.assets?.[0]
+          ? {
+              uri: result.assets[0].uri,
+              width: result.assets[0].width,
+              height: result.assets[0].height,
+              fileSize: result.assets[0].fileSize,
+            }
+          : null,
       });
 
       if (result.canceled || !result.assets || result.assets.length === 0) {
-        console.log("[Settings] ℹ️ Paso 4: Usuario canceló o no seleccionó imagen");
+        console.log(
+          "[Settings] ℹ️ Paso 4: Usuario canceló o no seleccionó imagen",
+        );
         return;
       }
 
@@ -698,7 +760,7 @@ export default function SettingsScreen() {
 
       const imageUri = firstAsset.uri;
       console.log("[Settings] 📸 Paso 5: URI de imagen obtenida", { imageUri });
-      
+
       setUploadingAvatar(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       console.log("[Settings] 🔄 Paso 6: Iniciando subida de avatar...");
@@ -722,17 +784,21 @@ export default function SettingsScreen() {
         return;
       }
 
-      console.log("[Settings] ✅ Paso 6: Avatar subido exitosamente", { url: uploadResult.data });
+      console.log("[Settings] ✅ Paso 6: Avatar subido exitosamente", {
+        url: uploadResult.data,
+      });
 
       // Actualizar perfil para refrescar avatar_url
       console.log("[Settings] 🔄 Paso 7: Refrescando perfil...");
       await refreshProfile();
       console.log("[Settings] ✅ Paso 7: Perfil refrescado");
-      
+
       // Forzar actualización del cache del avatar
       setAvatarCacheKey(Date.now());
-      console.log("[Settings] 🔄 Cache del avatar actualizado con nuevo timestamp");
-      
+      console.log(
+        "[Settings] 🔄 Cache del avatar actualizado con nuevo timestamp",
+      );
+
       showToast({
         message: "Avatar actualizado correctamente",
         type: "success",
@@ -740,7 +806,10 @@ export default function SettingsScreen() {
       });
       console.log("[Settings] ✅ Proceso completado exitosamente");
     } catch (error: unknown) {
-      console.error("[Settings] ❌ Error capturado en handlePickAvatar:", error);
+      console.error(
+        "[Settings] ❌ Error capturado en handlePickAvatar:",
+        error,
+      );
       console.error("[Settings] 📋 Detalles del error:", {
         name: error instanceof Error ? error.name : "Unknown",
         message: error instanceof Error ? error.message : String(error),
@@ -748,17 +817,22 @@ export default function SettingsScreen() {
         type: typeof error,
         isError: error instanceof Error,
       });
-      
+
       // Detectar si es un error de módulo nativo no disponible
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       console.log("[Settings] 🔍 Analizando tipo de error...", {
         errorMessage,
         includesCannotFind: errorMessage.includes("Cannot find native module"),
-        includesExponentImagePicker: errorMessage.includes("ExponentImagePicker"),
+        includesExponentImagePicker: errorMessage.includes(
+          "ExponentImagePicker",
+        ),
         includesNativeModule: errorMessage.includes("native module"),
-        includesRequireNativeModule: errorMessage.includes("requireNativeModule"),
+        includesRequireNativeModule: errorMessage.includes(
+          "requireNativeModule",
+        ),
       });
-      
+
       if (
         errorMessage.includes("Cannot find native module") ||
         errorMessage.includes("ExponentImagePicker") ||
@@ -767,20 +841,24 @@ export default function SettingsScreen() {
       ) {
         console.error("[Settings] ❌ Error de módulo nativo no disponible");
         showToast({
-          message: "El módulo nativo no está disponible. Por favor, reconstruye la app ejecutando: npx expo run:ios",
+          message:
+            "El módulo nativo no está disponible. Por favor, reconstruye la app ejecutando: npx expo run:ios",
           type: "error",
           duration: 6000,
         });
       } else {
         console.error("[Settings] ❌ Error desconocido al actualizar avatar");
         showToast({
-          message: "Error al actualizar el avatar. Asegúrate de haber reconstruido la app después de instalar expo-image-picker.",
+          message:
+            "Error al actualizar el avatar. Asegúrate de haber reconstruido la app después de instalar expo-image-picker.",
           type: "error",
           duration: 4000,
         });
       }
     } finally {
-      console.log("[Settings] 🏁 Finalizando handlePickAvatar, limpiando estado de carga");
+      console.log(
+        "[Settings] 🏁 Finalizando handlePickAvatar, limpiando estado de carga",
+      );
       setUploadingAvatar(false);
     }
   }, [showToast, refreshProfile]);
@@ -825,7 +903,9 @@ export default function SettingsScreen() {
             <Pressable
               onPress={() => {
                 console.log("[Settings] 👆 Pressable del avatar presionado");
-                console.log("[Settings] ⚠️ IMPORTANTE: Si la app crashea, necesitas reconstruirla con: npx expo run:ios");
+                console.log(
+                  "[Settings] ⚠️ IMPORTANTE: Si la app crashea, necesitas reconstruirla con: npx expo run:ios",
+                );
                 handlePickAvatar();
               }}
               disabled={uploadingAvatar}
@@ -841,7 +921,11 @@ export default function SettingsScreen() {
               ) : (
                 <>
                   <Avatar
-                    avatarUrl={profile?.avatar_url ? `${profile.avatar_url}?t=${avatarCacheKey}` : null}
+                    avatarUrl={
+                      profile?.avatar_url
+                        ? `${profile.avatar_url}?t=${avatarCacheKey}`
+                        : null
+                    }
                     fullName={profile?.full_name}
                     size={72}
                     colors={colors}
@@ -859,11 +943,13 @@ export default function SettingsScreen() {
             </Pressable>
             <View style={s.headerText}>
               <Text style={s.headerTitle}>
-                {profile?.full_name || profile?.email?.split("@")[0] || "Usuario"}
-        </Text>
+                {profile?.full_name ||
+                  profile?.email?.split("@")[0] ||
+                  "Usuario"}
+              </Text>
               <Text style={s.headerSubtitle}>
                 {profile?.email || "Sin email"}
-        </Text>
+              </Text>
             </View>
           </View>
         </View>
@@ -967,7 +1053,7 @@ export default function SettingsScreen() {
               label="Meta diaria"
               value={
                 profile?.daily_calorie_target
-            ? `${profile.daily_calorie_target} kcal`
+                  ? `${profile.daily_calorie_target} kcal`
                   : "—"
               }
               colors={colors}
@@ -1053,7 +1139,7 @@ export default function SettingsScreen() {
                 }}
               >
                 Tema de la aplicación
-        </Text>
+              </Text>
               <View
                 style={{
                   flexDirection: "row",
@@ -1090,7 +1176,7 @@ export default function SettingsScreen() {
               </View>
             </View>
           </View>
-      </View>
+        </View>
 
         {/* Premium Section - Solo si NO es premium */}
         {!isPremium && (
@@ -1139,22 +1225,30 @@ export default function SettingsScreen() {
             <View style={s.sectionContent}>
               <SettingItem
                 icon={Platform.OS === "ios" ? "apple" : "google"}
-                label={Platform.OS === "ios" ? "Apple Health" : "Health Connect"}
-                value={caloriesBurned > 0 
-                  ? `${caloriesBurned} kcal sincronizadas hoy`
-                  : "No conectado"}
+                label={
+                  Platform.OS === "ios" ? "Apple Health" : "Health Connect"
+                }
+                value={
+                  caloriesBurned > 0
+                    ? `${caloriesBurned} kcal sincronizadas hoy`
+                    : "No conectado"
+                }
                 onPress={async () => {
                   try {
                     await syncCalories();
                     showToast({
-                      message: Platform.OS === "ios" 
-                        ? "Sincronizado con Apple Health" 
-                        : "Sincronizado con Health Connect",
+                      message:
+                        Platform.OS === "ios"
+                          ? "Sincronizado con Apple Health"
+                          : "Sincronizado con Health Connect",
                       type: "success",
                     });
                   } catch (error) {
                     showToast({
-                      message: error instanceof Error ? error.message : "Error al sincronizar",
+                      message:
+                        error instanceof Error
+                          ? error.message
+                          : "Error al sincronizar",
                       type: "error",
                     });
                   }
@@ -1217,13 +1311,31 @@ export default function SettingsScreen() {
               typography={typography}
             />
           </View>
-      </View>
+        </View>
+
+        {/* Información Legal / Créditos */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Información Legal</Text>
+          <View style={s.sectionContent}>
+            <SettingItem
+              icon="database-outline"
+              label="Fuentes de datos"
+              value="OpenFoodFacts y licencia ODbL"
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShowDataSourcesModal(true);
+              }}
+              colors={colors}
+              typography={typography}
+            />
+          </View>
+        </View>
 
         {/* Cuenta Section */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>Cuenta</Text>
           <View style={s.sectionContent}>
-      <Pressable
+            <Pressable
               onPress={onLogout}
               disabled={loading}
               style={({ pressed }) => [
@@ -1235,11 +1347,7 @@ export default function SettingsScreen() {
                 },
               ]}
             >
-              <MaterialCommunityIcons
-                name="logout"
-                size={20}
-                color="#EF4444"
-              />
+              <MaterialCommunityIcons name="logout" size={20} color="#EF4444" />
               <Text
                 style={[
                   s.logoutText,
@@ -1251,8 +1359,8 @@ export default function SettingsScreen() {
               >
                 {loading ? "Cerrando sesión..." : "Cerrar sesión"}
               </Text>
-      </Pressable>
-    </View>
+            </Pressable>
+          </View>
         </View>
 
         <View style={{ height: 30 }} />
@@ -1296,9 +1404,21 @@ export default function SettingsScreen() {
                 <View style={s.goalOptions}>
                   {(
                     [
-                      { value: "deficit", label: "Déficit calórico", icon: "trending-down" },
-                      { value: "maintain", label: "Mantenimiento", icon: "trending-neutral" },
-                      { value: "surplus", label: "Superávit calórico", icon: "trending-up" },
+                      {
+                        value: "deficit",
+                        label: "Déficit calórico",
+                        icon: "trending-down",
+                      },
+                      {
+                        value: "maintain",
+                        label: "Mantenimiento",
+                        icon: "trending-neutral",
+                      },
+                      {
+                        value: "surplus",
+                        label: "Superávit calórico",
+                        icon: "trending-up",
+                      },
                     ] as const
                   ).map((option) => {
                     // Comparar con ambos valores posibles (maintain/maintenance)
@@ -1311,13 +1431,17 @@ export default function SettingsScreen() {
                         style={({ pressed }) => [
                           s.goalOption,
                           isSelected && s.goalOptionSelected,
-                          (updating || isSelected) && { opacity: pressed ? 0.8 : 1 },
+                          (updating || isSelected) && {
+                            opacity: pressed ? 0.8 : 1,
+                          },
                         ]}
                       >
                         <MaterialCommunityIcons
                           name={option.icon as any}
                           size={24}
-                          color={isSelected ? colors.brand : colors.textSecondary}
+                          color={
+                            isSelected ? colors.brand : colors.textSecondary
+                          }
                         />
                         <Text
                           style={[
@@ -1531,39 +1655,69 @@ export default function SettingsScreen() {
 
               <View style={s.modalBody}>
                 <Text style={s.modalDescription}>
-                  Selecciona tu nivel de actividad. Se recalcularán automáticamente
-                  tus calorías y macros diarios.
+                  Selecciona tu nivel de actividad. Se recalcularán
+                  automáticamente tus calorías y macros diarios.
                 </Text>
 
                 <View style={s.goalOptions}>
                   {(
                     [
-                      { value: "sedentary", label: "Sedentario", icon: "sofa", desc: "Poco o ningún ejercicio" },
-                      { value: "light", label: "Ligera", icon: "walk", desc: "Ejercicio ligero 1-3 días/semana" },
-                      { value: "moderate", label: "Moderada", icon: "run", desc: "Ejercicio moderado 3-5 días/semana" },
-                      { value: "high", label: "Alta", icon: "bike", desc: "Ejercicio intenso 6-7 días/semana" },
-                      { value: "very_high", label: "Muy alta", icon: "fire", desc: "Ejercicio muy intenso, trabajo físico" },
+                      {
+                        value: "sedentary",
+                        label: "Sedentario",
+                        icon: "sofa",
+                        desc: "Poco o ningún ejercicio",
+                      },
+                      {
+                        value: "light",
+                        label: "Ligera",
+                        icon: "walk",
+                        desc: "Ejercicio ligero 1-3 días/semana",
+                      },
+                      {
+                        value: "moderate",
+                        label: "Moderada",
+                        icon: "run",
+                        desc: "Ejercicio moderado 3-5 días/semana",
+                      },
+                      {
+                        value: "high",
+                        label: "Alta",
+                        icon: "bike",
+                        desc: "Ejercicio intenso 6-7 días/semana",
+                      },
+                      {
+                        value: "very_high",
+                        label: "Muy alta",
+                        icon: "fire",
+                        desc: "Ejercicio muy intenso, trabajo físico",
+                      },
                     ] as const
                   ).map((option) => {
                     const isSelected = profile?.activity_level === option.value;
                     return (
                       <Pressable
                         key={option.value}
-                        onPress={() => handleUpdateActivity(option.value as ActivityLevelDb)}
+                        onPress={() =>
+                          handleUpdateActivity(option.value as ActivityLevelDb)
+                        }
                         disabled={updating || isSelected}
                         style={({ pressed }) => [
                           s.activityOption,
                           isSelected && s.goalOptionSelected,
-                          (updating || isSelected) && { opacity: pressed ? 0.8 : 1 },
+                          (updating || isSelected) && {
+                            opacity: pressed ? 0.8 : 1,
+                          },
                         ]}
                       >
                         <MaterialCommunityIcons
                           name={option.icon as any}
                           size={24}
-                          color={isSelected ? colors.brand : colors.textSecondary}
+                          color={
+                            isSelected ? colors.brand : colors.textSecondary
+                          }
                         />
                         <View style={{ flex: 1, gap: 2 }}>
-                          
                           <Text
                             style={[
                               s.activityOptionDesc,
@@ -1634,7 +1788,8 @@ export default function SettingsScreen() {
 
               <View style={s.modalBody}>
                 <Text style={s.modalDescription}>
-                  Ingresa tu nombre completo. Este nombre aparecerá en tu perfil y en el ranking.
+                  Ingresa tu nombre completo. Este nombre aparecerá en tu perfil
+                  y en el ranking.
                 </Text>
 
                 <View style={s.weightInputContainer}>
@@ -1692,6 +1847,59 @@ export default function SettingsScreen() {
         visible={showCustomerCenter}
         onClose={() => setShowCustomerCenter(false)}
       />
+
+      {/* Modal Fuentes de datos (ODbL / OpenFoodFacts) */}
+      <Modal
+        visible={showDataSourcesModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDataSourcesModal(false)}
+      >
+        <Pressable
+          style={s.modalOverlay}
+          onPress={() => setShowDataSourcesModal(false)}
+        >
+          <Pressable
+            style={s.modalContent}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>Fuentes de datos</Text>
+              <Pressable
+                onPress={() => setShowDataSourcesModal(false)}
+                style={({ pressed }) => [
+                  s.modalCloseBtn,
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Feather name="x" size={20} color={colors.textPrimary} />
+              </Pressable>
+            </View>
+            <View style={s.modalBody}>
+              <Text style={s.modalDescription}>
+                ContaMacros utiliza la base de datos de{" "}
+                <Text
+                  style={{
+                    color: colors.brand,
+                    textDecorationLine: "underline",
+                    fontFamily: typography.body?.fontFamily,
+                    fontSize: 14,
+                  }}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    Linking.openURL("https://world.openfoodfacts.org/");
+                  }}
+                >
+                  OpenFoodFacts
+                </Text>{" "}
+                para la información nutricional de productos escaneados. Los
+                datos están disponibles bajo la licencia Open Database License
+                (ODbL).
+              </Text>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1777,10 +1985,10 @@ function makeStyles(colors: any, typography: any, _insets: any) {
       justifyContent: "center",
       paddingVertical: 16,
       paddingHorizontal: 20,
-    borderRadius: 16,
+      borderRadius: 16,
       borderWidth: 2,
       gap: 10,
-  },
+    },
     logoutText: {
       fontSize: 16,
       fontWeight: "600",
@@ -1906,7 +2114,7 @@ function makeStyles(colors: any, typography: any, _insets: any) {
     },
     modalSaveBtnText: {
       fontFamily: typography.subtitle?.fontFamily,
-    fontSize: 16,
+      fontSize: 16,
       color: colors.onCta,
       fontWeight: "600",
     },
