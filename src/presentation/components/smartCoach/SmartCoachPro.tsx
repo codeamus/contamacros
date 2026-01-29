@@ -360,7 +360,9 @@ export default function SmartCoachPro({
                       pressed && { opacity: 0.7 },
                     ]}
                   >
-                    <Text style={s.aboutLinkText}>Ver plan completo</Text>
+                    <Text style={s.aboutLinkText}>
+                      Habla con Smart Coach Pro
+                    </Text>
                     <MaterialCommunityIcons
                       name="arrow-right"
                       size={16}
@@ -484,7 +486,7 @@ export default function SmartCoachPro({
                 ))}
               </View>
 
-              {/* Ver plan completo (pantalla Smart Coach Pro) */}
+              {/* Habla con Smart Coach Pro */}
               {onViewFullPlan && (
                 <Pressable
                   onPress={() => {
@@ -496,7 +498,7 @@ export default function SmartCoachPro({
                     pressed && { opacity: 0.7 },
                   ]}
                 >
-                  <Text style={s.aboutLinkText}>Ver plan completo</Text>
+                  <Text style={s.aboutLinkText}>Habla con Smart Coach Pro</Text>
                   <MaterialCommunityIcons
                     name="arrow-right"
                     size={16}
@@ -580,7 +582,7 @@ export default function SmartCoachPro({
               )}
             </Pressable>
 
-            {/* Ver plan completo (pantalla Premium) */}
+            {/* Habla con Smart Coach Pro */}
             {onViewFullPlan && (
               <Pressable
                 onPress={() => {
@@ -592,7 +594,7 @@ export default function SmartCoachPro({
                   pressed && { opacity: 0.7 },
                 ]}
               >
-                <Text style={s.aboutLinkText}>Ver plan completo</Text>
+                <Text style={s.aboutLinkText}>Habla con Smart Coach Pro</Text>
                 <MaterialCommunityIcons
                   name="arrow-right"
                   size={16}

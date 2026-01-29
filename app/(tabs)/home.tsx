@@ -27,6 +27,7 @@ import React, {
 import {
   ActivityIndicator,
   Animated,
+  Dimensions,
   Easing,
   Linking,
   Platform,
@@ -200,9 +201,14 @@ export default function HomeScreen() {
   // Premium Paywall
   const [paywallVisible, setPaywallVisible] = useState(false);
 
+  // Slider Coach + Actividad
+  const sliderWidth = Dimensions.get("window").width;
+  const [sliderPage, setSliderPage] = useState(0);
+  const sliderRef = useRef<ScrollView>(null);
+
   // Animaciones de entrada escalonadas para las cards
-  // 7 animaciones: SmartCoachPro[0], Activity[1], Restantes[2], Consumidas[3], MainCard[4], Macros[5], Meals[6]
-  const cardAnimations = useStaggerAnimation(7, 80, 100);
+  // 6 animaciones: Slider[0], Restantes[1], Consumidas[2], MainCard[3], Macros[4], Meals[5]
+  const cardAnimations = useStaggerAnimation(6, 80, 100);
 
   // Animación del FAB
   const fabScale = useRef(new Animated.Value(0)).current;
@@ -312,11 +318,11 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        {/* Smart Coach Pro Card */}
+        {/* Slider: Smart Coach Pro + Actividad Física */}
         {hasTargets && (
           <Animated.View
             style={{
-              marginBottom: 8,
+              marginBottom: 4,
               opacity: cardAnimations[0] || 1,
               transform: cardAnimations[0]
                 ? [
@@ -326,228 +332,265 @@ export default function HomeScreen() {
                         outputRange: [20, 0],
                       }),
                     },
-                    {
-                      scale: cardAnimations[0],
-                    },
+                    { scale: cardAnimations[0] },
                   ]
                 : [],
             }}
           >
-            <SmartCoachPro
-              recommendation={smartCoach.recommendation}
-              loading={smartCoach.loading}
-              isPremium={isPremium}
-              caloriesConsumed={totals.calories}
-              caloriesTarget={effectiveTargetForCoach}
-              dietaryPreference={profile?.dietary_preference ?? undefined}
-              onFoodAdded={handleFoodAdded}
-              onShowPaywall={() => setPaywallVisible(true)}
-              onViewFullPlan={
-                smartCoach.recommendation
-                  ? () => {
-                      setSmartCoachRecommendation(smartCoach.recommendation!);
-                      router.push("/smart-coach-pro");
+            <ScrollView
+              ref={sliderRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              decelerationRate="fast"
+              onMomentumScrollEnd={(e) => {
+                const index = Math.round(
+                  e.nativeEvent.contentOffset.x / sliderWidth,
+                );
+                setSliderPage(index);
+              }}
+              style={{ marginHorizontal: -18 }}
+              contentContainerStyle={s.sliderContent}
+            >
+              {/* Slide 1: Smart Coach Pro */}
+              <View style={[s.sliderSlide, { width: sliderWidth }]}>
+                <View style={s.sliderSlideInner}>
+                  <SmartCoachPro
+                    recommendation={smartCoach.recommendation}
+                    loading={smartCoach.loading}
+                    isPremium={isPremium}
+                    caloriesConsumed={totals.calories}
+                    caloriesTarget={effectiveTargetForCoach}
+                    dietaryPreference={profile?.dietary_preference ?? undefined}
+                    onFoodAdded={handleFoodAdded}
+                    onShowPaywall={() => setPaywallVisible(true)}
+                    onViewFullPlan={
+                      smartCoach.recommendation
+                        ? () => {
+                            setSmartCoachRecommendation(
+                              smartCoach.recommendation!,
+                            );
+                            router.push("/smart-coach-pro");
+                          }
+                        : undefined
                     }
-                  : undefined
-              }
-              onViewSuccessPlan={
-                isPremium && caloriesBurned > 0
-                  ? () => {
-                      openSuccessScreen(caloriesBurned);
-                      router.push("/smart-coach-pro");
+                    onViewSuccessPlan={
+                      isPremium && caloriesBurned > 0
+                        ? () => {
+                            openSuccessScreen(caloriesBurned);
+                            router.push("/smart-coach-pro");
+                          }
+                        : undefined
                     }
-                  : undefined
-              }
-            />
-          </Animated.View>
-        )}
-
-        {/* Activity Card (Premium) */}
-        {isPremium && hasTargets && (
-          <Animated.View
-            style={{
-              opacity: cardAnimations[1] || 1,
-              transform: cardAnimations[1]
-                ? [
-                    {
-                      translateY: cardAnimations[1].interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [20, 0],
-                      }),
-                    },
-                    {
-                      scale: cardAnimations[1],
-                    },
-                  ]
-                : [],
-            }}
-          >
-            <View style={s.activityCard}>
-              <View style={s.activityCardHeader}>
-                <View style={s.activityIconContainer}>
-                  <MaterialCommunityIcons
-                    name="heart-pulse"
-                    size={20}
-                    color={colors.brand}
                   />
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.activityTitle}>Actividad Física</Text>
-                  <Text style={s.activitySubtitle}>
-                    {Platform.OS === "ios" ? "Apple Health" : "Health Connect"}
-                    {caloriesBurned > 0 && (
-                      <Text
-                        style={{ color: colors.textSecondary, fontSize: 11 }}
-                      >
-                        {" "}
-                        • Sincroniza automáticamente
-                      </Text>
-                    )}
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={async () => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    try {
-                      await syncCalories();
-                      // Éxito/error y haptics ya los maneja useHealthSync; no bloquear UI
-                    } catch {
-                      // Hook ya hace setIsSyncing(false) y haptic de error; solo evitar que quede bloqueada la UI
-                    }
-                  }}
-                  disabled={isSyncing}
-                  style={({ pressed }) => [
-                    s.activitySyncButton,
-                    (pressed || isSyncing) && s.activitySyncButtonPressed,
-                  ]}
-                >
-                  {isSyncing ? (
-                    <ActivityIndicator size="small" color={colors.brand} />
-                  ) : (
-                    <MaterialCommunityIcons
-                      name="sync"
-                      size={16}
-                      color={colors.textSecondary}
-                    />
-                  )}
-                </Pressable>
               </View>
 
-              <View style={s.activityContent}>
-                <View style={s.activityValueContainer}>
-                  {isSyncing ? (
-                    <>
-                      <Skeleton
-                        height={32}
-                        width={80}
-                        radius={8}
-                        bg={colors.border}
-                        highlight={colors.border}
-                        style={{ marginBottom: 4 }}
-                      />
-                      <Skeleton
-                        height={14}
-                        width={100}
-                        radius={6}
-                        bg={colors.border}
-                        highlight={colors.border}
-                        style={{ opacity: 0.7 }}
-                      />
-                    </>
-                  ) : (
-                    <>
-                      <Text style={s.activityValue}>
-                        {caloriesBurned > 0
-                          ? caloriesBurned.toLocaleString()
-                          : "—"}
-                      </Text>
-                      <Text style={s.activityUnit}>kcal quemadas</Text>
-                    </>
-                  )}
-                </View>
-                {caloriesBurned > 0 && !isSyncing && (
-                  <View style={s.activityBadge}>
-                    <MaterialCommunityIcons
-                      name="check-circle"
-                      size={14}
-                      color="#10B981"
-                    />
-                    <Text style={s.activityBadgeText}>Sincronizado</Text>
-                  </View>
-                )}
-              </View>
-
-              {caloriesBurned === 0 && (
-                <>
-                  {isSyncing ? (
-                    <View style={s.activityEmptyState}>
-                      <Text style={s.activityEmptyText}>Buscando datos...</Text>
+              {/* Slide 2: Actividad Física */}
+              <View style={[s.sliderSlide, { width: sliderWidth }]}>
+                <View style={s.sliderSlideInner}>
+                  <View style={s.activityCard}>
+                    <View style={s.activityCardHeader}>
+                      <View style={s.activityIconContainer}>
+                        <MaterialCommunityIcons
+                          name="heart-pulse"
+                          size={20}
+                          color={colors.brand}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.activityTitle}>Actividad Física</Text>
+                        <Text style={s.activitySubtitle}>
+                          {Platform.OS === "ios"
+                            ? "Apple Health"
+                            : "Health Connect"}
+                          {caloriesBurned > 0 && (
+                            <Text
+                              style={{
+                                color: colors.textSecondary,
+                                fontSize: 11,
+                              }}
+                            >
+                              {" "}
+                              • Sincroniza automáticamente
+                            </Text>
+                          )}
+                        </Text>
+                      </View>
                       <Pressable
-                        onPress={() => {
+                        onPress={async () => {
                           Haptics.impactAsync(
                             Haptics.ImpactFeedbackStyle.Light,
                           );
-                          cancelSync();
+                          try {
+                            await syncCalories();
+                          } catch {}
                         }}
+                        disabled={isSyncing}
                         style={({ pressed }) => [
-                          {
-                            marginTop: 10,
-                            paddingVertical: 6,
-                            paddingHorizontal: 12,
-                          },
-                          pressed && { opacity: 0.7 },
+                          s.activitySyncButton,
+                          (pressed || isSyncing) && s.activitySyncButtonPressed,
                         ]}
                       >
-                        <Text
-                          style={[
-                            s.activityEmptyText,
-                            { color: colors.brand, fontSize: 13 },
-                          ]}
-                        >
-                          Cancelar
-                        </Text>
+                        {isSyncing ? (
+                          <ActivityIndicator
+                            size="small"
+                            color={colors.brand}
+                          />
+                        ) : (
+                          <MaterialCommunityIcons
+                            name="sync"
+                            size={16}
+                            color={colors.textSecondary}
+                          />
+                        )}
                       </Pressable>
                     </View>
-                  ) : (
-                    <Pressable
-                      onPress={handleOpenSettings}
-                      style={({ pressed }) => [
-                        s.activityEmptyState,
-                        {
-                          backgroundColor: `${colors.brand}14`,
-                          borderWidth: 1,
-                          borderColor: `${colors.brand}40`,
-                          borderRadius: 12,
-                          paddingVertical: 20,
-                          paddingHorizontal: 20,
-                          marginHorizontal: 4,
-                          minHeight: 72,
-                          justifyContent: "center",
-                        },
-                        pressed && {
-                          opacity: 0.85,
-                          backgroundColor: `${colors.brand}22`,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          s.activityEmptyText,
-                          {
-                            fontWeight: "600",
-                            color: colors.brand,
-                            fontSize: 15,
-                            lineHeight: 22,
-                          },
-                        ]}
-                        numberOfLines={2}
-                      >
-                        Configurar permisos de salud en Ajustes
-                      </Text>
-                    </Pressable>
-                  )}
-                </>
-              )}
+
+                    <View style={s.activityContent}>
+                      <View style={s.activityValueContainer}>
+                        {isSyncing ? (
+                          <>
+                            <Skeleton
+                              height={32}
+                              width={80}
+                              radius={8}
+                              bg={colors.border}
+                              highlight={colors.border}
+                              style={{ marginBottom: 4 }}
+                            />
+                            <Skeleton
+                              height={14}
+                              width={100}
+                              radius={6}
+                              bg={colors.border}
+                              highlight={colors.border}
+                              style={{ opacity: 0.7 }}
+                            />
+                          </>
+                        ) : (
+                          <>
+                            <Text style={s.activityValue}>
+                              {caloriesBurned > 0
+                                ? caloriesBurned.toLocaleString()
+                                : "—"}
+                            </Text>
+                            <Text style={s.activityUnit}>kcal quemadas</Text>
+                          </>
+                        )}
+                      </View>
+                      {caloriesBurned > 0 && !isSyncing && (
+                        <View style={s.activityBadge}>
+                          <MaterialCommunityIcons
+                            name="check-circle"
+                            size={14}
+                            color="#10B981"
+                          />
+                          <Text style={s.activityBadgeText}>Sincronizado</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {caloriesBurned === 0 && (
+                      <>
+                        {isSyncing ? (
+                          <View style={s.activityEmptyState}>
+                            <Text style={s.activityEmptyText}>
+                              Buscando datos...
+                            </Text>
+                            <Pressable
+                              onPress={() => {
+                                Haptics.impactAsync(
+                                  Haptics.ImpactFeedbackStyle.Light,
+                                );
+                                cancelSync();
+                              }}
+                              style={({ pressed }) => [
+                                {
+                                  marginTop: 10,
+                                  paddingVertical: 6,
+                                  paddingHorizontal: 12,
+                                },
+                                pressed && { opacity: 0.7 },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  s.activityEmptyText,
+                                  { color: colors.brand, fontSize: 13 },
+                                ]}
+                              >
+                                Cancelar
+                              </Text>
+                            </Pressable>
+                          </View>
+                        ) : (
+                          <Pressable
+                            onPress={handleOpenSettings}
+                            style={({ pressed }) => [
+                              s.activityEmptyState,
+                              {
+                                backgroundColor: `${colors.brand}14`,
+                                borderWidth: 1,
+                                borderColor: `${colors.brand}40`,
+                                borderRadius: 12,
+                                paddingVertical: 20,
+                                paddingHorizontal: 20,
+                                marginHorizontal: 4,
+                                minHeight: 72,
+                                justifyContent: "center",
+                              },
+                              pressed && {
+                                opacity: 0.85,
+                                backgroundColor: `${colors.brand}22`,
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                s.activityEmptyText,
+                                {
+                                  fontWeight: "600",
+                                  color: colors.brand,
+                                  fontSize: 15,
+                                  lineHeight: 22,
+                                },
+                              ]}
+                              numberOfLines={2}
+                            >
+                              Configurar permisos de salud en Ajustes
+                            </Text>
+                          </Pressable>
+                        )}
+                      </>
+                    )}
+                  </View>
+                </View>
+              </View>
+            </ScrollView>
+
+            {/* Indicador de páginas del slider */}
+            <View style={s.sliderDots}>
+              <View
+                style={[
+                  s.sliderDot,
+                  sliderPage === 0 && s.sliderDotActive,
+                  {
+                    backgroundColor:
+                      sliderPage === 0 ? colors.brand : colors.border,
+                  },
+                ]}
+              />
+              <View
+                style={[
+                  s.sliderDot,
+                  sliderPage === 1 && s.sliderDotActive,
+                  {
+                    backgroundColor:
+                      sliderPage === 1 ? colors.brand : colors.border,
+                  },
+                ]}
+              />
             </View>
           </Animated.View>
         )}
@@ -591,20 +634,20 @@ export default function HomeScreen() {
 
         {/* Summary Cards */}
         <View style={s.summaryRow}>
-          {cardAnimations[2] && (
+          {cardAnimations[1] && (
             <Animated.View
               style={{
                 flex: 1,
-                opacity: cardAnimations[2],
+                opacity: cardAnimations[1],
                 transform: [
                   {
-                    translateY: cardAnimations[2].interpolate({
+                    translateY: cardAnimations[1].interpolate({
                       inputRange: [0, 1],
                       outputRange: [20, 0],
                     }),
                   },
                   {
-                    scale: cardAnimations[2],
+                    scale: cardAnimations[1],
                   },
                 ],
               }}
@@ -625,20 +668,20 @@ export default function HomeScreen() {
               />
             </Animated.View>
           )}
-          {cardAnimations[3] && (
+          {cardAnimations[2] && (
             <Animated.View
               style={{
                 flex: 1,
-                opacity: cardAnimations[3],
+                opacity: cardAnimations[2],
                 transform: [
                   {
-                    translateY: cardAnimations[3].interpolate({
+                    translateY: cardAnimations[2].interpolate({
                       inputRange: [0, 1],
                       outputRange: [20, 0],
                     }),
                   },
                   {
-                    scale: cardAnimations[3] || new Animated.Value(1),
+                    scale: cardAnimations[2] || new Animated.Value(1),
                   },
                 ],
               }}
@@ -665,11 +708,11 @@ export default function HomeScreen() {
         <Animated.View
           style={[
             s.card,
-            cardAnimations[6] && {
-              opacity: cardAnimations[6],
+            cardAnimations[4] && {
+              opacity: cardAnimations[4],
               transform: [
                 {
-                  translateY: cardAnimations[6].interpolate({
+                  translateY: cardAnimations[4].interpolate({
                     inputRange: [0, 1],
                     outputRange: [30, 0],
                   }),
@@ -778,15 +821,15 @@ export default function HomeScreen() {
         </View>
 
         <View style={s.macrosRow}>
-          {cardAnimations[5] && (
+          {cardAnimations[4] && (
             <>
               <Animated.View
                 style={{
                   flex: 1,
-                  opacity: cardAnimations[5],
+                  opacity: cardAnimations[4],
                   transform: [
                     {
-                      translateY: cardAnimations[5].interpolate({
+                      translateY: cardAnimations[4].interpolate({
                         inputRange: [0, 1],
                         outputRange: [20, 0],
                       }),
@@ -807,10 +850,10 @@ export default function HomeScreen() {
               <Animated.View
                 style={{
                   flex: 1,
-                  opacity: cardAnimations[5],
+                  opacity: cardAnimations[4],
                   transform: [
                     {
-                      translateY: cardAnimations[5].interpolate({
+                      translateY: cardAnimations[4].interpolate({
                         inputRange: [0, 1],
                         outputRange: [20, 0],
                       }),
@@ -831,10 +874,10 @@ export default function HomeScreen() {
               <Animated.View
                 style={{
                   flex: 1,
-                  opacity: cardAnimations[5],
+                  opacity: cardAnimations[4],
                   transform: [
                     {
-                      translateY: cardAnimations[5].interpolate({
+                      translateY: cardAnimations[4].interpolate({
                         inputRange: [0, 1],
                         outputRange: [20, 0],
                       }),
@@ -874,11 +917,11 @@ export default function HomeScreen() {
         <Animated.View
           style={[
             s.card,
-            cardAnimations[6] && {
-              opacity: cardAnimations[6],
+            cardAnimations[4] && {
+              opacity: cardAnimations[4],
               transform: [
                 {
-                  translateY: cardAnimations[6].interpolate({
+                  translateY: cardAnimations[4].interpolate({
                     inputRange: [0, 1],
                     outputRange: [30, 0],
                   }),
@@ -1732,6 +1775,35 @@ function makeStyles(colors: any, typography: any) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
     container: { padding: 18, gap: 14 },
+
+    sliderContent: {
+      flexGrow: 0,
+    },
+    sliderSlide: {
+      paddingHorizontal: 18,
+      justifyContent: "center",
+    },
+    sliderSlideInner: {
+      width: "100%",
+    },
+    sliderDots: {
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+      gap: 8,
+      marginTop: 10,
+      marginBottom: 4,
+    },
+    sliderDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      opacity: 0.4,
+    },
+    sliderDotActive: {
+      opacity: 1,
+      transform: [{ scale: 1.2 }],
+    },
 
     header: {
       flexDirection: "row",
