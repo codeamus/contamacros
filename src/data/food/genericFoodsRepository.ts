@@ -4,19 +4,19 @@ import { GamificationService } from "@/domain/services/gamificationService";
 export type GenericFoodDb = {
   id: string;
   name_es: string;
-
   name_norm: string;
   aliases_search: string;
-
+  /** Código de barras (EAN-13, UPC, etc.). Búsqueda local cuando no está en Open Food Facts. */
+  barcode?: string | null;
+  /** Unidad base: 'g' (gramos) o 'ml' (mililitros). Valores nutricionales por 100g o 100ml. */
+  base_unit?: string | null;
   kcal_100g: number | null;
   protein_100g: number | null;
   carbs_100g: number | null;
   fat_100g: number | null;
-
   unit_label_es: string | null;
   grams_per_unit: number | null;
   tags: string[];
-
   created_at: string;
 };
 
@@ -163,6 +163,25 @@ export const genericFoodsRepository = {
     }
   },
 
+  /**
+   * Busca un alimento por código de barras en generic_foods (prioridad local tras OFF).
+   */
+  async getByBarcode(barcode: string): Promise<RepoResult<GenericFoodDb | null>> {
+    const code = barcode.trim();
+    if (!code) return { ok: true, data: null };
+
+    const { data, error } = await supabase
+      .from("generic_foods")
+      .select(
+        "id, name_es, name_norm, aliases_search, barcode, base_unit, kcal_100g, protein_100g, carbs_100g, fat_100g, unit_label_es, grams_per_unit, tags, created_at",
+      )
+      .eq("barcode", code)
+      .maybeSingle();
+
+    if (error) return { ok: false, message: error.message, code: error.code };
+    return { ok: true, data: (data as GenericFoodDb | null) ?? null };
+  },
+
   async search(query: string): Promise<RepoResult<GenericFoodDb[]>> {
     const qRaw = query.trim();
     if (qRaw.length < 2) return { ok: true, data: [] };
@@ -175,7 +194,7 @@ export const genericFoodsRepository = {
     const { data, error } = await supabase
       .from("generic_foods")
       .select(
-        "id, name_es, name_norm, aliases_search, kcal_100g, protein_100g, carbs_100g, fat_100g, unit_label_es, grams_per_unit, tags, created_at",
+        "id, name_es, name_norm, aliases_search, barcode, base_unit, kcal_100g, protein_100g, carbs_100g, fat_100g, unit_label_es, grams_per_unit, tags, created_at",
       )
       // Buscar SOLO en los campos normalizados (name_norm y aliases_search)
       // Estos campos ya tienen el texto sin tildes, por lo que funcionan
@@ -200,7 +219,7 @@ export const genericFoodsRepository = {
     const { data, error } = await supabase
       .from("generic_foods")
       .select(
-        "id, name_es, name_norm, aliases_search, kcal_100g, protein_100g, carbs_100g, fat_100g, unit_label_es, grams_per_unit, tags, created_at",
+        "id, name_es, name_norm, aliases_search, barcode, base_unit, kcal_100g, protein_100g, carbs_100g, fat_100g, unit_label_es, grams_per_unit, tags, created_at",
       )
       .order("created_at", { ascending: false })
       .limit(50); // Obtener más para filtrar después
@@ -227,7 +246,7 @@ export const genericFoodsRepository = {
     const { data, error } = await supabase
       .from("generic_foods")
       .select(
-        "id, name_es, name_norm, aliases_search, kcal_100g, protein_100g, carbs_100g, fat_100g, unit_label_es, grams_per_unit, tags, created_at",
+        "id, name_es, name_norm, aliases_search, barcode, base_unit, kcal_100g, protein_100g, carbs_100g, fat_100g, unit_label_es, grams_per_unit, tags, created_at",
       )
       .order("created_at", { ascending: false })
       .limit(200); // Limitar para no sobrecargar
@@ -328,6 +347,85 @@ export const genericFoodsRepository = {
   },
 
   /**
+   * Crea un alimento genérico desde búsqueda por código de barras (no encontrado en OFF ni local).
+   * Valores por 100g o 100ml según base_unit; unit_label_es se deriva de base_unit.
+   */
+  async createByBarcode(input: {
+    name_es: string;
+    barcode: string;
+    base_unit: "g" | "ml";
+    kcal_100g: number;
+    protein_100g: number;
+    carbs_100g: number;
+    fat_100g: number;
+  }): Promise<RepoResult<GenericFoodDb>> {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData?.session?.user?.id;
+
+      if (!userId) {
+        return { ok: false, message: "No hay sesión activa." };
+      }
+
+      const name_norm = norm(input.name_es.trim());
+      const aliases: string[] = [];
+      const aliases_norm: string[] = [];
+      const aliases_search = name_norm;
+      const barcode = input.barcode.trim();
+      if (!barcode) {
+        return { ok: false, message: "El código de barras es obligatorio." };
+      }
+
+      const unitLabel = input.base_unit === "ml" ? "100 mililitros" : "100 gramos";
+      const payload: Record<string, unknown> = {
+        name_es: input.name_es.trim(),
+        name_norm,
+        aliases,
+        aliases_norm,
+        aliases_search,
+        barcode,
+        base_unit: input.base_unit,
+        kcal_100g: Math.round(input.kcal_100g),
+        protein_100g: Math.round(input.protein_100g * 10) / 10,
+        carbs_100g: Math.round(input.carbs_100g * 10) / 10,
+        fat_100g: Math.round(input.fat_100g * 10) / 10,
+        unit_label_es: unitLabel,
+        grams_per_unit: null,
+        tags: [],
+        country_tags: ["latam"],
+      };
+
+      const { data, error } = await supabase
+        .from("generic_foods")
+        .insert(payload)
+        .select("*")
+        .maybeSingle();
+
+      if (error) {
+        if (error.code === "23505") {
+          return { ok: false, message: "Ya existe un producto con ese código de barras." };
+        }
+        return { ok: false, message: error.message, code: error.code };
+      }
+
+      if (!data) {
+        return { ok: false, message: "No se pudo crear el alimento." };
+      }
+
+      await GamificationService.recordFoodContribution().catch((err) => {
+        console.warn("[genericFoodsRepository] Error al registrar aporte:", err);
+      });
+
+      return { ok: true, data: data as GenericFoodDb };
+    } catch (error) {
+      return {
+        ok: false,
+        message: error instanceof Error ? error.message : "Error al crear alimento",
+      };
+    }
+  },
+
+  /**
    * Obtiene alimentos por sus IDs (útil para favoritos)
    */
   async getByIds(foodIds: string[]): Promise<RepoResult<GenericFoodDb[]>> {
@@ -339,7 +437,7 @@ export const genericFoodsRepository = {
       const { data, error } = await supabase
         .from("generic_foods")
         .select(
-          "id, name_es, name_norm, aliases_search, kcal_100g, protein_100g, carbs_100g, fat_100g, unit_label_es, grams_per_unit, tags, created_at",
+          "id, name_es, name_norm, aliases_search, barcode, base_unit, kcal_100g, protein_100g, carbs_100g, fat_100g, unit_label_es, grams_per_unit, tags, created_at",
         )
         .in("id", foodIds)
         .order("created_at", { ascending: false });

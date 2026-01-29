@@ -1,22 +1,22 @@
 // app/(tabs)/add-food.tsx
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
 } from "react";
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -28,17 +28,19 @@ import { userFoodsRepository } from "@/data/food/userFoodsRepository";
 import { openFoodFactsService } from "@/data/openfoodfacts/openFoodFactsService";
 import { supabase } from "@/data/supabase/supabaseClient";
 import {
-  mapGenericFoodDbArrayToSearchItems,
-  mapUserFoodDbArrayToSearchItems,
-  type FoodSearchItem,
+    mapGenericFoodDbArrayToSearchItems,
+    mapGenericFoodDbToSearchItem,
+    mapUserFoodDbArrayToSearchItems,
+    type FoodSearchItem,
 } from "@/domain/mappers/foodMappers";
 import type { MealType } from "@/domain/models/foodLogDb";
 import type { OffProduct } from "@/domain/models/offProduct";
+import CreateGenericFoodByBarcodeModal from "@/presentation/components/nutrition/CreateGenericFoodByBarcodeModal";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
-import { useToast } from "@/presentation/hooks/ui/useToast";
-import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { useFavorites } from "@/presentation/hooks/food/useFavorites";
 import { useRecentFoods } from "@/presentation/hooks/food/useRecentFoods";
+import { useToast } from "@/presentation/hooks/ui/useToast";
+import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { todayStrLocal } from "@/presentation/utils/date";
 import { MEAL_LABELS } from "@/presentation/utils/labels";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -144,12 +146,13 @@ async function searchLocalFoods(q: string): Promise<ExtendedFoodSearchItem[]> {
   // Para user_foods, necesitamos filtrar después porque
   // la tabla no tiene campos normalizados como generic_foods
   // Obtenemos más resultados y filtramos por coincidencia normalizada
-  const searchTerms = originalQ === normalizedQ 
-    ? [originalQ] 
-    : [originalQ, normalizedQ];
+  const searchTerms =
+    originalQ === normalizedQ ? [originalQ] : [originalQ, normalizedQ];
 
   // Construir condiciones para buscar ambas versiones (con y sin tildes)
-  const orConditions = searchTerms.map(term => `name.ilike.%${term}%`).join(",");
+  const orConditions = searchTerms
+    .map((term) => `name.ilike.%${term}%`)
+    .join(",");
 
   // Obtener resultados de user_foods
   const userFoodsPromise = uid
@@ -176,12 +179,16 @@ async function searchLocalFoods(q: string): Promise<ExtendedFoodSearchItem[]> {
 
   // Filtrar resultados normalizando nombres para permitir búsqueda sin tildes
   const normalizeForSearch = (text: string) => normalizeSearch(text);
-  
-  const filteredUserFoods = (ufRes.data ?? []).filter((item: any) => {
-    const nameNorm = normalizeForSearch(item.name);
-    return nameNorm.includes(normalizedQ) || 
-           item.name.toLowerCase().includes(originalQ);
-  }).slice(0, 25); // Limitar después del filtro
+
+  const filteredUserFoods = (ufRes.data ?? [])
+    .filter((item: any) => {
+      const nameNorm = normalizeForSearch(item.name);
+      return (
+        nameNorm.includes(normalizedQ) ||
+        item.name.toLowerCase().includes(originalQ)
+      );
+    })
+    .slice(0, 25); // Limitar después del filtro
 
   // Usar mappers para transformar datos
   const userFoods = mapUserFoodDbArrayToSearchItems(filteredUserFoods);
@@ -240,7 +247,7 @@ export default function AddFoodScreen() {
   const [results, setResults] = useState<ExtendedFoodSearchItem[]>([]);
   const [selected, setSelected] = useState<ExtendedFoodSearchItem | null>(null);
   const [isInputFocused, setIsInputFocused] = useState(false);
-  
+
   // Log cuando selected cambia
   useEffect(() => {
     console.log("[AddFoodScreen] 🔄 selected cambió:", {
@@ -253,7 +260,9 @@ export default function AddFoodScreen() {
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [myRecipes, setMyRecipes] = useState<ExtendedFoodSearchItem[]>([]);
   const [loadingRecipes, setLoadingRecipes] = useState(false);
-  const [favoriteFoods, setFavoriteFoods] = useState<ExtendedFoodSearchItem[]>([]);
+  const [favoriteFoods, setFavoriteFoods] = useState<ExtendedFoodSearchItem[]>(
+    [],
+  );
   const [loadingFavorites, setLoadingFavorites] = useState(false);
 
   const [gramsStr, setGramsStr] = useState("100");
@@ -262,9 +271,17 @@ export default function AddFoodScreen() {
   const gramsNum = useMemo(() => toFloatSafe(gramsStr), [gramsStr]);
   const unitsNum = useMemo(() => toFloatSafe(unitsStr), [unitsStr]);
 
+  /** Mostrar formulario para crear producto en generic_foods (no en OFF ni local) */
+  const [showCreateGenericFoodModal, setShowCreateGenericFoodModal] =
+    useState(false);
+  /** Barcode con el que abrir el formulario de creación */
+  const [barcodeToCreate, setBarcodeToCreate] = useState<string | null>(null);
   const reqIdRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const lastUserInputRef = useRef<{ mode: "grams" | "units"; value: number } | null>(null);
+  const lastUserInputRef = useRef<{
+    mode: "grams" | "units";
+    value: number;
+  } | null>(null);
   const isInitializingRef = useRef(false);
   const isBarcodeSearchRef = useRef(false); // Ref para rastrear si hay búsqueda de barcode en curso
   const justProcessedBarcodeRef = useRef(false); // Ref para rastrear si acabamos de procesar un barcode exitosamente
@@ -277,7 +294,7 @@ export default function AddFoodScreen() {
     (async () => {
       const history = await getSearchHistory();
       setSearchHistory(history);
-      
+
       // Cargar recetas personalizadas
       setLoadingRecipes(true);
       const recipesRes = await userFoodsRepository.listAll();
@@ -300,7 +317,9 @@ export default function AddFoodScreen() {
     try {
       const favoritesRes = await genericFoodsRepository.getByIds(favoriteIds);
       if (favoritesRes.ok) {
-        const favoriteItems = mapGenericFoodDbArrayToSearchItems(favoritesRes.data);
+        const favoriteItems = mapGenericFoodDbArrayToSearchItems(
+          favoritesRes.data,
+        );
         setFavoriteFoods(favoriteItems);
       }
     } catch (error) {
@@ -313,12 +332,12 @@ export default function AddFoodScreen() {
   // Cargar alimentos favoritos cuando cambian los favoritos
   // Usar useMemo para crear una clave estable basada en el contenido del array
   const favoritesKey = useMemo(() => favorites.join(","), [favorites]);
-  
+
   useEffect(() => {
     // Solo cargar si la clave cambió (evitar cargas duplicadas)
     if (favoritesKey !== lastFavoritesKeyRef.current) {
       lastFavoritesKeyRef.current = favoritesKey;
-      
+
       if (favorites.length > 0) {
         loadFavoriteFoods(favorites);
       } else {
@@ -343,27 +362,35 @@ export default function AddFoodScreen() {
 
       // ✅ cada vez que entras a AddFood, parte limpio
       // PERO: No limpiar selected si hay un barcode pendiente (viene del scanner)
-      const hasBarcode = typeof params.barcode === "string" && params.barcode.trim().length > 0;
-      
+      const hasBarcode =
+        typeof params.barcode === "string" && params.barcode.trim().length > 0;
+
       console.log("[AddFoodScreen] 🔄 useFocusEffect ejecutado:", {
         hasBarcode,
         barcode: params.barcode,
         currentSelected: !!selected,
         isSearchingMore,
       });
-      
+
       // NO cancelar si hay una búsqueda de barcode en curso
       // Esto evita que useFocusEffect cancele la búsqueda que acaba de iniciar el useEffect del barcode
       // Usamos el ref porque el estado puede no estar actualizado aún en el closure
       if (isBarcodeSearchRef.current || (isSearchingMore && hasBarcode)) {
-        console.log("[AddFoodScreen] ⏸️ Búsqueda de barcode en curso (ref o estado), no limpiando ni cancelando");
+        console.log(
+          "[AddFoodScreen] ⏸️ Búsqueda de barcode en curso (ref o estado), no limpiando ni cancelando",
+        );
         return;
       }
-      
+
       // NO limpiar selected si acabamos de procesar un barcode exitosamente O si el usuario seleccionó manualmente
       // Esto evita que se limpie el alimento que acabamos de seleccionar
-      if ((justProcessedBarcodeRef.current || justSelectedManuallyRef.current) && selected) {
-        console.log("[AddFoodScreen] ⏸️ Protegiendo selected (barcode o selección manual)");
+      if (
+        (justProcessedBarcodeRef.current || justSelectedManuallyRef.current) &&
+        selected
+      ) {
+        console.log(
+          "[AddFoodScreen] ⏸️ Protegiendo selected (barcode o selección manual)",
+        );
         // NO resetear el flag aquí, lo haremos después de un delay para proteger múltiples ejecuciones de useFocusEffect
         // Solo limpiar otros estados, pero mantener selected
         if (!query) {
@@ -373,11 +400,14 @@ export default function AddFoodScreen() {
         setErr(null);
         return;
       }
-      
+
       if (!hasBarcode) {
         // Solo limpiar si NO hay barcode pendiente Y no acabamos de procesar un barcode Y no hay selección manual reciente
         // Esto evita que se limpie el alimento inmediatamente después de seleccionarlo
-        if (!justProcessedBarcodeRef.current && !justSelectedManuallyRef.current) {
+        if (
+          !justProcessedBarcodeRef.current &&
+          !justSelectedManuallyRef.current
+        ) {
           setSelected(null);
           setQuery("");
           setResults([]);
@@ -388,13 +418,17 @@ export default function AddFoodScreen() {
           setIsSearchingLocal(false);
           setIsSearchingMore(false);
         } else {
-          console.log("[AddFoodScreen] ⏸️ No limpiando porque hay selección protegida (barcode o manual)");
+          console.log(
+            "[AddFoodScreen] ⏸️ No limpiando porque hay selección protegida (barcode o manual)",
+          );
         }
       } else {
-        console.log("[AddFoodScreen] ⏸️ No limpiando estado porque hay barcode pendiente");
+        console.log(
+          "[AddFoodScreen] ⏸️ No limpiando estado porque hay barcode pendiente",
+        );
       }
       setIsInputFocused(false);
-      
+
       // Solo invalidar requests si NO hay barcode pendiente Y no hay búsqueda en curso
       // Usamos el ref para verificar si hay búsqueda de barcode
       if (!hasBarcode && !isSearchingMore && !isBarcodeSearchRef.current) {
@@ -406,14 +440,22 @@ export default function AddFoodScreen() {
           abortControllerRef.current = null;
         }
       } else {
-        console.log("[AddFoodScreen] ⏸️ No cancelando búsquedas porque hay barcode pendiente o búsqueda en curso");
+        console.log(
+          "[AddFoodScreen] ⏸️ No cancelando búsquedas porque hay barcode pendiente o búsqueda en curso",
+        );
       }
 
       return () => {
         // (opcional) al salir también
         // NO cancelar si hay una búsqueda de barcode en curso
-        const hasBarcodeOnExit = typeof params.barcode === "string" && params.barcode.trim().length > 0;
-        if (!hasBarcodeOnExit && !isSearchingMore && !isBarcodeSearchRef.current) {
+        const hasBarcodeOnExit =
+          typeof params.barcode === "string" &&
+          params.barcode.trim().length > 0;
+        if (
+          !hasBarcodeOnExit &&
+          !isSearchingMore &&
+          !isBarcodeSearchRef.current
+        ) {
           reqIdRef.current += 1;
           if (abortControllerRef.current) {
             abortControllerRef.current.abort();
@@ -421,7 +463,13 @@ export default function AddFoodScreen() {
           }
         }
       };
-    }, [params.barcode, selected, isSearchingMore, favorites, loadFavoriteFoods]),
+    }, [
+      params.barcode,
+      selected,
+      isSearchingMore,
+      favorites,
+      loadFavoriteFoods,
+    ]),
   );
 
   useEffect(() => {
@@ -432,14 +480,14 @@ export default function AddFoodScreen() {
   useEffect(() => {
     const barcode =
       typeof params.barcode === "string" ? params.barcode.trim() : "";
-    
+
     console.log("[AddFoodScreen] 🔍 useEffect barcode activado:", {
       barcode,
       hasBarcode: !!barcode,
       barcodeType: typeof params.barcode,
       rawParams: params.barcode,
     });
-    
+
     if (!barcode) {
       console.log("[AddFoodScreen] ⚠️ Barcode vacío, saliendo del useEffect");
       return;
@@ -457,7 +505,10 @@ export default function AddFoodScreen() {
 
     (async () => {
       try {
-        console.log("[AddFoodScreen] 🔄 Iniciando búsqueda por barcode:", barcode);
+        console.log(
+          "[AddFoodScreen] 🔄 Iniciando búsqueda por barcode:",
+          barcode,
+        );
         isBarcodeSearchRef.current = true; // Marcar que hay búsqueda de barcode en curso
         setErr(null);
         setIsSearchingMore(true);
@@ -483,76 +534,75 @@ export default function AddFoodScreen() {
         }
 
         setIsSearchingMore(false);
-        isBarcodeSearchRef.current = false; // Limpiar el flag cuando termine
+        isBarcodeSearchRef.current = false;
 
-        if (!res.ok) {
-          console.error("[AddFoodScreen] ❌ Error en búsqueda:", res.message);
-          isBarcodeSearchRef.current = false; // Limpiar el flag en caso de error
-          // No mostrar error si fue cancelado
-          if (res.message !== "Búsqueda cancelada.") {
-            setErr(res.message);
-          }
+        if (res.message === "Búsqueda cancelada.") {
           return;
         }
 
-        if (!res.data) {
-          console.error("[AddFoodScreen] ❌ Respuesta OK pero sin datos");
-          isBarcodeSearchRef.current = false; // Limpiar el flag en caso de error
-          setErr("Producto no encontrado");
-          return;
-        }
-
-        const it: ExtendedFoodSearchItem = {
-          key: `off:${res.data.id}`,
-          source: "off",
-          name: res.data.name,
-          meta: res.data.brand ? res.data.brand : "Sin marca",
-          kcal_100g: res.data.kcal_100g ?? null,
-          protein_100g: res.data.protein_100g ?? null,
-          carbs_100g: res.data.carbs_100g ?? null,
-          fat_100g: res.data.fat_100g ?? null,
-          off: res.data,
-          verified: false,
-        };
-
-        console.log("[AddFoodScreen] ✅ Item creado:", {
-          key: it.key,
-          name: it.name,
-          source: it.source,
-          hasKcal: !!it.kcal_100g,
-          hasOff: !!it.off,
-        });
-
-        setSelected(it);
-        setQuery(res.data.name);
-        setResults([]);
-        isBarcodeSearchRef.current = false; // Limpiar el flag cuando se complete exitosamente
-        justProcessedBarcodeRef.current = true; // Marcar que acabamos de procesar un barcode exitosamente
-        
-        // Limpiar el barcode de los params para evitar que se busque de nuevo al volver
-        // Esto permite escanear un nuevo código sin problemas
-        // Usamos setTimeout con delay más largo para proteger contra múltiples ejecuciones de useFocusEffect
-        setTimeout(() => {
-          router.setParams({ barcode: undefined });
-          // Resetear el flag después de un delay adicional para asegurar que useFocusEffect no limpie el estado
+        // 1) Prioridad API externa: Open Food Facts (usar pero NO guardar en BD)
+        if (res.ok && res.data) {
+          const it: ExtendedFoodSearchItem = {
+            key: `off:${res.data.id}`,
+            source: "off",
+            name: res.data.name,
+            meta: res.data.brand ? res.data.brand : "Sin marca",
+            kcal_100g: res.data.kcal_100g ?? null,
+            protein_100g: res.data.protein_100g ?? null,
+            carbs_100g: res.data.carbs_100g ?? null,
+            fat_100g: res.data.fat_100g ?? null,
+            off: res.data,
+            verified: false,
+          };
+          setSelected(it);
+          setQuery(res.data.name);
+          setResults([]);
+          justProcessedBarcodeRef.current = true;
           setTimeout(() => {
-            justProcessedBarcodeRef.current = false;
-            console.log("[AddFoodScreen] 🔄 Flag justProcessedBarcode reseteado");
-          }, 500);
-        }, 200);
-        
-        console.log("[AddFoodScreen] ✅ Estado actualizado: selected establecido, query actualizado, params se limpiarán en breve");
-        // La inicialización se hará automáticamente en useEffect
+            router.setParams({ barcode: undefined });
+            setTimeout(() => {
+              justProcessedBarcodeRef.current = false;
+            }, 500);
+          }, 200);
+          return;
+        }
+
+        // 2) Prioridad local (Supabase): generic_foods por barcode
+        const localRes = await genericFoodsRepository.getByBarcode(barcode);
+        if (myReqId !== reqIdRef.current || abortController.signal.aborted)
+          return;
+
+        if (localRes.ok && localRes.data) {
+          const it = mapGenericFoodDbToSearchItem(localRes.data);
+          setSelected(it as ExtendedFoodSearchItem);
+          setQuery(localRes.data.name_es);
+          setResults([]);
+          setErr(null);
+          justProcessedBarcodeRef.current = true;
+          setTimeout(() => {
+            router.setParams({ barcode: undefined });
+            setTimeout(() => {
+              justProcessedBarcodeRef.current = false;
+            }, 500);
+          }, 200);
+          return;
+        }
+
+        // 3) No en OFF ni local: mostrar formulario para crear en generic_foods
+        setErr(null);
+        setBarcodeToCreate(barcode);
+        setShowCreateGenericFoodModal(true);
+        setTimeout(() => router.setParams({ barcode: undefined }), 200);
       } catch (error: any) {
         console.error("[AddFoodScreen] 💥 Excepción en búsqueda por barcode:", {
           error: error?.message,
           stack: error?.stack,
           name: error?.name,
         });
-        
+
         setIsSearchingMore(false);
         isBarcodeSearchRef.current = false; // Limpiar el flag en caso de excepción
-        
+
         if (error?.name !== "AbortError" && !abortController.signal.aborted) {
           setErr(error?.message || "Error al buscar producto");
         }
@@ -621,19 +671,26 @@ export default function AddFoodScreen() {
 
   // Detectar si es fast food
   const isFastFood = useMemo(() => {
-    return selected?.tags?.some(tag => 
-      tag.toLowerCase().includes("fastfood") || 
-      tag.toLowerCase().includes("fast_food") ||
-      tag.toLowerCase().includes("fast-food")
-    ) ?? false;
+    return (
+      selected?.tags?.some(
+        (tag) =>
+          tag.toLowerCase().includes("fastfood") ||
+          tag.toLowerCase().includes("fast_food") ||
+          tag.toLowerCase().includes("fast-food"),
+      ) ?? false
+    );
   }, [selected]);
 
   // Detectar si es una pizza (por unidad de consumo)
   const isPizza = useMemo(() => {
     if (!selected) return false;
     const nameLower = selected.name.toLowerCase();
-    return (nameLower.includes("pizza") && nameLower.includes("slice")) || 
-           (nameLower.includes("pizza") && hasUnits && selected.unit_label_es?.toLowerCase().includes("slice"));
+    return (
+      (nameLower.includes("pizza") && nameLower.includes("slice")) ||
+      (nameLower.includes("pizza") &&
+        hasUnits &&
+        selected.unit_label_es?.toLowerCase().includes("slice"))
+    );
   }, [selected, hasUnits]);
 
   // Si es Fast Food, bloquear gramos (solo unidades permitidas)
@@ -644,10 +701,10 @@ export default function AddFoodScreen() {
   // Auto-seleccionar modo unidades si tiene grams_per_unit
   useEffect(() => {
     if (!selected) return;
-    
+
     // Marcar que estamos inicializando para evitar que otros efectos interfieran
     isInitializingRef.current = true;
-    
+
     if (hasUnits) {
       // Tiene unidades: priorizar modo unidades
       // Establecer primero el modo para evitar que el efecto de conversión interfiera
@@ -664,7 +721,7 @@ export default function AddFoodScreen() {
       setUnitsStr("1");
       lastUserInputRef.current = null; // Reset ref
     }
-    
+
     // Permitir que otros efectos se ejecuten después de que la inicialización termine
     setTimeout(() => {
       isInitializingRef.current = false;
@@ -674,7 +731,7 @@ export default function AddFoodScreen() {
   // Sincronizar unidades y gramos cuando cambia el modo o el valor
   useEffect(() => {
     if (!selected || !hasUnits || !selected.grams_per_unit) return;
-    
+
     // No ejecutar durante la inicialización
     if (isInitializingRef.current) return;
 
@@ -691,7 +748,7 @@ export default function AddFoodScreen() {
 
   useEffect(() => {
     if (!selected || !hasUnits || !selected.grams_per_unit) return;
-    
+
     // No ejecutar durante la inicialización
     if (isInitializingRef.current) return;
 
@@ -725,14 +782,14 @@ export default function AddFoodScreen() {
   const preview = useMemo(() => {
     if (!selected) return null;
     const g = Number.isFinite(gramsNum) ? clamp(gramsNum, 1, 2000) : 100;
-    
+
     // Validar que al menos algunos valores nutricionales existan
-    const hasAnyMacros = 
+    const hasAnyMacros =
       (selected.kcal_100g != null && selected.kcal_100g > 0) ||
       (selected.protein_100g != null && selected.protein_100g > 0) ||
       (selected.carbs_100g != null && selected.carbs_100g > 0) ||
       (selected.fat_100g != null && selected.fat_100g > 0);
-    
+
     if (!hasAnyMacros) {
       console.warn("[AddFoodScreen] ⚠️ Alimento sin valores nutricionales:", {
         name: selected.name,
@@ -743,7 +800,7 @@ export default function AddFoodScreen() {
       });
       return null;
     }
-    
+
     return computeFrom100gMacros(
       {
         kcal_100g: selected.kcal_100g ?? 0,
@@ -834,13 +891,16 @@ export default function AddFoodScreen() {
     return "Estimado";
   }, []);
 
-  const iconFor = useCallback((
-    it: ExtendedFoodSearchItem,
-  ): React.ComponentProps<typeof MaterialCommunityIcons>["name"] => {
-    if (it.source === "user_food") return "account-edit";
-    if (it.source === "food") return "database";
-    return "barcode-scan";
-  }, []);
+  const iconFor = useCallback(
+    (
+      it: ExtendedFoodSearchItem,
+    ): React.ComponentProps<typeof MaterialCommunityIcons>["name"] => {
+      if (it.source === "user_food") return "account-edit";
+      if (it.source === "food") return "database";
+      return "barcode-scan";
+    },
+    [],
+  );
 
   const onAdd = useCallback(async () => {
     if (!selected) {
@@ -861,7 +921,9 @@ export default function AddFoodScreen() {
         protein_100g: selected.protein_100g,
         gramsNum,
       });
-      setErr("No se pudo calcular la información nutricional. Verifica que el alimento tenga valores válidos.");
+      setErr(
+        "No se pudo calcular la información nutricional. Verifica que el alimento tenga valores válidos.",
+      );
       return;
     }
 
@@ -955,13 +1017,10 @@ export default function AddFoodScreen() {
     }, 2000);
   }, [selected, gramsError, preview, gramsNum, day, meal, showToast, router]);
 
-  const handleSelectFromHistory = useCallback(
-    async (historyItem: string) => {
-      setQuery(historyItem);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    },
-    [],
-  );
+  const handleSelectFromHistory = useCallback(async (historyItem: string) => {
+    setQuery(historyItem);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, []);
 
   const handleRemoveHistoryItem = useCallback(
     async (historyItem: string, e: any) => {
@@ -990,829 +1049,984 @@ export default function AddFoodScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-        {/* Header */}
-        <View style={s.header}>
-          <Pressable
-            style={s.iconBtn}
-            onPress={() => {
-              if (selected) {
-                justSelectedManuallyRef.current = false; // Resetear el flag
-                setSelected(null);
-              } else {
-                router.back();
-              }
-            }}
-          >
-            <Feather name="arrow-left" size={18} color={colors.textPrimary} />
-          </Pressable>
+          {/* Header */}
+          <View style={s.header}>
+            <Pressable
+              style={s.iconBtn}
+              onPress={() => {
+                if (selected) {
+                  justSelectedManuallyRef.current = false; // Resetear el flag
+                  setSelected(null);
+                } else {
+                  router.back();
+                }
+              }}
+            >
+              <Feather name="arrow-left" size={18} color={colors.textPrimary} />
+            </Pressable>
 
-          <View style={{ flex: 1 }}>
-            <Text style={s.kicker}>Diario</Text>
-            <Text style={s.title}>
-              {selected ? "Detalle" : "Agregar alimento"}
-            </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={s.kicker}>Diario</Text>
+              <Text style={s.title}>
+                {selected ? "Detalle" : "Agregar alimento"}
+              </Text>
+            </View>
+
+            <Pressable
+              style={s.iconBtn}
+              onPress={() => router.replace("/(tabs)/diary")}
+            >
+              <Feather name="x" size={18} color={colors.textPrimary} />
+            </Pressable>
           </View>
 
-          <Pressable
-            style={s.iconBtn}
-            onPress={() => router.replace("/(tabs)/diary")}
-          >
-            <Feather name="x" size={18} color={colors.textPrimary} />
-          </Pressable>
-        </View>
+          {!selected && (
+            <>
+              <Text style={s.subtitle}>
+                Busca alimentos y registra los gramos.
+              </Text>
 
-        {!selected && (
-          <>
-            <Text style={s.subtitle}>
-              Busca alimentos y registra los gramos.
-            </Text>
-
-            {/* Botones de escaneo */}
-            <View style={s.scanButtonsContainer}>
-              <Pressable
-                onPress={() =>
-                  router.push({
-                    pathname: "/(tabs)/scan",
-                    params: { meal, mode: "barcode" },
-                  })
-                }
-                style={({ pressed }) => [
-                  s.scanBtn,
-                  s.scanBtnBarcode,
-                  pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] },
-                ]}
-              >
-                <MaterialCommunityIcons name="barcode-scan" size={18} color="#111827" />
-                <Text style={s.scanBtnText}>Escanear código</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={() =>
-                  router.push({
-                    pathname: "/(tabs)/scan",
-                    params: { meal, mode: "ai" },
-                  })
-                }
-                style={({ pressed }) => [
-                  s.scanBtn,
-                  s.scanBtnAI,
-                  pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] },
-                ]}
-              >
-                <MaterialCommunityIcons name="brain" size={18} color="#111827" />
-                <Text style={s.scanBtnText}>Escanear con IA</Text>
-              </Pressable>
-            </View>
-
-            {/* Search */}
-            <View style={s.searchBox}>
-              <Feather name="search" size={18} color={colors.textSecondary} />
-              <TextInput
-                value={query}
-                onChangeText={(t) => {
-                  setQuery(t);
-                  setErr(null);
-                }}
-                onFocus={() => {
-                  setIsInputFocused(true);
-                  // Hacer scroll suave hacia el input cuando tiene focus
-                  setTimeout(() => {
-                    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-                  }, 100);
-                }}
-                onBlur={() => setTimeout(() => setIsInputFocused(false), 200)}
-                placeholder="Ej: arroz, yogurt, pollo..."
-                placeholderTextColor={colors.textSecondary}
-                autoCapitalize="none"
-                style={s.searchInput}
-              />
-              {!!query && (
+              {/* Botones de escaneo */}
+              <View style={s.scanButtonsContainer}>
                 <Pressable
-                  onPress={() => {
-                    setQuery("");
-                    setErr(null);
-                    setResults([]);
-                  }}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/(tabs)/scan",
+                      params: { meal, mode: "barcode" },
+                    })
+                  }
                   style={({ pressed }) => [
-                    s.clearBtn,
-                    pressed && { opacity: 0.8 },
+                    s.scanBtn,
+                    s.scanBtnBarcode,
+                    pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] },
                   ]}
                 >
-                  <Feather name="x" size={16} color={colors.textSecondary} />
+                  <MaterialCommunityIcons
+                    name="barcode-scan"
+                    size={18}
+                    color="#111827"
+                  />
+                  <Text style={s.scanBtnText}>Escanear código</Text>
                 </Pressable>
-              )}
-            </View>
 
-            {/* Meal chips */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={s.mealRow}
-              style={s.mealRowContainer}
-            >
-              {(["breakfast", "lunch", "dinner", "snack"] as MealType[]).map(
-                (m) => {
-                  const active = meal === m;
-                  return (
-                    <Pressable
-                      key={m}
-                      onPress={() => setMeal(m)}
-                      style={({ pressed }) => [
-                        s.mealChip,
-                        active && s.mealChipActive,
-                        pressed && {
-                          opacity: 0.92,
-                          transform: [{ scale: 0.99 }],
-                        },
-                      ]}
-                    >
-                      <MaterialCommunityIcons
-                        name={mealIcon(m)}
-                        size={18}
-                        color={active ? colors.brand : colors.textSecondary}
-                      />
-                      <Text
-                        style={[s.mealChipText, active && s.mealChipTextActive]}
-                      >
-                        {MEAL_LABELS[m]}
-                      </Text>
-                    </Pressable>
-                  );
-                },
-              )}
-            </ScrollView>
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: "/(tabs)/scan",
+                      params: { meal, mode: "ai" },
+                    })
+                  }
+                  style={({ pressed }) => [
+                    s.scanBtn,
+                    s.scanBtnAI,
+                    pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="brain"
+                    size={18}
+                    color="#111827"
+                  />
+                  <Text style={s.scanBtnText}>Escanear con IA</Text>
+                </Pressable>
+              </View>
 
-            {/* Historial de búsqueda - Mostrar PRIMERO cuando hay focus y el input está vacío */}
-            {isInputFocused && !query.trim() && searchHistory.length > 0 && (
-              <View style={[s.searchHistoryContainer, { marginTop: 12 }]}>
-                <View style={s.sectionHeader}>
-                  <Feather name="clock" size={18} color={colors.textPrimary} />
-                  <Text style={s.sectionTitle}>Búsquedas recientes</Text>
-                </View>
-                <View style={{ gap: 6 }}>
-                  {searchHistory.map((historyItem) => (
-                    <Pressable
-                      key={historyItem}
-                      onPress={() => handleSelectFromHistory(historyItem)}
-                      style={({ pressed }) => [
-                        s.historyItem,
-                        pressed && { opacity: 0.95, transform: [{ scale: 0.997 }] },
-                      ]}
-                    >
-                      <View style={s.historyIcon}>
-                        <Feather name="clock" size={16} color={colors.textSecondary} />
-                      </View>
-                      <Text style={[s.historyName, { flex: 1 }]}>
-                        {historyItem}
-                      </Text>
+              {/* Search */}
+              <View style={s.searchBox}>
+                <Feather name="search" size={18} color={colors.textSecondary} />
+                <TextInput
+                  value={query}
+                  onChangeText={(t) => {
+                    setQuery(t);
+                    setErr(null);
+                  }}
+                  onFocus={() => {
+                    setIsInputFocused(true);
+                    // Hacer scroll suave hacia el input cuando tiene focus
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+                    }, 100);
+                  }}
+                  onBlur={() => setTimeout(() => setIsInputFocused(false), 200)}
+                  placeholder="Ej: arroz, yogurt, pollo..."
+                  placeholderTextColor={colors.textSecondary}
+                  autoCapitalize="none"
+                  style={s.searchInput}
+                />
+                {!!query && (
+                  <Pressable
+                    onPress={() => {
+                      setQuery("");
+                      setErr(null);
+                      setResults([]);
+                    }}
+                    style={({ pressed }) => [
+                      s.clearBtn,
+                      pressed && { opacity: 0.8 },
+                    ]}
+                  >
+                    <Feather name="x" size={16} color={colors.textSecondary} />
+                  </Pressable>
+                )}
+              </View>
+
+              {/* Meal chips */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={s.mealRow}
+                style={s.mealRowContainer}
+              >
+                {(["breakfast", "lunch", "dinner", "snack"] as MealType[]).map(
+                  (m) => {
+                    const active = meal === m;
+                    return (
                       <Pressable
-                        onPress={(e) => handleRemoveHistoryItem(historyItem, e)}
+                        key={m}
+                        onPress={() => setMeal(m)}
                         style={({ pressed }) => [
-                          s.historyRemoveBtn,
-                          pressed && { opacity: 0.7 },
+                          s.mealChip,
+                          active && s.mealChipActive,
+                          pressed && {
+                            opacity: 0.92,
+                            transform: [{ scale: 0.99 }],
+                          },
                         ]}
                       >
-                        <Feather name="x" size={14} color={colors.textSecondary} />
+                        <MaterialCommunityIcons
+                          name={mealIcon(m)}
+                          size={18}
+                          color={active ? colors.brand : colors.textSecondary}
+                        />
+                        <Text
+                          style={[
+                            s.mealChipText,
+                            active && s.mealChipTextActive,
+                          ]}
+                        >
+                          {MEAL_LABELS[m]}
+                        </Text>
                       </Pressable>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-            )}
+                    );
+                  },
+                )}
+              </ScrollView>
 
-            {/* Favoritos - Solo cuando no hay búsqueda */}
-            {!query.trim() && favoriteFoods.length > 0 && (
-              <View style={{ gap: 8, marginTop: 12 }}>
-                <View style={s.sectionHeader}>
-                  <MaterialCommunityIcons
-                    name="star"
-                    size={18}
-                    color={colors.brand}
-                  />
-                  <Text style={s.sectionTitle}>⭐ Mis Favoritos</Text>
-                </View>
-                {loadingFavorites ? (
-                  <View style={s.loadingBox}>
-                    <ActivityIndicator size="small" color={colors.brand} />
+              {/* Historial de búsqueda - Mostrar PRIMERO cuando hay focus y el input está vacío */}
+              {isInputFocused && !query.trim() && searchHistory.length > 0 && (
+                <View style={[s.searchHistoryContainer, { marginTop: 12 }]}>
+                  <View style={s.sectionHeader}>
+                    <Feather
+                      name="clock"
+                      size={18}
+                      color={colors.textPrimary}
+                    />
+                    <Text style={s.sectionTitle}>Búsquedas recientes</Text>
                   </View>
-                ) : (
-                  <View style={{ gap: 8 }}>
-                    {favoriteFoods.map((food) => (
+                  <View style={{ gap: 6 }}>
+                    {searchHistory.map((historyItem) => (
                       <Pressable
-                        key={food.key}
+                        key={historyItem}
+                        onPress={() => handleSelectFromHistory(historyItem)}
+                        style={({ pressed }) => [
+                          s.historyItem,
+                          pressed && {
+                            opacity: 0.95,
+                            transform: [{ scale: 0.997 }],
+                          },
+                        ]}
+                      >
+                        <View style={s.historyIcon}>
+                          <Feather
+                            name="clock"
+                            size={16}
+                            color={colors.textSecondary}
+                          />
+                        </View>
+                        <Text style={[s.historyName, { flex: 1 }]}>
+                          {historyItem}
+                        </Text>
+                        <Pressable
+                          onPress={(e) =>
+                            handleRemoveHistoryItem(historyItem, e)
+                          }
+                          style={({ pressed }) => [
+                            s.historyRemoveBtn,
+                            pressed && { opacity: 0.7 },
+                          ]}
+                        >
+                          <Feather
+                            name="x"
+                            size={14}
+                            color={colors.textSecondary}
+                          />
+                        </Pressable>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Favoritos - Solo cuando no hay búsqueda */}
+              {!query.trim() && favoriteFoods.length > 0 && (
+                <View style={{ gap: 8, marginTop: 12 }}>
+                  <View style={s.sectionHeader}>
+                    <MaterialCommunityIcons
+                      name="star"
+                      size={18}
+                      color={colors.brand}
+                    />
+                    <Text style={s.sectionTitle}>⭐ Mis Favoritos</Text>
+                  </View>
+                  {loadingFavorites ? (
+                    <View style={s.loadingBox}>
+                      <ActivityIndicator size="small" color={colors.brand} />
+                    </View>
+                  ) : (
+                    <View style={{ gap: 8 }}>
+                      {favoriteFoods.map((food) => (
+                        <Pressable
+                          key={food.key}
+                          onPress={() => {
+                            Haptics.impactAsync(
+                              Haptics.ImpactFeedbackStyle.Light,
+                            );
+                            justSelectedManuallyRef.current = true;
+                            setSelected(food);
+                            setTimeout(() => {
+                              justSelectedManuallyRef.current = false;
+                            }, 500);
+                          }}
+                          style={({ pressed }) => [
+                            s.historyItem,
+                            pressed && {
+                              opacity: 0.95,
+                              transform: [{ scale: 0.997 }],
+                            },
+                          ]}
+                        >
+                          <View style={s.historyIcon}>
+                            <MaterialCommunityIcons
+                              name="star"
+                              size={16}
+                              color={colors.brand}
+                            />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={s.historyName}>{food.name}</Text>
+                            <Text style={s.historyMeta}>
+                              {food.kcal_100g
+                                ? `${food.kcal_100g} kcal / 100g`
+                                : "Alimento favorito"}
+                            </Text>
+                          </View>
+                          <Feather
+                            name="chevron-right"
+                            size={16}
+                            color={colors.textSecondary}
+                          />
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {/* Recientes - Solo cuando no hay búsqueda */}
+              {!query.trim() && recentFoods.length > 0 && (
+                <View style={{ gap: 8, marginTop: 12 }}>
+                  <View style={s.sectionHeader}>
+                    <MaterialCommunityIcons
+                      name="clock-outline"
+                      size={18}
+                      color={colors.textPrimary}
+                    />
+                    <Text style={s.sectionTitle}>
+                      🕒 Consumidos Recientemente
+                    </Text>
+                  </View>
+                  <View style={{ gap: 8 }}>
+                    {recentFoods.map((recent) => {
+                      // Buscar el alimento completo en favoritos o recetas
+                      const foodItem =
+                        favoriteFoods.find((f) => f.key === recent.key) ||
+                        myRecipes.find((r) => r.key === recent.key);
+
+                      return (
+                        <Pressable
+                          key={recent.key}
+                          onPress={async () => {
+                            Haptics.impactAsync(
+                              Haptics.ImpactFeedbackStyle.Light,
+                            );
+
+                            // Si ya tenemos el alimento completo, usarlo
+                            if (foodItem) {
+                              justSelectedManuallyRef.current = true;
+                              setSelected(foodItem);
+                              setTimeout(() => {
+                                justSelectedManuallyRef.current = false;
+                              }, 500);
+                              return;
+                            }
+
+                            // Si no, buscar desde generic_foods o user_foods
+                            if (recent.food_id) {
+                              const foodRes =
+                                await genericFoodsRepository.getByIds([
+                                  recent.food_id,
+                                ]);
+                              if (foodRes.ok && foodRes.data.length > 0) {
+                                const fullFood =
+                                  mapGenericFoodDbArrayToSearchItems(
+                                    foodRes.data,
+                                  )[0];
+                                justSelectedManuallyRef.current = true;
+                                setSelected(fullFood);
+                                setTimeout(() => {
+                                  justSelectedManuallyRef.current = false;
+                                }, 500);
+                                return;
+                              }
+                            } else if (recent.user_food_id) {
+                              const userFoodRes =
+                                await userFoodsRepository.getById(
+                                  recent.user_food_id,
+                                );
+                              if (userFoodRes.ok && userFoodRes.data) {
+                                const fullFood =
+                                  mapUserFoodDbArrayToSearchItems([
+                                    userFoodRes.data,
+                                  ])[0];
+                                justSelectedManuallyRef.current = true;
+                                setSelected(fullFood);
+                                setTimeout(() => {
+                                  justSelectedManuallyRef.current = false;
+                                }, 500);
+                                return;
+                              }
+                            }
+
+                            // Si no se puede cargar, mostrar error
+                            showToast({
+                              message: "No se pudo cargar el alimento",
+                              type: "error",
+                            });
+                          }}
+                          style={({ pressed }) => [
+                            s.historyItem,
+                            pressed && {
+                              opacity: 0.95,
+                              transform: [{ scale: 0.997 }],
+                            },
+                          ]}
+                        >
+                          <View style={s.historyIcon}>
+                            <MaterialCommunityIcons
+                              name="clock-outline"
+                              size={16}
+                              color={colors.textSecondary}
+                            />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={s.historyName}>{recent.name}</Text>
+                            <Text style={s.historyMeta}>
+                              {foodItem?.kcal_100g
+                                ? `${foodItem.kcal_100g} kcal / 100g`
+                                : "Recientemente agregado"}
+                            </Text>
+                          </View>
+                          <Feather
+                            name="chevron-right"
+                            size={16}
+                            color={colors.textSecondary}
+                          />
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+
+              {/* Mis Recetas - Siempre visible */}
+              {myRecipes.length > 0 && (
+                <View style={{ gap: 8, marginTop: 12 }}>
+                  <View style={s.sectionHeader}>
+                    <MaterialCommunityIcons
+                      name="chef-hat"
+                      size={18}
+                      color={colors.textPrimary}
+                    />
+                    <Text style={s.sectionTitle}>Mis recetas</Text>
+                  </View>
+                  <View style={{ gap: 8 }}>
+                    {myRecipes.map((recipe) => (
+                      <Pressable
+                        key={recipe.key}
                         onPress={() => {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          justSelectedManuallyRef.current = true;
-                          setSelected(food);
+                          Haptics.impactAsync(
+                            Haptics.ImpactFeedbackStyle.Light,
+                          );
+                          justSelectedManuallyRef.current = true; // Marcar que el usuario seleccionó manualmente
+                          setSelected(recipe);
+                          // Resetear el flag después de un delay para permitir que useFocusEffect lo proteja
                           setTimeout(() => {
                             justSelectedManuallyRef.current = false;
                           }, 500);
                         }}
                         style={({ pressed }) => [
                           s.historyItem,
-                          pressed && { opacity: 0.95, transform: [{ scale: 0.997 }] },
+                          pressed && {
+                            opacity: 0.95,
+                            transform: [{ scale: 0.997 }],
+                          },
                         ]}
                       >
                         <View style={s.historyIcon}>
                           <MaterialCommunityIcons
-                            name="star"
+                            name="chef-hat"
                             size={16}
                             color={colors.brand}
                           />
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={s.historyName}>{food.name}</Text>
+                          <Text style={s.historyName}>{recipe.name}</Text>
                           <Text style={s.historyMeta}>
-                            {food.kcal_100g ? `${food.kcal_100g} kcal / 100g` : "Alimento favorito"}
+                            {recipe.kcal_100g
+                              ? `${recipe.kcal_100g} kcal / 100g`
+                              : "Receta personalizada"}
                           </Text>
                         </View>
-                        <Feather name="chevron-right" size={16} color={colors.textSecondary} />
+                        <Feather
+                          name="chevron-right"
+                          size={16}
+                          color={colors.textSecondary}
+                        />
                       </Pressable>
                     ))}
                   </View>
-                )}
-              </View>
-            )}
+                </View>
+              )}
 
-            {/* Recientes - Solo cuando no hay búsqueda */}
-            {!query.trim() && recentFoods.length > 0 && (
-              <View style={{ gap: 8, marginTop: 12 }}>
-                <View style={s.sectionHeader}>
+              {(isSearchingLocal || isSearchingMore) && (
+                <View style={s.loadingBox}>
+                  <ActivityIndicator />
+                  <Text style={s.loadingText}>
+                    {isSearchingMore
+                      ? "Buscando más resultados..."
+                      : "Buscando..."}
+                  </Text>
+                </View>
+              )}
+
+              {!!err && (
+                <View style={s.alert}>
+                  <Feather
+                    name="alert-triangle"
+                    size={16}
+                    color={colors.onCta}
+                  />
+                  <Text style={s.alertText}>{err}</Text>
+                </View>
+              )}
+
+              {canShowSearchMore && (
+                <Pressable
+                  onPress={onSearchMore}
+                  style={({ pressed }) => [
+                    s.moreBtn,
+                    pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] },
+                  ]}
+                >
                   <MaterialCommunityIcons
-                    name="clock-outline"
+                    name="magnify-plus"
                     size={18}
                     color={colors.textPrimary}
                   />
-                  <Text style={s.sectionTitle}>🕒 Consumidos Recientemente</Text>
-                </View>
-                <View style={{ gap: 8 }}>
-                  {recentFoods.map((recent) => {
-                    // Buscar el alimento completo en favoritos o recetas
-                    const foodItem = favoriteFoods.find(f => f.key === recent.key) ||
-                                   myRecipes.find(r => r.key === recent.key);
+                  <Text style={s.moreBtnText}>Buscar más resultados</Text>
+                </Pressable>
+              )}
 
-                    return (
-                      <Pressable
-                        key={recent.key}
-                        onPress={async () => {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          
-                          // Si ya tenemos el alimento completo, usarlo
-                          if (foodItem) {
-                            justSelectedManuallyRef.current = true;
-                            setSelected(foodItem);
-                            setTimeout(() => {
-                              justSelectedManuallyRef.current = false;
-                            }, 500);
-                            return;
-                          }
-
-                          // Si no, buscar desde generic_foods o user_foods
-                          if (recent.food_id) {
-                            const foodRes = await genericFoodsRepository.getByIds([recent.food_id]);
-                            if (foodRes.ok && foodRes.data.length > 0) {
-                              const fullFood = mapGenericFoodDbArrayToSearchItems(foodRes.data)[0];
-                              justSelectedManuallyRef.current = true;
-                              setSelected(fullFood);
-                              setTimeout(() => {
-                                justSelectedManuallyRef.current = false;
-                              }, 500);
-                              return;
-                            }
-                          } else if (recent.user_food_id) {
-                            const userFoodRes = await userFoodsRepository.getById(recent.user_food_id);
-                            if (userFoodRes.ok && userFoodRes.data) {
-                              const fullFood = mapUserFoodDbArrayToSearchItems([userFoodRes.data])[0];
-                              justSelectedManuallyRef.current = true;
-                              setSelected(fullFood);
-                              setTimeout(() => {
-                                justSelectedManuallyRef.current = false;
-                              }, 500);
-                              return;
-                            }
-                          }
-
-                          // Si no se puede cargar, mostrar error
-                          showToast({
-                            message: "No se pudo cargar el alimento",
-                            type: "error",
-                          });
-                        }}
-                        style={({ pressed }) => [
-                          s.historyItem,
-                          pressed && { opacity: 0.95, transform: [{ scale: 0.997 }] },
-                        ]}
-                      >
-                        <View style={s.historyIcon}>
-                          <MaterialCommunityIcons
-                            name="clock-outline"
-                            size={16}
-                            color={colors.textSecondary}
-                          />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={s.historyName}>{recent.name}</Text>
-                          <Text style={s.historyMeta}>
-                            {foodItem?.kcal_100g ? `${foodItem.kcal_100g} kcal / 100g` : "Recientemente agregado"}
-                          </Text>
-                        </View>
-                        <Feather name="chevron-right" size={16} color={colors.textSecondary} />
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-            )}
-
-            {/* Mis Recetas - Siempre visible */}
-            {myRecipes.length > 0 && (
-              <View style={{ gap: 8, marginTop: 12 }}>
-                <View style={s.sectionHeader}>
-                  <MaterialCommunityIcons
-                    name="chef-hat"
-                    size={18}
-                    color={colors.textPrimary}
-                  />
-                  <Text style={s.sectionTitle}>Mis recetas</Text>
-                </View>
-                <View style={{ gap: 8 }}>
-                  {myRecipes.map((recipe) => (
+              {/* Results */}
+              <View style={{ marginTop: 10, gap: 10 }}>
+                {results.map((it) => {
+                  const favorite = it.food_id ? isFavorite(it.food_id) : false;
+                  return (
                     <Pressable
-                      key={recipe.key}
+                      key={it.key}
+                      style={({ pressed }) => [
+                        s.result,
+                        pressed && {
+                          opacity: 0.95,
+                          transform: [{ scale: 0.997 }],
+                        },
+                      ]}
                       onPress={() => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         justSelectedManuallyRef.current = true; // Marcar que el usuario seleccionó manualmente
-                        setSelected(recipe);
+                        setSelected(it);
                         // Resetear el flag después de un delay para permitir que useFocusEffect lo proteja
                         setTimeout(() => {
                           justSelectedManuallyRef.current = false;
                         }, 500);
                       }}
-                      style={({ pressed }) => [
-                        s.historyItem,
-                        pressed && { opacity: 0.95, transform: [{ scale: 0.997 }] },
-                      ]}
                     >
-                      <View style={s.historyIcon}>
+                      <View style={s.resultIcon}>
                         <MaterialCommunityIcons
-                          name="chef-hat"
-                          size={16}
-                          color={colors.brand}
+                          name={iconFor(it)}
+                          size={18}
+                          color={colors.textSecondary}
                         />
                       </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.historyName}>{recipe.name}</Text>
-                        <Text style={s.historyMeta}>
-                          {recipe.kcal_100g ? `${recipe.kcal_100g} kcal / 100g` : "Receta personalizada"}
+
+                      <View style={{ flex: 1, gap: 4 }}>
+                        <Text style={s.resultName} numberOfLines={1}>
+                          {it.name}
                         </Text>
+
+                        <Text style={s.resultMeta} numberOfLines={1}>
+                          {it.meta ?? badgeText(it)}
+                        </Text>
+
+                        <View style={s.kcalBadge}>
+                          <MaterialCommunityIcons
+                            name="fire"
+                            size={14}
+                            color={colors.textSecondary}
+                          />
+                          <Text style={s.kcalBadgeText}>
+                            {it.kcal_100g ?? "?"} kcal / 100g · {badgeText(it)}
+                          </Text>
+                        </View>
                       </View>
-                      <Feather name="chevron-right" size={16} color={colors.textSecondary} />
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-            )}
 
+                      {/* Icono de favorito - Solo para alimentos de generic_foods */}
+                      {it.food_id && it.source === "food" && (
+                        <Pressable
+                          onPress={async (e) => {
+                            e.stopPropagation();
+                            Haptics.impactAsync(
+                              Haptics.ImpactFeedbackStyle.Light,
+                            );
+                            try {
+                              await toggleFavorite(it.food_id!);
+                              Haptics.notificationAsync(
+                                favorite
+                                  ? Haptics.NotificationFeedbackType.Warning
+                                  : Haptics.NotificationFeedbackType.Success,
+                              );
+                            } catch (error) {
+                              showToast({
+                                message:
+                                  error instanceof Error
+                                    ? error.message
+                                    : "Error al actualizar favorito",
+                                type: "error",
+                              });
+                            }
+                          }}
+                          style={({ pressed }) => [
+                            s.favoriteButton,
+                            pressed && { opacity: 0.7 },
+                          ]}
+                        >
+                          <MaterialCommunityIcons
+                            name={favorite ? "heart" : "heart-outline"}
+                            size={20}
+                            color={favorite ? "#EF4444" : colors.textSecondary}
+                          />
+                        </Pressable>
+                      )}
 
-            {(isSearchingLocal || isSearchingMore) && (
-              <View style={s.loadingBox}>
-                <ActivityIndicator />
-                <Text style={s.loadingText}>
-                  {isSearchingMore
-                    ? "Buscando más resultados..."
-                    : "Buscando..."}
-                </Text>
-              </View>
-            )}
-
-            {!!err && (
-              <View style={s.alert}>
-                <Feather name="alert-triangle" size={16} color={colors.onCta} />
-                <Text style={s.alertText}>{err}</Text>
-              </View>
-            )}
-
-            {canShowSearchMore && (
-              <Pressable
-                onPress={onSearchMore}
-                style={({ pressed }) => [
-                  s.moreBtn,
-                  pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] },
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name="magnify-plus"
-                  size={18}
-                  color={colors.textPrimary}
-                />
-                <Text style={s.moreBtnText}>Buscar más resultados</Text>
-              </Pressable>
-            )}
-
-            {/* Results */}
-            <View style={{ marginTop: 10, gap: 10 }}>
-              {results.map((it) => {
-                const favorite = it.food_id ? isFavorite(it.food_id) : false;
-                return (
-                  <Pressable
-                    key={it.key}
-                    style={({ pressed }) => [
-                      s.result,
-                      pressed && { opacity: 0.95, transform: [{ scale: 0.997 }] },
-                    ]}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      justSelectedManuallyRef.current = true; // Marcar que el usuario seleccionó manualmente
-                      setSelected(it);
-                      // Resetear el flag después de un delay para permitir que useFocusEffect lo proteja
-                      setTimeout(() => {
-                        justSelectedManuallyRef.current = false;
-                      }, 500);
-                    }}
-                  >
-                    <View style={s.resultIcon}>
-                      <MaterialCommunityIcons
-                        name={iconFor(it)}
+                      <Feather
+                        name="chevron-right"
                         size={18}
                         color={colors.textSecondary}
                       />
-                    </View>
+                    </Pressable>
+                  );
+                })}
 
-                    <View style={{ flex: 1, gap: 4 }}>
-                      <Text style={s.resultName} numberOfLines={1}>
-                        {it.name}
-                      </Text>
-
-                      <Text style={s.resultMeta} numberOfLines={1}>
-                        {it.meta ?? badgeText(it)}
-                      </Text>
-
-                      <View style={s.kcalBadge}>
-                        <MaterialCommunityIcons
-                          name="fire"
-                          size={14}
-                          color={colors.textSecondary}
-                        />
-                        <Text style={s.kcalBadgeText}>
-                          {it.kcal_100g ?? "?"} kcal / 100g · {badgeText(it)}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Icono de favorito - Solo para alimentos de generic_foods */}
-                    {it.food_id && it.source === "food" && (
-                      <Pressable
-                        onPress={async (e) => {
-                          e.stopPropagation();
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          try {
-                            await toggleFavorite(it.food_id!);
-                            Haptics.notificationAsync(
-                              favorite
-                                ? Haptics.NotificationFeedbackType.Warning
-                                : Haptics.NotificationFeedbackType.Success
-                            );
-                          } catch (error) {
-                            showToast({
-                              message: error instanceof Error ? error.message : "Error al actualizar favorito",
-                              type: "error",
-                            });
-                          }
-                        }}
-                        style={({ pressed }) => [
-                          s.favoriteButton,
-                          pressed && { opacity: 0.7 },
-                        ]}
-                      >
-                        <MaterialCommunityIcons
-                          name={favorite ? "heart" : "heart-outline"}
-                          size={20}
-                          color={favorite ? "#EF4444" : colors.textSecondary}
-                        />
-                      </Pressable>
-                    )}
-
-                    <Feather
-                      name="chevron-right"
-                      size={18}
-                      color={colors.textSecondary}
-                    />
-                  </Pressable>
-                );
-              })}
-
-              {!isSearchingLocal &&
-                !isSearchingMore &&
-                query.trim().length >= 2 &&
-                results.length === 0 && (
-                  <Pressable
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                      router.push({
-                        pathname: "/(tabs)/create-food",
-                        params: { initialName: query.trim() },
-                      });
-                    }}
-                    style={({ pressed }) => [
-                      s.createFoodCard,
-                      pressed && s.createFoodCardPressed,
-                    ]}
-                  >
-                    <View style={s.createFoodIcon}>
-                      <MaterialCommunityIcons
-                        name="plus-circle"
-                        size={32}
-                        color={colors.brand}
-                      />
-                    </View>
-                    <View style={s.createFoodContent}>
-                      <Text style={s.createFoodTitle}>
-                        ¿No encuentras "{query}"?
-                      </Text>
-                      <Text style={s.createFoodSubtitle}>
-                        ¡Agrégalo a la comunidad y gana +50 XP!
-                      </Text>
-                    </View>
-                    <MaterialCommunityIcons
-                      name="arrow-right"
-                      size={24}
-                      color={colors.brand}
-                    />
-                  </Pressable>
-                )}
-            </View>
-          </>
-        )}
-
-        {selected && (
-          <View style={s.card}>
-            <View style={s.detailHeader}>
-              <View style={s.detailIcon}>
-                <MaterialCommunityIcons
-                  name="food-apple"
-                  size={20}
-                  color={colors.textPrimary}
-                />
-              </View>
-              <View style={{ flex: 1, gap: 2 }}>
-                <Text style={s.cardTitle} numberOfLines={2}>
-                  {selected.name}
-                </Text>
-                <Text style={s.cardMeta} numberOfLines={1}>
-                  {selected.meta ?? badgeText(selected)} · Base 100g
-                </Text>
-              </View>
-
-              <View style={s.badgePill}>
-                <Text style={s.badgePillText}>{badgeText(selected)}</Text>
-              </View>
-            </View>
-
-            <View style={{ marginTop: 12 }}>
-              <View style={s.labelRow}>
-                <Text style={[s.label, isPizza ? { fontSize: 16, fontWeight: "600" } : null]}>
-                  {isPizza && hasUnits 
-                    ? `Cantidad de ${selected.unit_label_es || "slices"}`
-                    : hasUnits 
-                      ? "Cantidad" 
-                      : "Gramos consumidos"}
-                </Text>
-                {hasUnits && (
-                  <View style={s.modeToggle}>
+                {!isSearchingLocal &&
+                  !isSearchingMore &&
+                  query.trim().length >= 2 &&
+                  results.length === 0 && (
                     <Pressable
                       onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        setInputMode("units");
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        router.push({
+                          pathname: "/(tabs)/create-food",
+                          params: { initialName: query.trim() },
+                        });
                       }}
                       style={({ pressed }) => [
-                        s.modeToggleBtn,
-                        inputMode === "units" && s.modeToggleBtnActive,
-                        pressed && { opacity: 0.7 },
+                        s.createFoodCard,
+                        pressed && s.createFoodCardPressed,
                       ]}
                     >
-                      <Text
-                        style={[
-                          s.modeToggleText,
-                          inputMode === "units" && s.modeToggleTextActive,
-                        ]}
-                      >
-                        {selected.unit_label_es || "unidad"}
-                      </Text>
+                      <View style={s.createFoodIcon}>
+                        <MaterialCommunityIcons
+                          name="plus-circle"
+                          size={32}
+                          color={colors.brand}
+                        />
+                      </View>
+                      <View style={s.createFoodContent}>
+                        <Text style={s.createFoodTitle}>
+                          ¿No encuentras "{query}"?
+                        </Text>
+                        <Text style={s.createFoodSubtitle}>
+                          ¡Agrégalo a la comunidad y gana +50 XP!
+                        </Text>
+                      </View>
+                      <MaterialCommunityIcons
+                        name="arrow-right"
+                        size={24}
+                        color={colors.brand}
+                      />
                     </Pressable>
-                    {!isFastFoodLocked && (
+                  )}
+              </View>
+            </>
+          )}
+
+          {selected && (
+            <View style={s.card}>
+              <View style={s.detailHeader}>
+                <View style={s.detailIcon}>
+                  <MaterialCommunityIcons
+                    name="food-apple"
+                    size={20}
+                    color={colors.textPrimary}
+                  />
+                </View>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={s.cardTitle} numberOfLines={2}>
+                    {selected.name}
+                  </Text>
+                  <Text style={s.cardMeta} numberOfLines={1}>
+                    {selected.meta ?? badgeText(selected)} · Base 100g
+                  </Text>
+                </View>
+
+                <View style={s.badgePill}>
+                  <Text style={s.badgePillText}>{badgeText(selected)}</Text>
+                </View>
+              </View>
+
+              <View style={{ marginTop: 12 }}>
+                <View style={s.labelRow}>
+                  <Text
+                    style={[
+                      s.label,
+                      isPizza ? { fontSize: 16, fontWeight: "600" } : null,
+                    ]}
+                  >
+                    {isPizza && hasUnits
+                      ? `Cantidad de ${selected.unit_label_es || "slices"}`
+                      : hasUnits
+                        ? "Cantidad"
+                        : "Gramos consumidos"}
+                  </Text>
+                  {hasUnits && (
+                    <View style={s.modeToggle}>
                       <Pressable
                         onPress={() => {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          setInputMode("grams");
+                          Haptics.impactAsync(
+                            Haptics.ImpactFeedbackStyle.Light,
+                          );
+                          setInputMode("units");
                         }}
                         style={({ pressed }) => [
                           s.modeToggleBtn,
-                          inputMode === "grams" && s.modeToggleBtnActive,
+                          inputMode === "units" && s.modeToggleBtnActive,
                           pressed && { opacity: 0.7 },
                         ]}
                       >
                         <Text
                           style={[
                             s.modeToggleText,
-                            inputMode === "grams" && s.modeToggleTextActive,
+                            inputMode === "units" && s.modeToggleTextActive,
                           ]}
                         >
-                          Gramos
+                          {selected.unit_label_es || "unidad"}
                         </Text>
                       </Pressable>
-                    )}
-                  </View>
-                )}
-              </View>
-              
-              <View style={[
-                s.gramsRow,
-                ...(isPizza && inputMode === "units" ? [s.pizzaInputRow] : [])
-              ]}>
-                <MaterialCommunityIcons
-                  name={inputMode === "units" ? "package-variant" : "scale"}
-                  size={isPizza && inputMode === "units" ? 24 : 18}
-                  color={isPizza && inputMode === "units" ? colors.brand : colors.textSecondary}
-                />
-                <TextInput
-                  value={inputMode === "units" ? unitsStr : gramsStr}
-                  onChangeText={(text) => {
-                    if (inputMode === "units") {
-                      setUnitsStr(text);
-                      // Marcar que el usuario está editando unidades
-                      const num = toFloatSafe(text);
-                      if (Number.isFinite(num)) {
-                        lastUserInputRef.current = { mode: "units", value: num };
-                      }
-                    } else {
-                      setGramsStr(text);
-                      // Marcar que el usuario está editando gramos
-                      const num = toFloatSafe(text);
-                      if (Number.isFinite(num)) {
-                        lastUserInputRef.current = { mode: "grams", value: num };
-                      }
-                    }
-                  }}
-                  keyboardType="decimal-pad"
-                  style={[
-                    s.gramsInput,
-                    ...(isPizza && inputMode === "units" ? [s.pizzaInput] : [])
-                  ]}
-                  placeholder={inputMode === "units" ? "1" : "100"}
-                  placeholderTextColor={colors.textSecondary}
-                />
-                <Text style={[
-                  s.gramsUnit,
-                  ...(isPizza && inputMode === "units" ? [s.pizzaUnit] : [])
-                ]}>
-                  {inputMode === "units" 
-                    ? (selected.unit_label_es || "unidad") 
-                    : "g"}
-                </Text>
-              </View>
-
-              {/* Display visual del cálculo para pizzas */}
-              {isPizza && hasUnits && inputMode === "units" && Number.isFinite(unitsNum) && unitsNum > 0 && preview && selected.grams_per_unit && (() => {
-                // Extraer solo el texto de la unidad sin el número inicial si existe
-                const unitLabel = selected.unit_label_es || "slice";
-                // Si el label ya incluye un número al inicio (ej: "1 trozo"), extraer solo la parte del texto
-                const unitText = unitLabel.replace(/^\d+\s*/, "").trim() || unitLabel;
-                // Construir el display: número + texto de unidad
-                const unitDisplay = unitsNum === 1 
-                  ? `1 ${unitText}`
-                  : `${unitsNum.toFixed(1)} ${unitText}`;
-                
-                return (
-                  <View style={s.pizzaCalculationBox}>
-                    <View style={s.pizzaCalculationRow}>
-                      <Text style={s.pizzaCalculationText}>
-                        {unitDisplay}
-                      </Text>
-                      <Text style={s.pizzaCalculationOperator}>×</Text>
-                      <Text style={s.pizzaCalculationText}>
-                        {Math.round((preview.kcal / unitsNum))} kcal
-                      </Text>
-                      <Text style={s.pizzaCalculationOperator}>=</Text>
-                      <Text style={s.pizzaCalculationTotal}>
-                        {Math.round(preview.kcal)} kcal
-                      </Text>
+                      {!isFastFoodLocked && (
+                        <Pressable
+                          onPress={() => {
+                            Haptics.impactAsync(
+                              Haptics.ImpactFeedbackStyle.Light,
+                            );
+                            setInputMode("grams");
+                          }}
+                          style={({ pressed }) => [
+                            s.modeToggleBtn,
+                            inputMode === "grams" && s.modeToggleBtnActive,
+                            pressed && { opacity: 0.7 },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              s.modeToggleText,
+                              inputMode === "grams" && s.modeToggleTextActive,
+                            ]}
+                          >
+                            Gramos
+                          </Text>
+                        </Pressable>
+                      )}
                     </View>
-                    <Text style={s.pizzaCalculationSubtext}>
-                      {unitDisplay} = {Math.round(gramsNum)}g
+                  )}
+                </View>
+
+                <View
+                  style={[
+                    s.gramsRow,
+                    ...(isPizza && inputMode === "units"
+                      ? [s.pizzaInputRow]
+                      : []),
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name={inputMode === "units" ? "package-variant" : "scale"}
+                    size={isPizza && inputMode === "units" ? 24 : 18}
+                    color={
+                      isPizza && inputMode === "units"
+                        ? colors.brand
+                        : colors.textSecondary
+                    }
+                  />
+                  <TextInput
+                    value={inputMode === "units" ? unitsStr : gramsStr}
+                    onChangeText={(text) => {
+                      if (inputMode === "units") {
+                        setUnitsStr(text);
+                        // Marcar que el usuario está editando unidades
+                        const num = toFloatSafe(text);
+                        if (Number.isFinite(num)) {
+                          lastUserInputRef.current = {
+                            mode: "units",
+                            value: num,
+                          };
+                        }
+                      } else {
+                        setGramsStr(text);
+                        // Marcar que el usuario está editando gramos
+                        const num = toFloatSafe(text);
+                        if (Number.isFinite(num)) {
+                          lastUserInputRef.current = {
+                            mode: "grams",
+                            value: num,
+                          };
+                        }
+                      }
+                    }}
+                    keyboardType="decimal-pad"
+                    style={[
+                      s.gramsInput,
+                      ...(isPizza && inputMode === "units"
+                        ? [s.pizzaInput]
+                        : []),
+                    ]}
+                    placeholder={inputMode === "units" ? "1" : "100"}
+                    placeholderTextColor={colors.textSecondary}
+                  />
+                  <Text
+                    style={[
+                      s.gramsUnit,
+                      ...(isPizza && inputMode === "units"
+                        ? [s.pizzaUnit]
+                        : []),
+                    ]}
+                  >
+                    {inputMode === "units"
+                      ? selected.unit_label_es || "unidad"
+                      : "g"}
+                  </Text>
+                </View>
+
+                {/* Display visual del cálculo para pizzas */}
+                {isPizza &&
+                  hasUnits &&
+                  inputMode === "units" &&
+                  Number.isFinite(unitsNum) &&
+                  unitsNum > 0 &&
+                  preview &&
+                  selected.grams_per_unit &&
+                  (() => {
+                    // Extraer solo el texto de la unidad sin el número inicial si existe
+                    const unitLabel = selected.unit_label_es || "slice";
+                    // Si el label ya incluye un número al inicio (ej: "1 trozo"), extraer solo la parte del texto
+                    const unitText =
+                      unitLabel.replace(/^\d+\s*/, "").trim() || unitLabel;
+                    // Construir el display: número + texto de unidad
+                    const unitDisplay =
+                      unitsNum === 1
+                        ? `1 ${unitText}`
+                        : `${unitsNum.toFixed(1)} ${unitText}`;
+
+                    return (
+                      <View style={s.pizzaCalculationBox}>
+                        <View style={s.pizzaCalculationRow}>
+                          <Text style={s.pizzaCalculationText}>
+                            {unitDisplay}
+                          </Text>
+                          <Text style={s.pizzaCalculationOperator}>×</Text>
+                          <Text style={s.pizzaCalculationText}>
+                            {Math.round(preview.kcal / unitsNum)} kcal
+                          </Text>
+                          <Text style={s.pizzaCalculationOperator}>=</Text>
+                          <Text style={s.pizzaCalculationTotal}>
+                            {Math.round(preview.kcal)} kcal
+                          </Text>
+                        </View>
+                        <Text style={s.pizzaCalculationSubtext}>
+                          {unitDisplay} = {Math.round(gramsNum)}g
+                        </Text>
+                      </View>
+                    );
+                  })()}
+
+                {/* Mostrar peso total destacado si es fast food */}
+                {isFastFood && (
+                  <View style={s.fastFoodBadge}>
+                    <MaterialCommunityIcons
+                      name="information"
+                      size={14}
+                      color={colors.cta}
+                    />
+                    <Text style={s.fastFoodBadgeText}>
+                      {inputMode === "units" && hasUnits
+                        ? `${unitsNum === 1 ? selected.unit_label_es || "unidad" : (selected.unit_label_es || "unidad") + "s"} = ${Math.round(gramsNum)}g`
+                        : `Peso total: ${Math.round(gramsNum)}g`}
                     </Text>
                   </View>
-                );
-              })()}
-              
-              {/* Mostrar peso total destacado si es fast food */}
-              {isFastFood && (
-                <View style={s.fastFoodBadge}>
+                )}
+
+                {/* Información de la porción para ingredientes base */}
+                {hasUnits && !isFastFood && (
+                  <View style={s.portionHint}>
+                    <Text style={s.portionHintText}>
+                      {inputMode === "units"
+                        ? `1 ${selected.unit_label_es || "unidad"} = ${selected.grams_per_unit}g`
+                        : `${Math.round(unitsNum * 10) / 10} ${(selected.unit_label_es || "unidad") + (unitsNum !== 1 ? "s" : "")} = ${Math.round(gramsNum)}g`}
+                    </Text>
+                  </View>
+                )}
+
+                {!!gramsError && <Text style={s.errorSmall}>{gramsError}</Text>}
+              </View>
+
+              <View style={s.previewBox}>
+                <View style={s.previewHeader}>
                   <MaterialCommunityIcons
-                    name="information"
-                    size={14}
-                    color={colors.cta}
+                    name="calculator-variant"
+                    size={18}
+                    color={colors.textPrimary}
                   />
-                  <Text style={s.fastFoodBadgeText}>
-                    {inputMode === "units" && hasUnits
-                      ? `${unitsNum === 1 ? (selected.unit_label_es || "unidad") : (selected.unit_label_es || "unidad") + "s"} = ${Math.round(gramsNum)}g`
-                      : `Peso total: ${Math.round(gramsNum)}g`}
-                  </Text>
+                  <Text style={s.previewTitle}>Resumen nutricional</Text>
+                </View>
+
+                <View style={s.previewGrid}>
+                  <MacroChip
+                    kind="kcal"
+                    value={Math.round(preview?.kcal ?? 0)}
+                    suffix="kcal"
+                    colors={colors}
+                    typography={typography}
+                  />
+                  <MacroChip
+                    kind="p"
+                    value={Number((preview?.protein ?? 0).toFixed(1))}
+                    suffix="g"
+                    label="Proteína"
+                    colors={colors}
+                    typography={typography}
+                  />
+                  <MacroChip
+                    kind="c"
+                    value={Number((preview?.carbs ?? 0).toFixed(1))}
+                    suffix="g"
+                    label="Carbs"
+                    colors={colors}
+                    typography={typography}
+                  />
+                  <MacroChip
+                    kind="f"
+                    value={Number((preview?.fat ?? 0).toFixed(1))}
+                    suffix="g"
+                    label="Grasas"
+                    colors={colors}
+                    typography={typography}
+                  />
+                </View>
+              </View>
+
+              {!!err && (
+                <View style={s.alert}>
+                  <Feather
+                    name="alert-triangle"
+                    size={16}
+                    color={colors.onCta}
+                  />
+                  <Text style={s.alertText}>{err}</Text>
                 </View>
               )}
-              
-              {/* Información de la porción para ingredientes base */}
-              {hasUnits && !isFastFood && (
-                <View style={s.portionHint}>
-                  <Text style={s.portionHintText}>
-                    {inputMode === "units"
-                      ? `1 ${selected.unit_label_es || "unidad"} = ${selected.grams_per_unit}g`
-                      : `${Math.round(unitsNum * 10) / 10} ${(selected.unit_label_es || "unidad") + (unitsNum !== 1 ? "s" : "")} = ${Math.round(gramsNum)}g`}
+
+              <PrimaryButton
+                title={saveLoading ? "Agregando..." : "Agregar al diario"}
+                onPress={onAdd}
+                loading={saveLoading}
+                disabled={saveLoading}
+                icon={<Feather name="plus" size={18} color={colors.onCta} />}
+              />
+
+              <Pressable
+                onPress={() => {
+                  justSelectedManuallyRef.current = false; // Resetear el flag
+                  setSelected(null);
+                }}
+                style={{ marginTop: 10 }}
+              >
+                {({ pressed }) => (
+                  <Text style={[s.backLink, pressed && { opacity: 0.75 }]}>
+                    Volver a resultados
                   </Text>
-                </View>
-              )}
-              
-              {!!gramsError && <Text style={s.errorSmall}>{gramsError}</Text>}
+                )}
+              </Pressable>
             </View>
+          )}
 
-            <View style={s.previewBox}>
-              <View style={s.previewHeader}>
-                <MaterialCommunityIcons
-                  name="calculator-variant"
-                  size={18}
-                  color={colors.textPrimary}
-                />
-                <Text style={s.previewTitle}>Resumen nutricional</Text>
-              </View>
-
-              <View style={s.previewGrid}>
-                <MacroChip
-                  kind="kcal"
-                  value={Math.round(preview?.kcal ?? 0)}
-                  suffix="kcal"
-                  colors={colors}
-                  typography={typography}
-                />
-                <MacroChip
-                  kind="p"
-                  value={Number((preview?.protein ?? 0).toFixed(1))}
-                  suffix="g"
-                  label="Proteína"
-                  colors={colors}
-                  typography={typography}
-                />
-                <MacroChip
-                  kind="c"
-                  value={Number((preview?.carbs ?? 0).toFixed(1))}
-                  suffix="g"
-                  label="Carbs"
-                  colors={colors}
-                  typography={typography}
-                />
-                <MacroChip
-                  kind="f"
-                  value={Number((preview?.fat ?? 0).toFixed(1))}
-                  suffix="g"
-                  label="Grasas"
-                  colors={colors}
-                  typography={typography}
-                />
-              </View>
-            </View>
-
-            {!!err && (
-              <View style={s.alert}>
-                <Feather name="alert-triangle" size={16} color={colors.onCta} />
-                <Text style={s.alertText}>{err}</Text>
-              </View>
-            )}
-
-            <PrimaryButton
-              title={saveLoading ? "Agregando..." : "Agregar al diario"}
-              onPress={onAdd}
-              loading={saveLoading}
-              disabled={saveLoading}
-              icon={<Feather name="plus" size={18} color={colors.onCta} />}
-            />
-
-            <Pressable
-              onPress={() => {
-                justSelectedManuallyRef.current = false; // Resetear el flag
-                setSelected(null);
-              }}
-              style={{ marginTop: 10 }}
-            >
-              {({ pressed }) => (
-                <Text style={[s.backLink, pressed && { opacity: 0.75 }]}>
-                  Volver a resultados
-                </Text>
-              )}
-            </Pressable>
-          </View>
-        )}
-
-        <View style={{ height: 20 }} />
-      </ScrollView>
+          <View style={{ height: 20 }} />
+        </ScrollView>
       </KeyboardAvoidingView>
+
+      <CreateGenericFoodByBarcodeModal
+        visible={showCreateGenericFoodModal}
+        barcode={barcodeToCreate ?? ""}
+        onClose={() => {
+          setShowCreateGenericFoodModal(false);
+          setBarcodeToCreate(null);
+        }}
+        onSuccess={(food) => {
+          const it = mapGenericFoodDbToSearchItem(
+            food,
+          ) as ExtendedFoodSearchItem;
+          setSelected(it);
+          setQuery(food.name_es);
+          setResults([]);
+          setShowCreateGenericFoodModal(false);
+          setBarcodeToCreate(null);
+          showToast({
+            message:
+              "Producto agregado a la base comunitaria. ¡Gracias por contribuir!",
+            type: "success",
+            icon: "check-circle",
+            duration: 2500,
+          });
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -1892,7 +2106,7 @@ const MacroChip = React.memo(function MacroChip({
   );
 });
 
-  function makeStyles(colors: any, typography: any) {
+function makeStyles(colors: any, typography: any) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
     container: { padding: 18, gap: 14 },

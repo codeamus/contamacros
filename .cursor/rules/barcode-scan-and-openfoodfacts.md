@@ -6,15 +6,15 @@
 
 ## 1. Resumen
 
-El **código de barras** escaneado en la app se envía a la **API de Open Food Facts** (world.openfoodfacts.org). No hay otra fuente para barcode: **todo barcode va a OFF**.
+Jerarquía de búsqueda por **código de barras** en add-food:
 
-- **Búsqueda por barcode:** `GET https://world.openfoodfacts.org/api/v2/product/{code}` (API v2).
-- **Búsqueda por texto:** `GET https://world.openfoodfacts.org/cgi/search.pl` (API v1), usada en add-food cuando el usuario escribe en la barra de búsqueda y elige "Buscar en Open Food Facts".
+1. **Prioridad API externa (Open Food Facts):** Se consulta `GET https://world.openfoodfacts.org/api/v2/product/{code}`. Si el producto existe, se usa en la app pero **no se guarda en la base de datos** (evitar saturación).
+2. **Prioridad local (Supabase):** Si no existe en OFF, se busca en la tabla `generic_foods` por la columna `barcode` (`genericFoodsRepository.getByBarcode(barcode)`).
+3. **Creación:** Si no existe en ninguna de las anteriores, se muestra un formulario para insertar el producto en `generic_foods` (nombre, barcode bloqueado, kcal_100g, protein_100g, carbs_100g, fat_100g). Componente: `CreateGenericFoodByBarcodeModal`.
 
-Hay dos flujos principales de **barcode**:
+- **Búsqueda por texto en OFF:** `GET https://world.openfoodfacts.org/cgi/search.pl` (API v1), usada cuando el usuario escribe y elige "Buscar en Open Food Facts".
 
-1. **Add Food:** Escanear → navegar a add-food con `params.barcode` → buscar en OFF → mostrar producto como seleccionado → usuario confirma cantidad y guarda en `food_logs` con `source: "openfoodfacts"`, `off_id`.
-2. **My Foods:** Escanear desde "Mis comidas" → navegar a my-foods con `params.barcode` → si el modal de crear receta está abierto, buscar en OFF y pre-rellenar ingrediente (Open Food Facts como sugerencia para la receta).
+**Mapeo OFF → columnas propias:** En `openFoodFactsService.mapOffProduct`: `nutriments.proteins_100g` → `protein_100g`, `nutriments.carbohydrates_100g` → `carbs_100g`, `nutriments.fat_100g` → `fat_100g`, energía (kJ/kcal) → `kcal_100g`. Coincide con `generic_foods` (protein_100g, carbs_100g, fat_100g, kcal_100g).
 
 ---
 
@@ -54,40 +54,42 @@ Hay dos flujos principales de **barcode**:
 - **Implementación:** `openFoodFactsService.search({ query, page, pageSize, cc, lc, signal })` en el mismo servicio.
 - **Uso en app:** add-food llama a `search()` cuando el usuario busca por texto y se elige búsqueda en Open Food Facts (no desde el escáner físico).
 
-### 3.3 Mapeo respuesta API → modelo interno
+### 3.3 Mapeo respuesta API (OFF) → modelo interno y generic_foods
 
 - **Función:** `mapOffProduct(raw)` dentro de `openFoodFactsService.ts` (no exportada).
 - **Modelo:** `OffProduct` en `src/domain/models/offProduct.ts`: `id`, `barcode?`, `name`, `brand?`, `imageUrl?`, `kcal_100g`, `protein_100g`, `carbs_100g`, `fat_100g`, `basis: "100g"`.
 - **Nombre:** Se usa `pickName(raw)`: `product_name` → `product_name_es` → `product_name_en` → `generic_name` → "Producto sin nombre".
-- **Energía:** Open Food Facts puede devolver energía en kJ o kcal; `convertEnergyToKcal` normaliza a kcal (1 kcal = 4.184 kJ). Campos: `energy-kcal_100g`, `energy-kj_100g` o `energy_100g`.
+- **Energía:** Open Food Facts puede devolver energía en kJ o kcal; `convertEnergyToKcal` normaliza a kcal (1 kcal = 4.184 kJ). Campos OFF: `energy-kcal_100g`, `energy-kj_100g` o `energy_100g` → `kcal_100g`.
+- **Macros:** OFF `nutriments.proteins_100g` → `protein_100g`; `nutriments.carbohydrates_100g` → `carbs_100g`; `nutriments.fat_100g` → `fat_100g`. Misma nomenclatura que `generic_foods` (protein_100g, carbs_100g, fat_100g, kcal_100g).
 
 ---
 
 ## 4. Archivos involucrados (referencia rápida)
 
-| Archivo                                          | Rol                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| `src/data/openfoodfacts/openFoodFactsService.ts` | **Único punto de llamada a la API de Open Food Facts.** `search()`, `getByBarcode(barcode, signal?)`, `mapOffProduct`, `pickName`, `convertEnergyToKcal`. Base URL: `https://world.openfoodfacts.org`.                                                                                                                                                                                                                                                                                      |
-| `src/domain/models/offProduct.ts`                | Tipo `OffProduct`: id, barcode, name, brand, imageUrl, nutrientes por 100g, basis.                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `app/(tabs)/scan.tsx`                            | Pantalla escáner: modo `barcode` vs `ai`. En modo barcode usa `CameraView` con `onBarcodeScanned` y `barcodeScannerSettings` (ean13, upc_a, upc_e, ean8, code128). Al escanear: `router.replace` a add-food o my-foods con `params.barcode` (y `meal` / `returnTo`).                                                                                                                                                                                                                        |
-| `app/(tabs)/add-food.tsx`                        | Recibe `params.barcode`. `useEffect` dependiente de `params.barcode` llama `openFoodFactsService.getByBarcode(barcode, abortController.signal)`, construye `ExtendedFoodSearchItem` con `source: "off"`, `off: res.data`, y hace `setSelected(it)`. Al guardar: `foodLogRepository.create` con `source: "openfoodfacts"`, `off_id: selected.off?.id ?? null`. Refs `isBarcodeSearchRef`, `justProcessedBarcodeRef` para evitar que useFocusEffect limpie o cancele la búsqueda por barcode. |
-| `app/(tabs)/my-foods.tsx`                        | Recibe `params.barcode`. `useEffect` con deps `[params.barcode, showCreateModal]`: si hay barcode y modal abierto, llama `openFoodFactsService.getByBarcode(barcode, signal)`, construye `ExtendedFoodSearchItem` (source "off"), `setSelectedIngredient(it)`, `setSearchQuery(res.data.name)`, `setShowSearch(true)`.                                                                                                                                                                      |
-| `src/domain/mappers/foodMappers.ts`              | `FoodSearchItem` con `source: "user_food"                                                                                                                                                                                                                                                                                                                                                                                                                                                   | "food" | "off"`. No hay mapper OFF→FoodSearchItem en este archivo; add-food y my-foods construyen a mano el item extendido con `off`. |
-| `src/data/food/foodLogRepository.ts`             | `create()` acepta `source`, `off_id`, `source_type`, `food_id`, `user_food_id`. Para productos OFF se usa `source: "openfoodfacts"`, `off_id` con el id/code del producto OFF.                                                                                                                                                                                                                                                                                                              |
-| `src/core/featureFlags/flags.ts`                 | Feature flag `barcodeScanUnlimited` (relacionado con límites de escaneo; por defecto false, true si premium).                                                                                                                                                                                                                                                                                                                                                                               |
+| Archivo                                                                     | Rol                                                                                                                                                                                                                                                                                                                    |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `src/data/openfoodfacts/openFoodFactsService.ts`                            | **Único punto de llamada a la API de Open Food Facts.** `search()`, `getByBarcode(barcode, signal?)`, `mapOffProduct`, `pickName`, `convertEnergyToKcal`. Base URL: `https://world.openfoodfacts.org`.                                                                                                                 |
+| `src/domain/models/offProduct.ts`                                           | Tipo `OffProduct`: id, barcode, name, brand, imageUrl, nutrientes por 100g, basis.                                                                                                                                                                                                                                     |
+| `app/(tabs)/scan.tsx`                                                       | Pantalla escáner: modo `barcode` vs `ai`. En modo barcode usa `CameraView` con `onBarcodeScanned` y `barcodeScannerSettings` (ean13, upc_a, upc_e, ean8, code128). Al escanear: `router.replace` a add-food o my-foods con `params.barcode` (y `meal` / `returnTo`).                                                   |
+| `app/(tabs)/add-food.tsx`                                                   | Recibe `params.barcode`. Flujo jerárquico: 1) OFF `getByBarcode` (usar sin guardar en BD); 2) `genericFoodsRepository.getByBarcode(barcode)`; 3) si no está en ninguno, abre `CreateGenericFoodByBarcodeModal` para insertar en `generic_foods`. Refs `isBarcodeSearchRef`, `justProcessedBarcodeRef`.                 |
+| `src/data/food/genericFoodsRepository.ts`                                   | `getByBarcode(barcode)` busca en `generic_foods` por columna `barcode`. `createByBarcode({ name_es, barcode, kcal_100g, protein_100g, carbs_100g, fat_100g })` inserta producto nuevo (base 100g).                                                                                                                     |
+| `src/presentation/components/nutrition/CreateGenericFoodByBarcodeModal.tsx` | Modal para crear producto en `generic_foods`: nombre, barcode (bloqueado), kcal/protein/carbs/fat por 100g. Enlace "O contribuir en Open Food Facts".                                                                                                                                                                  |
+| `app/(tabs)/my-foods.tsx`                                                   | Recibe `params.barcode`. `useEffect` con deps `[params.barcode, showCreateModal]`: si hay barcode y modal abierto, llama `openFoodFactsService.getByBarcode(barcode, signal)`, construye `ExtendedFoodSearchItem` (source "off"), `setSelectedIngredient(it)`, `setSearchQuery(res.data.name)`, `setShowSearch(true)`. |
+| `src/domain/mappers/foodMappers.ts`                                         | `FoodSearchItem` con `source: "user_food"                                                                                                                                                                                                                                                                              | "food" | "off"`. No hay mapper OFF→FoodSearchItem en este archivo; add-food y my-foods construyen a mano el item extendido con `off`. |
+| `src/data/food/foodLogRepository.ts`                                        | `create()` acepta `source`, `off_id`, `source_type`, `food_id`, `user_food_id`. Para productos OFF se usa `source: "openfoodfacts"`, `off_id` con el id/code del producto OFF.                                                                                                                                         |
+| `src/core/featureFlags/flags.ts`                                            | Feature flag `barcodeScanUnlimited` (relacionado con límites de escaneo; por defecto false, true si premium).                                                                                                                                                                                                          |
 
 ---
 
-## 5. Flujo completo: Barcode → Add Food → food_logs
+## 5. Flujo completo: Barcode → Add Food (jerarquía OFF → local → creación)
 
-1. Usuario en **scan** (modo barcode) escanea código → `onBarcodeScanned({ data })` con el código.
-2. `scan.tsx` hace `router.replace("/(tabs)/add-food", { params: { meal, barcode: data } })` (o my-foods con `barcode` si `returnTo === "my-foods"`).
-3. **add-food** monta con `params.barcode`. Un `useEffect` que depende de `params.barcode`:
-   - Crea `AbortController`, llama `openFoodFactsService.getByBarcode(barcode, signal)`.
-   - Si `res.ok` y `res.data`, construye `ExtendedFoodSearchItem`: `key: "off:" + res.data.id`, `source: "off"`, `name`, `meta` (brand), nutrientes desde `res.data`, `off: res.data`.
-   - `setSelected(it)`, `setQuery(res.data.name)`, `setResults([])`, luego `router.setParams({ barcode: undefined })` para evitar re-búsqueda al volver.
-4. Usuario ajusta cantidad (gramos o unidades si aplica) y confirma. Al guardar:
-   - `foodLogRepository.create({ day, meal, name, grams, calories, protein_g, carbs_g, fat_g, source: "openfoodfacts", off_id: selected.off?.id ?? null, source_type: "manual", ... })`.
+1. Usuario en **scan** (modo barcode) escanea código → `onBarcodeScanned({ data })`.
+2. `scan.tsx` hace `router.replace("/(tabs)/add-food", { params: { meal, barcode: data } })` (o my-foods si `returnTo === "my-foods"`).
+3. **add-food** monta con `params.barcode`. Un `useEffect` dependiente de `params.barcode`:
+   - **Paso 1 – API externa:** Llama `openFoodFactsService.getByBarcode(barcode, signal)`. Si `res.ok` y `res.data`, usa el producto de OFF (no lo guarda en BD), construye `ExtendedFoodSearchItem` con `source: "off"`, `setSelected(it)`, limpia params y termina.
+   - **Paso 2 – Local:** Si no hubo resultado en OFF, llama `genericFoodsRepository.getByBarcode(barcode)`. Si hay dato, mapea con `mapGenericFoodDbToSearchItem`, `setSelected(it)`, limpia params y termina.
+   - **Paso 3 – Creación:** Si no está en OFF ni en `generic_foods`, abre `CreateGenericFoodByBarcodeModal` con el barcode (bloqueado). El usuario completa nombre y macros por 100g; al guardar se llama `genericFoodsRepository.createByBarcode(...)` y se inserta en `generic_foods`. Tras éxito, se usa el nuevo alimento como seleccionado.
+4. Usuario ajusta cantidad y confirma. Al guardar en food_logs: `source: "openfoodfacts"` si vino de OFF, `source: "generic_foods"` y `food_id` si vino de generic_foods (local o recién creado).
 5. No se guarda en "recientes" cuando `source === "off"` (solo generic_foods y user_foods).
 
 ---

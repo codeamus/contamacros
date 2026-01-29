@@ -264,7 +264,8 @@ src/presentation/hooks/
 
 - ✅ **Add Food Screen:**
   - Búsqueda local (generic_foods, user_foods)
-  - Búsqueda en OpenFoodFacts (texto y por código de barras). El **código de barras** va siempre a la API de Open Food Facts. Documentación completa: `.cursor/rules/barcode-scan-and-openfoodfacts.md` — **consultar SIEMPRE** antes de cambios en escaneo de barcode u OFF.
+  - **Búsqueda por código de barras (jerarquía):** 1) API Open Food Facts (usar sin guardar en BD); 2) `generic_foods` por columna `barcode` (Supabase); 3) si no existe, formulario para crear en `generic_foods` (nombre, barcode bloqueado, kcal/protein/carbs/fat por 100g). Ver `.cursor/rules/barcode-scan-and-openfoodfacts.md`.
+  - Búsqueda en OpenFoodFacts por texto (barra de búsqueda).
   - Registro de alimentos con unidades o gramos
   - Historial de búsquedas
 
