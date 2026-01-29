@@ -1079,7 +1079,7 @@ export default function SmartCoachProScreen() {
           {/* Sección de refinamiento (chat) debajo de la tarjeta */}
           <View style={s.refineSection}>
             <Text style={[s.refineTitle, { color: colors.textSecondary }]}>
-              ¿Quieres ajustar algo?
+              ¿Quieres comer otra cosa?
             </Text>
             {fallbackMessage ? (
               <View
@@ -1136,7 +1136,7 @@ export default function SmartCoachProScreen() {
                       color: colors.textPrimary,
                     },
                   ]}
-                  placeholder="No tengo este ingrediente... o algo más rápido"
+                  placeholder="Consulta con Smart Coach Pro"
                   placeholderTextColor={colors.textSecondary}
                   value={chatText}
                   onChangeText={setChatText}
