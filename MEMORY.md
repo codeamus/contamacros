@@ -264,7 +264,7 @@ src/presentation/hooks/
 
 - ✅ **Add Food Screen:**
   - Búsqueda local (generic_foods, user_foods)
-  - Búsqueda en OpenFoodFacts
+  - Búsqueda en OpenFoodFacts (texto y por código de barras). El **código de barras** va siempre a la API de Open Food Facts. Documentación completa: `.cursor/rules/barcode-scan-and-openfoodfacts.md` — **consultar SIEMPRE** antes de cambios en escaneo de barcode u OFF.
   - Registro de alimentos con unidades o gramos
   - Historial de búsquedas
 
@@ -276,7 +276,7 @@ src/presentation/hooks/
 - ✅ **My Foods Screen:**
   - Creación de recetas personalizadas
   - Lista de alimentos del usuario
-  - Scanner de códigos de barras (integración)
+  - Scanner de códigos de barras: escaneo navega con `params.barcode` y se busca en Open Food Facts para pre-rellenar ingrediente. Ver `.cursor/rules/barcode-scan-and-openfoodfacts.md`.
 
 - ✅ **Settings Screen:**
   - Edición de perfil (nombre, peso, objetivo, actividad)
@@ -316,6 +316,7 @@ src/presentation/hooks/
 ### En Desarrollo / Issues Conocidos
 
 - ⚠️ **Scanner de Códigos de Barras:**
+  - Documentación: `.cursor/rules/barcode-scan-and-openfoodfacts.md` — **leer SIEMPRE** para flujo barcode → Open Food Facts.
   - Problema: El modal del alimento se oculta después de escanear
   - Estado: Parcialmente funcional (detecta código, busca producto, pero el modal desaparece)
   - Nota: Se agregaron logs detallados y protección contra limpieza prematura del estado
@@ -373,6 +374,7 @@ src/presentation/hooks/
 - Endpoints:
   - Búsqueda: `/cgi/search.pl` (v1)
   - Por barcode: `/api/v2/product/{code}` (v2)
+- **Documentación:** Todo lo relativo a escanear código de barras y OFF está en `.cursor/rules/barcode-scan-and-openfoodfacts.md`. Consultar ese archivo antes de tocar el flujo barcode u OFF.
 
 ### Google Gemini (IA Scan y Smart Coach Pro)
 
@@ -400,10 +402,12 @@ src/presentation/hooks/
    - Health Sync: Solo para premium
    - Scanner ilimitado: Solo para premium (según feature flags)
 
-4. **Scanner:**
+4. **Scanner (código de barras y Open Food Facts):**
+   - El código de barras va **siempre** a la API de Open Food Facts (`openFoodFactsService.getByBarcode`). Documentación: `.cursor/rules/barcode-scan-and-openfoodfacts.md` — **leer siempre** antes de aplicar lógica sobre barcode u OFF.
+   - Pantalla scan: modo barcode (CameraView + onBarcodeScanned) vs modo IA (useMacroScanner + Gemini). Ver ia-scan-and-gemini.md para modo IA.
    - Usa `useFocusEffect` para resetear estado al volver
    - Problema conocido: Modal desaparece después de escanear (en proceso de corrección)
-   - Usa refs (`isBarcodeSearchRef`, `justProcessedBarcodeRef`) para proteger el estado
+   - Usa refs (`isBarcodeSearchRef`, `justProcessedBarcodeRef`) en add-food para proteger el estado al volver del escáner
 
 5. **Nombres de Usuarios:**
    - Se editan desde Settings → Perfil → Nombre
