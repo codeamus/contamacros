@@ -1,0 +1,33 @@
+{
+     "cli": {
+          "version": ">= 5.0.0",
+          "appVersionSource": "local"
+     },
+     "build": {
+          "local": {
+               "distribution": "internal",
+               "developmentClient": true,
+               "android": {
+                    "buildType": "apk"
+               },
+               "ios": {
+                    "simulator": true
+               }
+          },
+          "production": {
+               "distribution": "store",
+               "autoIncrement": true,
+               "ios": {
+                    "buildConfiguration": "Release"
+               }
+          }
+     },
+     "submit": {
+          "production": {
+               "android": {
+                    "track": "production"
+               },
+               "ios": {}
+          }
+     }
+}
