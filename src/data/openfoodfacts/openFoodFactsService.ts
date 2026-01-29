@@ -153,7 +153,15 @@ export const openFoodFactsService = {
       
       if (!r.ok) {
         console.error("[OpenFoodFacts] ❌ Error HTTP:", r.status, r.statusText);
-        return { ok: false, message: `OFF product error (${r.status})` };
+        // 404 = producto no está en la base de datos de Open Food Facts
+        if (r.status === 404) {
+          return {
+            ok: false,
+            message:
+              "Producto no encontrado en Open Food Facts. Puedes buscarlo por nombre o agregarlo manualmente.",
+          };
+        }
+        return { ok: false, message: `Error al consultar Open Food Facts (${r.status})` };
       }
 
       const json = await r.json();

@@ -115,7 +115,8 @@ En `app/(tabs)/scan.tsx`, `barcodeScannerSettings.barcodeTypes`: `["ean13", "upc
 ## 9. Errores y mensajes
 
 - Barcode vacío: `openFoodFactsService.getByBarcode` devuelve `{ ok: false, message: "Barcode vacío." }`.
-- Producto no encontrado: OFF devuelve `status === 0` → mensaje `status_verbose` o "Producto no encontrado.".
+- **Producto no encontrado:** La API v2 de OFF devuelve **HTTP 404** cuando el código no está en su base de datos. El servicio devuelve un mensaje amigable: "Producto no encontrado en Open Food Facts. Puedes buscarlo por nombre o agregarlo manualmente." (no mostrar "OFF product error (404)" al usuario).
+- Producto no encontrado (respuesta 200 con status 0): si OFF respondiera 200 con `status === 0`, se usa `status_verbose` o "Producto no encontrado.".
 - Request cancelada: si `signal.aborted` o `AbortError`, se devuelve `{ ok: false, message: "Búsqueda cancelada." }`.
 - Errores de red u otros: capturados en el servicio y devueltos como `{ ok: false, message: ... }`. add-food/my-foods muestran `setErr(res.message)` o equivalente.
 
