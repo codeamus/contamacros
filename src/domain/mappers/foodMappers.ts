@@ -23,6 +23,8 @@ export type FoodSearchItem = {
   food_id?: string | null;
   user_food_id?: string | null;
   verified?: boolean;
+  /** Unidad base: 'g' (gramos) o 'ml' (mililitros). Valores nutricionales por 100g o 100ml. */
+  base_unit?: "g" | "ml" | null;
 };
 
 /**
@@ -51,6 +53,7 @@ export function mapGenericFoodDbToSearchItem(genericFood: GenericFoodDb): FoodSe
     tags: genericFood.tags ?? [],
     food_id: genericFood.id,
     verified: true,
+    base_unit: genericFood.base_unit === "ml" ? "ml" : "g",
   };
 }
 

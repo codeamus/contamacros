@@ -1,22 +1,22 @@
 // app/(tabs)/add-food.tsx
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, {
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -28,10 +28,10 @@ import { userFoodsRepository } from "@/data/food/userFoodsRepository";
 import { openFoodFactsService } from "@/data/openfoodfacts/openFoodFactsService";
 import { supabase } from "@/data/supabase/supabaseClient";
 import {
-    mapGenericFoodDbArrayToSearchItems,
-    mapGenericFoodDbToSearchItem,
-    mapUserFoodDbArrayToSearchItems,
-    type FoodSearchItem,
+  mapGenericFoodDbArrayToSearchItems,
+  mapGenericFoodDbToSearchItem,
+  mapUserFoodDbArrayToSearchItems,
+  type FoodSearchItem,
 } from "@/domain/mappers/foodMappers";
 import type { MealType } from "@/domain/models/foodLogDb";
 import type { OffProduct } from "@/domain/models/offProduct";
@@ -771,36 +771,24 @@ export default function AddFoodScreen() {
       if (unitsNum > 100) return "Demasiado alto (máx 100 unidades)";
       return null;
     } else {
-      if (!gramsStr.trim()) return "Ingresa gramos";
+      const isMl = selected?.base_unit === "ml";
+      if (!gramsStr.trim())
+        return isMl ? "Ingresa mililitros" : "Ingresa gramos";
       if (!Number.isFinite(gramsNum)) return "Valor inválido";
       if (gramsNum <= 0) return "Debe ser > 0";
-      if (gramsNum > 2000) return "Demasiado alto (máx 2000g)";
+      if (gramsNum > 2000)
+        return isMl
+          ? "Demasiado alto (máx 2000 ml)"
+          : "Demasiado alto (máx 2000 g)";
       return null;
     }
-  }, [gramsStr, gramsNum, unitsStr, unitsNum, inputMode]);
+  }, [gramsStr, gramsNum, unitsStr, unitsNum, inputMode, selected?.base_unit]);
 
   const preview = useMemo(() => {
     if (!selected) return null;
     const g = Number.isFinite(gramsNum) ? clamp(gramsNum, 1, 2000) : 100;
 
-    // Validar que al menos algunos valores nutricionales existan
-    const hasAnyMacros =
-      (selected.kcal_100g != null && selected.kcal_100g > 0) ||
-      (selected.protein_100g != null && selected.protein_100g > 0) ||
-      (selected.carbs_100g != null && selected.carbs_100g > 0) ||
-      (selected.fat_100g != null && selected.fat_100g > 0);
-
-    if (!hasAnyMacros) {
-      console.warn("[AddFoodScreen] ⚠️ Alimento sin valores nutricionales:", {
-        name: selected.name,
-        kcal_100g: selected.kcal_100g,
-        protein_100g: selected.protein_100g,
-        carbs_100g: selected.carbs_100g,
-        fat_100g: selected.fat_100g,
-      });
-      return null;
-    }
-
+    // Permitir 0 calorías/macros (ej: Pepsi Zero, Coca Zero) para poder trackear igual
     return computeFrom100gMacros(
       {
         kcal_100g: selected.kcal_100g ?? 0,
@@ -914,25 +902,22 @@ export default function AddFoodScreen() {
       setErr(gramsError);
       return;
     }
-    if (!preview) {
-      console.log("[AddFoodScreen] ❌ onAdd: No hay preview calculado", {
-        selected: selected.name,
-        kcal_100g: selected.kcal_100g,
-        protein_100g: selected.protein_100g,
-        gramsNum,
-      });
-      setErr(
-        "No se pudo calcular la información nutricional. Verifica que el alimento tenga valores válidos.",
-      );
-      return;
-    }
-
     const g = Number.isFinite(gramsNum) ? clamp(gramsNum, 1, 2000) : 100;
+    // Siempre calcular desde selected + gramos (permite 0 kcal/macros: Pepsi Zero, Coca Zero, etc.)
+    const previewValues = computeFrom100gMacros(
+      {
+        kcal_100g: selected.kcal_100g ?? 0,
+        protein_100g: selected.protein_100g ?? 0,
+        carbs_100g: selected.carbs_100g ?? 0,
+        fat_100g: selected.fat_100g ?? 0,
+      },
+      g,
+    );
 
     console.log("[AddFoodScreen] ✅ onAdd: Guardando alimento", {
       name: selected.name,
       grams: g,
-      preview,
+      preview: previewValues,
     });
 
     setSaveLoading(true);
@@ -943,11 +928,11 @@ export default function AddFoodScreen() {
       name: selected.name,
       grams: Math.round(g),
 
-      // Redondear a enteros porque la base de datos usa integer
-      calories: Math.round(preview.kcal),
-      protein_g: Math.round(preview.protein),
-      carbs_g: Math.round(preview.carbs),
-      fat_g: Math.round(preview.fat),
+      // Redondear a enteros porque la base de datos usa integer (0 calorías permitido, ej: Pepsi Zero)
+      calories: Math.round(previewValues.kcal),
+      protein_g: Math.round(previewValues.protein),
+      carbs_g: Math.round(previewValues.carbs),
+      fat_g: Math.round(previewValues.fat),
 
       source:
         selected.source === "off"
@@ -1015,7 +1000,7 @@ export default function AddFoodScreen() {
     setTimeout(() => {
       router.replace("/(tabs)/diary");
     }, 2000);
-  }, [selected, gramsError, preview, gramsNum, day, meal, showToast, router]);
+  }, [selected, gramsError, gramsNum, day, meal, showToast, router]);
 
   const handleSelectFromHistory = useCallback(async (historyItem: string) => {
     setQuery(historyItem);
@@ -1705,7 +1690,8 @@ export default function AddFoodScreen() {
                     {selected.name}
                   </Text>
                   <Text style={s.cardMeta} numberOfLines={1}>
-                    {selected.meta ?? badgeText(selected)} · Base 100g
+                    {selected.meta ?? badgeText(selected)} · Base{" "}
+                    {selected.base_unit === "ml" ? "100 ml" : "100 g"}
                   </Text>
                 </View>
 
@@ -1726,7 +1712,9 @@ export default function AddFoodScreen() {
                       ? `Cantidad de ${selected.unit_label_es || "slices"}`
                       : hasUnits
                         ? "Cantidad"
-                        : "Gramos consumidos"}
+                        : selected.base_unit === "ml"
+                          ? "Mililitros consumidos"
+                          : "Gramos consumidos"}
                   </Text>
                   {hasUnits && (
                     <View style={s.modeToggle}>
@@ -1772,7 +1760,9 @@ export default function AddFoodScreen() {
                               inputMode === "grams" && s.modeToggleTextActive,
                             ]}
                           >
-                            Gramos
+                            {selected.base_unit === "ml"
+                              ? "Mililitros"
+                              : "Gramos"}
                           </Text>
                         </Pressable>
                       )}
@@ -1842,7 +1832,9 @@ export default function AddFoodScreen() {
                   >
                     {inputMode === "units"
                       ? selected.unit_label_es || "unidad"
-                      : "g"}
+                      : selected.base_unit === "ml"
+                        ? "ml"
+                        : "g"}
                   </Text>
                 </View>
 
@@ -1882,7 +1874,8 @@ export default function AddFoodScreen() {
                           </Text>
                         </View>
                         <Text style={s.pizzaCalculationSubtext}>
-                          {unitDisplay} = {Math.round(gramsNum)}g
+                          {unitDisplay} = {Math.round(gramsNum)}
+                          {selected.base_unit === "ml" ? " ml" : "g"}
                         </Text>
                       </View>
                     );
@@ -1898,8 +1891,8 @@ export default function AddFoodScreen() {
                     />
                     <Text style={s.fastFoodBadgeText}>
                       {inputMode === "units" && hasUnits
-                        ? `${unitsNum === 1 ? selected.unit_label_es || "unidad" : (selected.unit_label_es || "unidad") + "s"} = ${Math.round(gramsNum)}g`
-                        : `Peso total: ${Math.round(gramsNum)}g`}
+                        ? `${unitsNum === 1 ? selected.unit_label_es || "unidad" : (selected.unit_label_es || "unidad") + "s"} = ${Math.round(gramsNum)}${selected.base_unit === "ml" ? " ml" : "g"}`
+                        : `Peso total: ${Math.round(gramsNum)}${selected.base_unit === "ml" ? " ml" : " g"}`}
                     </Text>
                   </View>
                 )}
@@ -1925,7 +1918,12 @@ export default function AddFoodScreen() {
                     size={18}
                     color={colors.textPrimary}
                   />
-                  <Text style={s.previewTitle}>Resumen nutricional</Text>
+                  <View>
+                    <Text style={s.previewTitle}>Resumen nutricional</Text>
+                    <Text style={s.previewSubtitle}>
+                      Valores por 100 {selected.base_unit === "ml" ? "ml" : "g"}
+                    </Text>
+                  </View>
                 </View>
 
                 <View style={s.previewGrid}>
@@ -2656,6 +2654,12 @@ function makeStyles(colors: any, typography: any) {
       fontFamily: typography.subtitle?.fontFamily,
       color: colors.textPrimary,
       fontSize: 14,
+    },
+    previewSubtitle: {
+      fontFamily: typography.body?.fontFamily,
+      color: colors.textSecondary,
+      fontSize: 11,
+      marginTop: 2,
     },
 
     previewGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
