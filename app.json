@@ -7,6 +7,9 @@
     "scheme": "contamacro",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "proguardRuleFiles": [
+      "proguard-rules.pro"
+    ],
     "icon": "./assets/images/adaptive-icon.png",
     "ios": {
       "bundleIdentifier": "com.codeamusdev2.contamacro",
@@ -81,7 +84,7 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
-      "versionCode": 14
+      "versionCode": 15
     },
     "experiments": {
       "typedRoutes": true,
