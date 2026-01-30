@@ -60,7 +60,13 @@
           "backgroundColor": "#F6F7EB"
         }
       ],
-      "@kingstinct/react-native-healthkit",
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "healthSharePermission": "ContaMacros lee tus calorías quemadas y pasos para ajustar tus metas diarias automáticamente.",
+          "healthUpdatePermission": "ContaMacros sincroniza tus registros de comidas con Apple Health."
+        }
+      ],
       "expo-image-picker",
       "@react-native-community/datetimepicker"
     ],
