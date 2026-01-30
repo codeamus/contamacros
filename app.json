@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "scheme": "contamacro",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "icon": "./assets/images/adaptive-icon.png",
     "ios": {
       "bundleIdentifier": "com.codeamusdev2.contamacro",
@@ -34,8 +34,20 @@
             "minSdkVersion": 26,
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
-            "extraMavenRepos": [
-              "https://www.jitpack.io"
+            "kotlinVersion": "2.0.20",
+            "extraGradleProps": [
+              {
+                "name": "reanimated.newArchEnabled",
+                "value": "false"
+              },
+              {
+                "name": "worklets.newArchEnabled",
+                "value": "false"
+              },
+              {
+                "name": "android.kotlin.suppressVersionCheck",
+                "value": "true"
+              }
             ]
           }
         }
@@ -56,14 +68,14 @@
       "package": "com.codeamusdev2.contamacro",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#22C55E"
+        "backgroundColor": "#1B3A2F"
       },
       "permissions": [
         "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
-      "versionCode": 5
+      "versionCode": 14
     },
     "experiments": {
       "typedRoutes": true,
