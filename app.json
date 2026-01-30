@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "scheme": "contamacro",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "icon": "./assets/images/adaptive-icon.png",
     "ios": {
       "bundleIdentifier": "com.codeamusdev2.contamacro",
@@ -28,31 +28,28 @@
     "plugins": [
       "expo-router",
       [
-        "expo-splash-screen",
+        "expo-build-properties",
         {
-          "image": "./assets/images/splash-icon-light.png",
-          "resizeMode": "contain",
-          "backgroundColor": "#F6F7EB",
-          "dark": {
-            "image": "./assets/images/splash-icon-dark.png",
-            "backgroundColor": "#1B3A2F"
+          "android": {
+            "minSdkVersion": 26,
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "extraMavenRepos": [
+              "https://www.jitpack.io"
+            ]
           }
         }
       ],
       [
-        "@kingstinct/react-native-healthkit",
+        "expo-splash-screen",
         {
-          "healthSharePermission": "ContaMacros necesita leer tus datos de actividad para calcular tu gasto energético diario.",
-          "healthUpdatePermission": "ContaMacros puede guardar tus registros nutricionales en la app Salud."
+          "image": "./assets/images/splash-icon-light.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#F6F7EB"
         }
       ],
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "Permite el acceso para elegir tu foto de perfil.",
-          "cameraPermission": "Permite el acceso para tomar fotos de tus comidas."
-        }
-      ],
+      "@kingstinct/react-native-healthkit",
+      "expo-image-picker",
       "@react-native-community/datetimepicker"
     ],
     "android": {
@@ -63,12 +60,20 @@
       },
       "permissions": [
         "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
-        "android.permission.CAMERA"
-      ]
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "versionCode": 4
     },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "fabcdd10-479b-45df-a93b-78b3eaf2c612"
+      }
     }
   }
 }
