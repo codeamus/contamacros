@@ -86,6 +86,12 @@
       ],
       "versionCode": 15
     },
+    "androidNavigationBar": {
+      "visible": "always",
+      "barStyle": "dark-content",
+      "backgroundColor": "#00000000",
+      "translucent": true
+    },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true

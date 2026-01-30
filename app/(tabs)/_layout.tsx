@@ -2,8 +2,9 @@
 import WeightPredictor from "@/presentation/components/predictor/WeightPredictor";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import * as NavigationBar from "expo-navigation-bar";
 import { Tabs, useSegments } from "expo-router";
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import { Platform, View } from "react-native";
 
 export default function TabsLayout() {
@@ -15,6 +16,15 @@ export default function TabsLayout() {
   const isScanScreen = useMemo(() => {
     return segments.includes("scan");
   }, [segments]);
+
+  useEffect(() => {
+    if (Platform.OS === "android") {
+      // Hace que la barra de Android sea transparente y la app se dibuje detrás
+      NavigationBar.setPositionAsync("absolute");
+      NavigationBar.setBackgroundColorAsync("#00000000"); // Totalmente transparente
+      NavigationBar.setButtonStyleAsync("light"); // Para que la 'rayita' sea clara u oscura
+    }
+  }, []);
 
   return (
     <View style={{ flex: 1 }}>
@@ -28,20 +38,17 @@ export default function TabsLayout() {
             backgroundColor: colors.surface,
             borderTopColor: colors.border,
             borderTopWidth: 1,
-            height: Platform.OS === "ios" ? 88 : 70,
+            // AJUSTE CLAVE:
+            height: Platform.OS === "ios" ? 88 : 75, // Un poco más alto para dar margen
+            paddingBottom: Platform.OS === "ios" ? 28 : 22, // Sube los textos en Android
             paddingTop: 10,
-            paddingBottom: Platform.OS === "ios" ? 26 : 12,
-            elevation: 8, // Sombra en Android
-            shadowColor: "#000", // Sombra en iOS
-            shadowOffset: { width: 0, height: -2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 8,
           },
-
           tabBarLabelStyle: {
             fontFamily: typography.body?.fontFamily,
-            fontSize: 12,
-            fontWeight: "600", // Más bold para mejor legibilidad
+            fontSize: 11,
+            fontWeight: "600",
+            // Un pequeño margen extra para el texto
+            marginBottom: Platform.OS === "android" ? 2 : 0,
           },
         }}
       >
@@ -74,7 +81,7 @@ export default function TabsLayout() {
             tabBarIcon: ({ color, focused, size }) => (
               <Feather
                 name="home"
-                size={focused ? (size ?? 22) : (size ?? 20)}
+                size={focused ? size ?? 22 : size ?? 20}
                 color={focused ? colors.brand : color}
               />
             ),
@@ -87,7 +94,7 @@ export default function TabsLayout() {
             tabBarIcon: ({ color, focused, size }) => (
               <MaterialCommunityIcons
                 name="silverware-fork-knife"
-                size={focused ? (size ?? 22) : (size ?? 20)}
+                size={focused ? size ?? 22 : size ?? 20}
                 color={focused ? colors.brand : color}
               />
             ),
@@ -100,7 +107,7 @@ export default function TabsLayout() {
             tabBarIcon: ({ color, focused, size }) => (
               <MaterialCommunityIcons
                 name="chef-hat"
-                size={focused ? (size ?? 22) : (size ?? 20)}
+                size={focused ? size ?? 22 : size ?? 20}
                 color={focused ? colors.brand : color}
               />
             ),
@@ -113,7 +120,7 @@ export default function TabsLayout() {
             tabBarIcon: ({ color, focused, size }) => (
               <MaterialCommunityIcons
                 name="chart-line"
-                size={focused ? (size ?? 22) : (size ?? 20)}
+                size={focused ? size ?? 22 : size ?? 20}
                 color={focused ? colors.brand : color}
               />
             ),
