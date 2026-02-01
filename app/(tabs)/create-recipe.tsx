@@ -19,6 +19,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import Swipeable from "react-native-gesture-handler/Swipeable";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { genericFoodsRepository } from "@/data/food/genericFoodsRepository";
@@ -963,145 +964,156 @@ function IngredientItem({
   );
 
   const currentUnits = hasUnits
-    ? ingredient.units ||
-      Math.round(ingredient.grams / (ingredient.food.grams_per_unit ?? 1))
-    : null;
+  ? ingredient.units ||
+    Math.round(ingredient.grams / (ingredient.food.grams_per_unit ?? 1))
+  : null;
+
+  const renderRightActions = () => {
+    return (
+      <View style={styles.swipeActionContainer}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.swipeDeleteButton,
+            pressed && { opacity: 0.9, transform: [{ scale: 0.95 }] },
+          ]}
+          onPress={() => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            onRemove();
+          }}
+        >
+          <Feather name="trash-2" size={24} color={colors.onCta} />
+        </Pressable>
+      </View>
+    );
+  };
 
   return (
-    <View style={styles.ingredientItem}>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.ingredientName}>{ingredient.food.name}</Text>
-        {isEditing ? (
-          <View style={styles.ingredientEditContainer}>
-            {hasUnits && (
-              <View style={styles.ingredientEditModeToggle}>
-                <Pressable
-                  onPress={() => setEditMode("units")}
-                  style={({ pressed }) => [
-                    styles.ingredientEditModeBtn,
-                    editMode === "units" && styles.ingredientEditModeBtnActive,
-                    pressed && { opacity: 0.7 },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.ingredientEditModeText,
-                      editMode === "units" &&
-                        styles.ingredientEditModeTextActive,
+    <Swipeable renderRightActions={renderRightActions}>
+      <View style={styles.ingredientItem}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.ingredientName}>{ingredient.food.name}</Text>
+          {isEditing ? (
+            <View style={styles.ingredientEditContainer}>
+              {hasUnits && (
+                <View style={styles.ingredientEditModeToggle}>
+                  <Pressable
+                    onPress={() => setEditMode("units")}
+                    style={({ pressed }) => [
+                      styles.ingredientEditModeBtn,
+                      editMode === "units" && styles.ingredientEditModeBtnActive,
+                      pressed && { opacity: 0.7 },
                     ]}
                   >
-                    {unitLabel}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => setEditMode("grams")}
-                  style={({ pressed }) => [
-                    styles.ingredientEditModeBtn,
-                    editMode === "grams" && styles.ingredientEditModeBtnActive,
-                    pressed && { opacity: 0.7 },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.ingredientEditModeText,
-                      editMode === "grams" &&
-                        styles.ingredientEditModeTextActive,
+                    <Text
+                      style={[
+                        styles.ingredientEditModeText,
+                        editMode === "units" &&
+                          styles.ingredientEditModeTextActive,
+                      ]}
+                    >
+                      {unitLabel}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setEditMode("grams")}
+                    style={({ pressed }) => [
+                      styles.ingredientEditModeBtn,
+                      editMode === "grams" && styles.ingredientEditModeBtnActive,
+                      pressed && { opacity: 0.7 },
                     ]}
                   >
-                    {quantityLabel}
-                  </Text>
+                    <Text
+                      style={[
+                        styles.ingredientEditModeText,
+                        editMode === "grams" &&
+                          styles.ingredientEditModeTextActive,
+                      ]}
+                    >
+                      {quantityLabel}
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
+              <View style={styles.ingredientEditRow}>
+                <TextInput
+                  style={styles.ingredientGramsInput}
+                  value={editMode === "units" ? unitsStr : gramsStr}
+                  onChangeText={editMode === "units" ? setUnitsStr : setGramsStr}
+                  keyboardType="numeric"
+                  autoFocus
+                  placeholderTextColor={colors.textSecondary}
+                  onBlur={handleSave}
+                  onSubmitEditing={handleSave}
+                />
+                <Text style={styles.ingredientGramsLabel}>
+                  {editMode === "units" ? unitLabel : unitSuffix}
+                </Text>
+                <Pressable onPress={handleSave} style={styles.ingredientSaveBtn}>
+                  <Feather name="check" size={14} color={colors.brand} />
                 </Pressable>
               </View>
-            )}
-            <View style={styles.ingredientEditRow}>
-              <TextInput
-                style={styles.ingredientGramsInput}
-                value={editMode === "units" ? unitsStr : gramsStr}
-                onChangeText={editMode === "units" ? setUnitsStr : setGramsStr}
-                keyboardType="numeric"
-                autoFocus
-                placeholderTextColor={colors.textSecondary}
-                onBlur={handleSave}
-                onSubmitEditing={handleSave}
-              />
-              <Text style={styles.ingredientGramsLabel}>
-                {editMode === "units" ? unitLabel : unitSuffix}
-              </Text>
-              <Pressable onPress={handleSave} style={styles.ingredientSaveBtn}>
-                <Feather name="check" size={14} color={colors.brand} />
-              </Pressable>
             </View>
+          ) : (
+            <Text style={styles.ingredientGrams}>
+              {hasUnits && currentUnits
+                ? `${currentUnits} ${unitLabel}${currentUnits !== 1 ? "s" : ""}`
+                : `${ingredient.grams}${unitSuffix}`}{" "}
+              · {Math.round(macros.kcal)} kcal
+            </Text>
+          )}
+        </View>
+
+        {!isEditing && (
+          <View style={styles.ingredientActions}>
+            <Pressable
+              onPress={() =>
+                handleQuickAdjust(hasUnits && editMode === "units" ? -1 : -10)
+              }
+              style={({ pressed }) => [
+                styles.ingredientAdjustBtn,
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Feather name="minus" size={16} color={colors.textPrimary} />
+            </Pressable>
+
+            {/* Contador de cantidad */}
+            <View style={styles.ingredientCounter}>
+              <Text style={styles.ingredientCounterText}>
+                {hasUnits && currentUnits
+                  ? `${currentUnits} ${currentUnits === 1 ? unitLabel : unitLabel + "s"}`
+                  : `${ingredient.grams}g`}
+              </Text>
+            </View>
+
+            <Pressable
+              onPress={() =>
+                handleQuickAdjust(hasUnits && editMode === "units" ? 1 : 10)
+              }
+              style={({ pressed }) => [
+                styles.ingredientAdjustBtn,
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Feather name="plus" size={16} color={colors.textPrimary} />
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                setEditMode(hasUnits ? "units" : "grams");
+                setIsEditing(true);
+              }}
+              style={({ pressed }) => [
+                styles.ingredientEditBtn,
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Feather name="edit-2" size={14} color={colors.brand} />
+            </Pressable>
           </View>
-        ) : (
-          <Text style={styles.ingredientGrams}>
-            {hasUnits && currentUnits
-              ? `${currentUnits} ${unitLabel}${currentUnits !== 1 ? "s" : ""}`
-              : `${ingredient.grams}${unitSuffix}`}{" "}
-            · {Math.round(macros.kcal)} kcal
-          </Text>
         )}
       </View>
-
-      {!isEditing && (
-        <View style={styles.ingredientActions}>
-          <Pressable
-            onPress={() =>
-              handleQuickAdjust(hasUnits && editMode === "units" ? -1 : -10)
-            }
-            style={({ pressed }) => [
-              styles.ingredientAdjustBtn,
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Feather name="minus" size={16} color={colors.textPrimary} />
-          </Pressable>
-
-          {/* Contador de cantidad */}
-          <View style={styles.ingredientCounter}>
-            <Text style={styles.ingredientCounterText}>
-              {hasUnits && currentUnits
-                ? `${currentUnits} ${currentUnits === 1 ? unitLabel : unitLabel + "s"}`
-                : `${ingredient.grams}g`}
-            </Text>
-          </View>
-
-          <Pressable
-            onPress={() =>
-              handleQuickAdjust(hasUnits && editMode === "units" ? 1 : 10)
-            }
-            style={({ pressed }) => [
-              styles.ingredientAdjustBtn,
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Feather name="plus" size={16} color={colors.textPrimary} />
-          </Pressable>
-
-          <Pressable
-            onPress={() => {
-              setEditMode(hasUnits ? "units" : "grams");
-              setIsEditing(true);
-            }}
-            style={({ pressed }) => [
-              styles.ingredientEditBtn,
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Feather name="edit-2" size={14} color={colors.brand} />
-          </Pressable>
-
-          <Pressable
-            onPress={onRemove}
-            style={({ pressed }) => [
-              styles.removeIngredientBtn,
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Feather name="x" size={14} color={colors.cta} />
-          </Pressable>
-        </View>
-      )}
-    </View>
+    </Swipeable>
   );
 }
 
@@ -1485,6 +1497,23 @@ function makeStyles(colors: any, typography: any, insets: any) {
       fontSize: 16,
       fontWeight: "700",
       color: colors.onCta,
+    },
+
+    // Swipe Actions
+    swipeActionContainer: {
+      width: 90,
+      justifyContent: "center",
+      alignItems: "center",
+      paddingLeft: 8,
+    },
+    swipeDeleteButton: {
+      flex: 1,
+      width: "100%",
+      backgroundColor: colors.cta,
+      borderRadius: 12,
+      justifyContent: "center",
+      alignItems: "center",
+      height: "100%",
     },
   });
 }
