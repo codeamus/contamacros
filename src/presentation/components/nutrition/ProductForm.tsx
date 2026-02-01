@@ -9,14 +9,14 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 
 export type BaseUnit = "g" | "ml";
@@ -45,7 +45,7 @@ export default function ProductForm({
   barcode,
   onSuccess,
   onCancel,
-  submitLabel = "Crear y usar",
+  submitLabel = "Crear",
 }: ProductFormProps) {
   const { theme } = useTheme();
   const { colors, typography } = theme;
@@ -56,9 +56,15 @@ export default function ProductForm({
   const [protein, setProtein] = useState("");
   const [carbs, setCarbs] = useState("");
   const [fat, setFat] = useState("");
+  
+  // Unit support
+  const [isUnit, setIsUnit] = useState(false);
+  const [gramsPerUnit, setGramsPerUnit] = useState("");
+  const [unitLabel, setUnitLabel] = useState("1 unidad");
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [touched, setTouched] = useState({ name: false, kcal: false });
+  const [touched, setTouched] = useState({ name: false, kcal: false, gramsPerUnit: false });
 
   const unitSuffix = baseUnit === "ml" ? "100 ml" : "100 g";
   const unitLabelShort = baseUnit === "ml" ? "por 100 ml" : "por 100 g";
@@ -66,12 +72,18 @@ export default function ProductForm({
   const nameValid = nameEs.trim().length >= 2;
   const kcalNum = useMemo(() => parseFloatInput(kcal), [kcal]);
   const kcalValid = kcalNum >= 0;
+  
+  const gPerUnitNum = parseFloatInput(gramsPerUnit);
+  const unitValid = !isUnit || (gPerUnitNum > 0 && unitLabel.trim().length > 0);
+
   const showNameError = touched.name && !nameValid;
   const showKcalError = touched.kcal && (kcal.trim() === "" || kcalNum < 0);
+  const showUnitError = isUnit && touched.gramsPerUnit && gPerUnitNum <= 0;
 
   const canSubmit =
     nameValid &&
     kcalValid &&
+    unitValid &&
     barcode.trim().length > 0 &&
     !saving &&
     parseFloatInput(protein) >= 0 &&
@@ -92,6 +104,8 @@ export default function ProductForm({
       protein_100g: parseFloatInput(protein),
       carbs_100g: parseFloatInput(carbs),
       fat_100g: parseFloatInput(fat),
+      grams_per_unit: isUnit ? gPerUnitNum : undefined,
+      unit_label_es: isUnit ? unitLabel : undefined,
     });
 
     setSaving(false);
@@ -111,6 +125,9 @@ export default function ProductForm({
     protein,
     carbs,
     fat,
+    isUnit,
+    gPerUnitNum,
+    unitLabel,
     onSuccess,
   ]);
 
@@ -140,6 +157,29 @@ export default function ProductForm({
           fontSize: 14,
           color: colors.textPrimary,
           marginBottom: 8,
+        },
+        unitToggle: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 16,
+            paddingVertical: 12,
+            paddingHorizontal: 16,
+            backgroundColor: colors.surface,
+            borderRadius: 14,
+            borderWidth: 1.5,
+            borderColor: colors.border,
+        },
+        unitToggleText: {
+            fontFamily: typography.body?.fontFamily,
+            fontSize: 16,
+            color: colors.textPrimary,
+        },
+        unitContainer: {
+            marginTop: 8,
+            paddingLeft: 12,
+            borderLeftWidth: 2,
+            borderLeftColor: colors.border,
         },
         segmentRow: {
           flexDirection: "row",
@@ -258,6 +298,55 @@ export default function ProductForm({
             </Text>
           </Pressable>
         </View>
+
+        {/* Toggle para Unidad */}
+        <Pressable
+            onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setIsUnit(!isUnit);
+            }}
+            style={({ pressed }) => [
+                styles.unitToggle,
+                isUnit && { borderColor: colors.brand, backgroundColor: colors.brand + "10" },
+                pressed && { opacity: 0.7 }
+            ]}
+        >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Feather name={isUnit ? "check-circle" : "circle"} size={20} color={isUnit ? colors.brand : colors.textSecondary} />
+                <Text style={styles.unitToggleText}>¿Viene por unidades? (ej: huevo)</Text>
+            </View>
+        </Pressable>
+
+        {isUnit && (
+            <View style={[styles.row, styles.unitContainer]}>
+                <View style={{ marginBottom: 16 }}>
+                    <Text style={styles.label}>Peso de 1 unidad ({baseUnit}) *</Text>
+                    <TextInput
+                        style={[styles.input, showUnitError && styles.inputError]}
+                        value={gramsPerUnit}
+                        onChangeText={setGramsPerUnit}
+                        placeholder={baseUnit === "g" ? "Ej: 50" : "Ej: 200"}
+                        placeholderTextColor={colors.textSecondary}
+                        keyboardType="decimal-pad"
+                        onBlur={() => setTouched(p => ({ ...p, gramsPerUnit: true }))}
+                    />
+                    {showUnitError && (
+                        <Text style={styles.errorText}>Ingresa el peso mayor a 0</Text>
+                    )}
+                </View>
+                
+                <View>
+                    <Text style={styles.label}>Nombre de la unidad</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={unitLabel}
+                        onChangeText={setUnitLabel}
+                        placeholder="Ej: 1 huevo, 1 rebanada"
+                        placeholderTextColor={colors.textSecondary}
+                    />
+                </View>
+            </View>
+        )}
 
         {/* Nombre (obligatorio) */}
         <Text style={styles.sectionTitle}>Datos del producto</Text>

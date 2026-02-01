@@ -358,6 +358,9 @@ export const genericFoodsRepository = {
     protein_100g: number;
     carbs_100g: number;
     fat_100g: number;
+    // Campos opcionales para unidades (ej: 1 huevo = 50g)
+    grams_per_unit?: number;
+    unit_label_es?: string;
   }): Promise<RepoResult<GenericFoodDb>> {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -376,7 +379,15 @@ export const genericFoodsRepository = {
         return { ok: false, message: "El código de barras es obligatorio." };
       }
 
-      const unitLabel = input.base_unit === "ml" ? "100 mililitros" : "100 gramos";
+      // Determinar etiquetas y unidades
+      let unitLabel = input.base_unit === "ml" ? "100 mililitros" : "100 gramos";
+      let gramsPerUnit: number | null = null;
+
+      if (input.grams_per_unit && input.grams_per_unit > 0) {
+          gramsPerUnit = input.grams_per_unit;
+          unitLabel = input.unit_label_es || "1 unidad";
+      }
+
       const payload: Record<string, unknown> = {
         name_es: input.name_es.trim(),
         name_norm,
@@ -390,7 +401,7 @@ export const genericFoodsRepository = {
         carbs_100g: Math.round(input.carbs_100g * 10) / 10,
         fat_100g: Math.round(input.fat_100g * 10) / 10,
         unit_label_es: unitLabel,
-        grams_per_unit: null,
+        grams_per_unit: gramsPerUnit,
         tags: [],
         country_tags: ["latam"],
       };
