@@ -1,22 +1,22 @@
 // app/(tabs)/add-food.tsx
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, {
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -28,10 +28,10 @@ import { userFoodsRepository } from "@/data/food/userFoodsRepository";
 import { openFoodFactsService } from "@/data/openfoodfacts/openFoodFactsService";
 import { supabase } from "@/data/supabase/supabaseClient";
 import {
-    mapGenericFoodDbArrayToSearchItems,
-    mapGenericFoodDbToSearchItem,
-    mapUserFoodDbArrayToSearchItems,
-    type FoodSearchItem,
+  mapGenericFoodDbArrayToSearchItems,
+  mapGenericFoodDbToSearchItem,
+  mapUserFoodDbArrayToSearchItems,
+  type FoodSearchItem,
 } from "@/domain/mappers/foodMappers";
 import type { MealType } from "@/domain/models/foodLogDb";
 import type { OffProduct } from "@/domain/models/offProduct";
@@ -1057,14 +1057,16 @@ export default function AddFoodScreen() {
           <View style={s.header}>
             <Pressable
               style={s.iconBtn}
-              onPress={() => {
-                if (selected) {
-                  justSelectedManuallyRef.current = false; // Resetear el flag
-                  setSelected(null);
-                } else {
-                  router.back();
-                }
-              }}
+                onPress={() => {
+                  if (selected) {
+                    justSelectedManuallyRef.current = false; // Resetear el flag
+                    setSelected(null);
+                  } else if (router.canGoBack()) {
+                    router.back();
+                  } else {
+                    router.replace("/(tabs)/diary");
+                  }
+                }}
             >
               <Feather name="arrow-left" size={18} color={colors.textPrimary} />
             </Pressable>

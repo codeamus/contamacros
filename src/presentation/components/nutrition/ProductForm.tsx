@@ -66,8 +66,13 @@ export default function ProductForm({
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState({ name: false, kcal: false, gramsPerUnit: false });
 
-  const unitSuffix = baseUnit === "ml" ? "100 ml" : "100 g";
-  const unitLabelShort = baseUnit === "ml" ? "por 100 ml" : "por 100 g";
+  const unitSuffix = isUnit 
+    ? (unitLabel.trim() ? unitLabel : "1 unidad")
+    : (baseUnit === "ml" ? "100 ml" : "100 g");
+
+  const unitLabelShort = isUnit
+    ? `(${gramsPerUnit}g)`
+    : (baseUnit === "ml" ? "por 100 ml" : "por 100 g");
 
   const nameValid = nameEs.trim().length >= 2;
   const kcalNum = useMemo(() => parseFloatInput(kcal), [kcal]);
@@ -96,14 +101,19 @@ export default function ProductForm({
     setError(null);
     setSaving(true);
 
+    // Si es por unidad, los valores ingresados son "por unidad" y debemos convertirlos a 100g
+    // Formula: (ValorPorUnidad / GramsPorUnidad) * 100
+    // Si no es por unidad, los valores ya son por 100g
+    const factor = (isUnit && gPerUnitNum > 0) ? (100 / gPerUnitNum) : 1;
+
     const res = await genericFoodsRepository.createByBarcode({
       name_es: nameEs.trim(),
       barcode: barcode.trim(),
       base_unit: baseUnit,
-      kcal_100g: Math.round(kcalNum),
-      protein_100g: parseFloatInput(protein),
-      carbs_100g: parseFloatInput(carbs),
-      fat_100g: parseFloatInput(fat),
+      kcal_100g: Math.round(kcalNum * factor),
+      protein_100g: parseFloatInput(protein) * factor,
+      carbs_100g: parseFloatInput(carbs) * factor,
+      fat_100g: parseFloatInput(fat) * factor,
       grams_per_unit: isUnit ? gPerUnitNum : undefined,
       unit_label_es: isUnit ? unitLabel : undefined,
     });
@@ -409,7 +419,7 @@ export default function ProductForm({
         </View>
 
         <View style={styles.row}>
-          <Text style={styles.label}>Proteínas (g {unitLabelShort})</Text>
+          <Text style={styles.label}>Proteínas (g {isUnit ? unitSuffix : unitLabelShort})</Text>
           <TextInput
             style={styles.input}
             value={protein}
@@ -421,7 +431,7 @@ export default function ProductForm({
         </View>
 
         <View style={styles.row}>
-          <Text style={styles.label}>Carbohidratos (g {unitLabelShort})</Text>
+          <Text style={styles.label}>Carbohidratos (g {isUnit ? unitSuffix : unitLabelShort})</Text>
           <TextInput
             style={styles.input}
             value={carbs}
@@ -433,7 +443,7 @@ export default function ProductForm({
         </View>
 
         <View style={styles.row}>
-          <Text style={styles.label}>Grasas (g {unitLabelShort})</Text>
+          <Text style={styles.label}>Grasas (g {isUnit ? unitSuffix : unitLabelShort})</Text>
           <TextInput
             style={styles.input}
             value={fat}
