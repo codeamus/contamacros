@@ -68,6 +68,21 @@ src/data/
 src/presentation/components/
 ├── auth/
 │   └── AuthTextField.tsx
+├── home/                         # Componentes modularizados de la pantalla Home
+│   ├── AnimatedProgressBar.tsx   # Barra de progreso animada
+│   ├── ActivityCard.tsx          # Tarjeta Actividad Física (Health Sync)
+│   ├── CaloriesCard.tsx         # Tarjeta principal de calorías (Donut + progreso)
+│   ├── HomeHeader.tsx            # Cabecera (fecha, calendario, ajustes)
+│   ├── HomeSlider.tsx            # Slider Smart Coach + Actividad
+│   ├── MacroCard.tsx             # Tarjeta de macro (proteína/carbs/grasas)
+│   ├── MacrosSection.tsx         # Sección Macros (header + 3 MacroCard)
+│   ├── MealPickerSheet.tsx      # Bottom sheet "Agregar comida"
+│   ├── MealRow.tsx               # Fila de comida (Desayuno/Almuerzo/etc.)
+│   ├── MealsSection.tsx          # Sección Comidas (header + 4 MealRow)
+│   ├── MiniStat.tsx              # Minitarjeta Restantes/Consumidas
+│   ├── MissingTargetsNotice.tsx # Aviso "Completa tu perfil"
+│   ├── SummaryCards.tsx          # Par Restantes + Consumidas
+│   └── index.ts                  # Re-exportaciones
 ├── nutrition/
 │   ├── AchievementsList.tsx      # Lista de logros
 │   ├── CreateFoodModal.tsx       # Modal para crear alimentos comunitarios
