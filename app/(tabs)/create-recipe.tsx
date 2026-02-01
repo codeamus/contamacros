@@ -485,7 +485,7 @@ export default function CreateRecipeScreen() {
       >
         <View style={s.header}>
             <Pressable
-                onPress={() => router.back()}
+                onPress={() => router.replace("/(tabs)/my-foods")}
                 style={s.backButton}
             >
                 <Feather name="arrow-left" size={24} color={colors.textPrimary} />
