@@ -73,6 +73,12 @@ export default function TabsLayout() {
             href: null,
           }}
         />
+        <Tabs.Screen
+          name="create-recipe"
+          options={{
+            href: null,
+          }}
+        />
 
         <Tabs.Screen
           name="home"

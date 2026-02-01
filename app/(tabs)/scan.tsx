@@ -10,12 +10,12 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Alert,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -116,6 +116,15 @@ export default function ScanScreen() {
           );
           router.replace({
             pathname: "/(tabs)/my-foods",
+            params: { barcode: data },
+          });
+        } else if (returnTo === "create-recipe") {
+          console.log(
+            "[ScanScreen] 🔄 Navegando a create-recipe con barcode:",
+            data,
+          );
+          router.replace({
+            pathname: "/(tabs)/create-recipe",
             params: { barcode: data },
           });
         } else {
