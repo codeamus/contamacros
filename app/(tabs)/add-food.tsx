@@ -1921,8 +1921,18 @@ export default function AddFoodScreen() {
                   <View style={s.portionHint}>
                     <Text style={s.portionHintText}>
                       {inputMode === "units"
-                        ? `1 ${selected.unit_label_es || "unidad"} = ${selected.grams_per_unit}${isMl ? " ml" : "g"}`
-                        : `${Math.round(unitsNum * 10) / 10} ${(selected.unit_label_es || "unidad") + (unitsNum !== 1 ? "s" : "")} = ${Math.round(gramsNum)}${isMl ? " ml" : "g"}`}
+                        ? (() => {
+                            const unitLabel = selected.unit_label_es || "unidad";
+                            const unitText = unitLabel.replace(/^\d+\s*/, "").trim() || unitLabel;
+                            return `1 ${unitText} = ${selected.grams_per_unit}${isMl ? " ml" : "g"}`;
+                          })()
+                        : (() => {
+                             const unitLabel = selected.unit_label_es || "unidad";
+                             const unitText = unitLabel.replace(/^\d+\s*/, "").trim() || unitLabel;
+                             const count = unitsNum;
+                             return `${Math.round(count * 10) / 10} ${unitText + (count !== 1 ? "s" : "")} = ${Math.round(gramsNum)}${isMl ? " ml" : "g"}`;
+                          })()
+                      }
                     </Text>
                   </View>
                 )}
