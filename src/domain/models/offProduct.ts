@@ -16,4 +16,7 @@ export type OffProduct = {
 
   /** Unidad de cantidad: gramos (sólidos) o mililitros (líquidos). Por defecto "gr". */
   unitType: "gr" | "ml";
+
+  /** Cantidad sugerida por porción (si existe en OFF), ej: 200 (ml) o 30 (g) */
+  servingQuantity?: number;
 };

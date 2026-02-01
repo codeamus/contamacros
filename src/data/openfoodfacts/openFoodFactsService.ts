@@ -93,6 +93,7 @@ function mapOffProduct(raw: any): OffProduct {
     fat_100g: toNumber(nutr["fat_100g"]),
     basis: "100g",
     unitType,
+    servingQuantity: toNumber(raw?.serving_quantity) ?? undefined,
   };
 }
 
@@ -126,7 +127,7 @@ export const openFoodFactsService = {
         `&page=${page}&page_size=${pageSize}` +
         `&lc=${encodeURIComponent(lc)}` +
         `&cc=${encodeURIComponent(cc)}` +
-        `&fields=code,product_name,product_name_es,product_name_en,generic_name,brands,image_front_url,image_url,nutriments,serving_quantity_unit,quantity`;
+        `&fields=code,product_name,product_name_es,product_name_en,generic_name,brands,image_front_url,image_url,nutriments,serving_quantity_unit,quantity,serving_quantity`;
 
       const r = await fetch(url, { signal: params.signal });
       if (!r.ok) {
@@ -163,7 +164,7 @@ export const openFoodFactsService = {
     try {
       const url =
         `${BASE}/api/v2/product/${encodeURIComponent(code)}` +
-        `?fields=code,product_name,product_name_es,product_name_en,generic_name,brands,image_front_url,image_url,nutriments,serving_quantity_unit,quantity`;
+        `?fields=code,product_name,product_name_es,product_name_en,generic_name,brands,image_front_url,image_url,nutriments,serving_quantity_unit,quantity,serving_quantity`;
 
       console.log("[OpenFoodFacts] 🌐 Haciendo request a:", url);
 

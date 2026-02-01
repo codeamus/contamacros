@@ -1,22 +1,22 @@
 // app/(tabs)/add-food.tsx
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
 } from "react";
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -28,10 +28,10 @@ import { userFoodsRepository } from "@/data/food/userFoodsRepository";
 import { openFoodFactsService } from "@/data/openfoodfacts/openFoodFactsService";
 import { supabase } from "@/data/supabase/supabaseClient";
 import {
-  mapGenericFoodDbArrayToSearchItems,
-  mapGenericFoodDbToSearchItem,
-  mapUserFoodDbArrayToSearchItems,
-  type FoodSearchItem,
+    mapGenericFoodDbArrayToSearchItems,
+    mapGenericFoodDbToSearchItem,
+    mapUserFoodDbArrayToSearchItems,
+    type FoodSearchItem,
 } from "@/domain/mappers/foodMappers";
 import type { MealType } from "@/domain/models/foodLogDb";
 import type { OffProduct } from "@/domain/models/offProduct";
@@ -549,10 +549,10 @@ export default function AddFoodScreen() {
             source: "off",
             name: res.data.name,
             meta: res.data.brand ? res.data.brand : "Sin marca",
-            kcal_100g: res.data.kcal_100g ?? null,
-            protein_100g: res.data.protein_100g ?? null,
-            carbs_100g: res.data.carbs_100g ?? null,
-            fat_100g: res.data.fat_100g ?? null,
+            kcal_100g: res.data.kcal_100g ?? 0,
+            protein_100g: res.data.protein_100g ?? 0,
+            carbs_100g: res.data.carbs_100g ?? 0,
+            fat_100g: res.data.fat_100g ?? 0,
             off: res.data,
             verified: false,
             base_unit: res.data.unitType === "ml" ? "ml" : "g",
@@ -727,7 +727,15 @@ export default function AddFoodScreen() {
     } else {
       // Sin unidades: modo gramos
       setInputMode("grams");
-      setGramsStr("100");
+      
+      // Si viene de OFF y tiene porción sugerida, usarla. Si no, 100.
+      const suggested = selected.off?.servingQuantity;
+      if (suggested && suggested > 0) {
+        setGramsStr(String(suggested));
+      } else {
+        setGramsStr("100");
+      }
+      
       setUnitsStr("1");
       lastUserInputRef.current = null; // Reset ref
     }
