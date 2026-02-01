@@ -46,9 +46,11 @@ import { MEAL_LABELS } from "@/presentation/utils/labels";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
-// Extender FoodSearchItem para incluir off
+// Extender FoodSearchItem para incluir off y unitType (líquido vs sólido desde OFF)
 type ExtendedFoodSearchItem = FoodSearchItem & {
   off?: OffProduct | null;
+  /** Cuando source es "off": 'gr' | 'ml'. Usado para sufijo y etiquetas (g vs ml). */
+  unitType?: "gr" | "ml";
 };
 
 function clamp(n: number, min: number, max: number) {
@@ -553,6 +555,8 @@ export default function AddFoodScreen() {
             fat_100g: res.data.fat_100g ?? null,
             off: res.data,
             verified: false,
+            base_unit: res.data.unitType === "ml" ? "ml" : "g",
+            unitType: res.data.unitType,
           };
           setSelected(it);
           setQuery(res.data.name);
@@ -669,6 +673,12 @@ export default function AddFoodScreen() {
     return selected?.grams_per_unit && selected.grams_per_unit > 0;
   }, [selected]);
 
+  // Líquido (ml) vs sólido (g): OFF usa unitType, generic_foods usa base_unit
+  const isMl = useMemo(
+    () => selected?.unitType === "ml" || selected?.base_unit === "ml",
+    [selected?.unitType, selected?.base_unit],
+  );
+
   // Detectar si es fast food
   const isFastFood = useMemo(() => {
     return (
@@ -771,7 +781,6 @@ export default function AddFoodScreen() {
       if (unitsNum > 100) return "Demasiado alto (máx 100 unidades)";
       return null;
     } else {
-      const isMl = selected?.base_unit === "ml";
       if (!gramsStr.trim())
         return isMl ? "Ingresa mililitros" : "Ingresa gramos";
       if (!Number.isFinite(gramsNum)) return "Valor inválido";
@@ -782,7 +791,7 @@ export default function AddFoodScreen() {
           : "Demasiado alto (máx 2000 g)";
       return null;
     }
-  }, [gramsStr, gramsNum, unitsStr, unitsNum, inputMode, selected?.base_unit]);
+  }, [gramsStr, gramsNum, unitsStr, unitsNum, inputMode, isMl]);
 
   const preview = useMemo(() => {
     if (!selected) return null;
@@ -861,6 +870,8 @@ export default function AddFoodScreen() {
       fat_100g: p.fat_100g ?? null,
       off: p,
       verified: false,
+      base_unit: p.unitType === "ml" ? "ml" : "g",
+      unitType: p.unitType,
     }));
 
     const existing = new Set(results.map((r) => r.key));
@@ -1691,7 +1702,7 @@ export default function AddFoodScreen() {
                   </Text>
                   <Text style={s.cardMeta} numberOfLines={1}>
                     {selected.meta ?? badgeText(selected)} · Base{" "}
-                    {selected.base_unit === "ml" ? "100 ml" : "100 g"}
+                    {isMl ? "100 ml" : "100 g"}
                   </Text>
                 </View>
 
@@ -1712,7 +1723,7 @@ export default function AddFoodScreen() {
                       ? `Cantidad de ${selected.unit_label_es || "slices"}`
                       : hasUnits
                         ? "Cantidad"
-                        : selected.base_unit === "ml"
+                        : isMl
                           ? "Mililitros consumidos"
                           : "Gramos consumidos"}
                   </Text>
@@ -1760,9 +1771,7 @@ export default function AddFoodScreen() {
                               inputMode === "grams" && s.modeToggleTextActive,
                             ]}
                           >
-                            {selected.base_unit === "ml"
-                              ? "Mililitros"
-                              : "Gramos"}
+                            {isMl ? "Mililitros" : "Gramos"}
                           </Text>
                         </Pressable>
                       )}
@@ -1832,7 +1841,7 @@ export default function AddFoodScreen() {
                   >
                     {inputMode === "units"
                       ? selected.unit_label_es || "unidad"
-                      : selected.base_unit === "ml"
+                      : isMl
                         ? "ml"
                         : "g"}
                   </Text>
@@ -1875,7 +1884,7 @@ export default function AddFoodScreen() {
                         </View>
                         <Text style={s.pizzaCalculationSubtext}>
                           {unitDisplay} = {Math.round(gramsNum)}
-                          {selected.base_unit === "ml" ? " ml" : "g"}
+                          {isMl ? " ml" : "g"}
                         </Text>
                       </View>
                     );
@@ -1891,8 +1900,8 @@ export default function AddFoodScreen() {
                     />
                     <Text style={s.fastFoodBadgeText}>
                       {inputMode === "units" && hasUnits
-                        ? `${unitsNum === 1 ? selected.unit_label_es || "unidad" : (selected.unit_label_es || "unidad") + "s"} = ${Math.round(gramsNum)}${selected.base_unit === "ml" ? " ml" : "g"}`
-                        : `Peso total: ${Math.round(gramsNum)}${selected.base_unit === "ml" ? " ml" : " g"}`}
+                        ? `${unitsNum === 1 ? selected.unit_label_es || "unidad" : (selected.unit_label_es || "unidad") + "s"} = ${Math.round(gramsNum)}${isMl ? " ml" : "g"}`
+                        : `Peso total: ${Math.round(gramsNum)}${isMl ? " ml" : " g"}`}
                     </Text>
                   </View>
                 )}
@@ -1902,8 +1911,8 @@ export default function AddFoodScreen() {
                   <View style={s.portionHint}>
                     <Text style={s.portionHintText}>
                       {inputMode === "units"
-                        ? `1 ${selected.unit_label_es || "unidad"} = ${selected.grams_per_unit}g`
-                        : `${Math.round(unitsNum * 10) / 10} ${(selected.unit_label_es || "unidad") + (unitsNum !== 1 ? "s" : "")} = ${Math.round(gramsNum)}g`}
+                        ? `1 ${selected.unit_label_es || "unidad"} = ${selected.grams_per_unit}${isMl ? " ml" : "g"}`
+                        : `${Math.round(unitsNum * 10) / 10} ${(selected.unit_label_es || "unidad") + (unitsNum !== 1 ? "s" : "")} = ${Math.round(gramsNum)}${isMl ? " ml" : "g"}`}
                     </Text>
                   </View>
                 )}
@@ -1921,7 +1930,7 @@ export default function AddFoodScreen() {
                   <View>
                     <Text style={s.previewTitle}>Resumen nutricional</Text>
                     <Text style={s.previewSubtitle}>
-                      Valores por 100 {selected.base_unit === "ml" ? "ml" : "g"}
+                      Valores por 100 {isMl ? "ml" : "g"}
                     </Text>
                   </View>
                 </View>

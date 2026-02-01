@@ -45,6 +45,28 @@ function convertEnergyToKcal(
   return null;
 }
 
+/**
+ * Detecta si el producto es líquido (ml) o sólido (gr) según campos de OFF.
+ * 1) serving_quantity_unit (ej: "ml", "L")
+ * 2) quantity (ej: "1 L", "330 ml", "liquide")
+ * Por defecto: "gr".
+ */
+function detectUnitType(raw: any): "gr" | "ml" {
+  const servingUnit = raw?.serving_quantity_unit;
+  if (servingUnit != null && typeof servingUnit === "string") {
+    const u = servingUnit.toLowerCase().trim();
+    if (u === "ml" || u === "l" || u === "litre" || u === "liter") return "ml";
+  }
+
+  const quantity = raw?.quantity;
+  if (quantity != null && typeof quantity === "string") {
+    const q = quantity.toLowerCase();
+    if (q.includes("ml") || q.includes("liquide") || q === "l" || /\d+\s*l\b/.test(q)) return "ml";
+  }
+
+  return "gr";
+}
+
 function mapOffProduct(raw: any): OffProduct {
   const nutr = raw?.nutriments ?? {};
 
@@ -53,6 +75,7 @@ function mapOffProduct(raw: any): OffProduct {
   const energyKj = toNumber(nutr["energy-kj_100g"]) ?? toNumber(nutr["energy_100g"]);
 
   const kcal100 = convertEnergyToKcal(energyKcal, energyKj);
+  const unitType = detectUnitType(raw);
 
   return {
     id: String(raw?.code ?? raw?._id ?? raw?.id ?? "unknown"),
@@ -69,6 +92,7 @@ function mapOffProduct(raw: any): OffProduct {
     carbs_100g: toNumber(nutr["carbohydrates_100g"]),
     fat_100g: toNumber(nutr["fat_100g"]),
     basis: "100g",
+    unitType,
   };
 }
 
@@ -102,7 +126,7 @@ export const openFoodFactsService = {
         `&page=${page}&page_size=${pageSize}` +
         `&lc=${encodeURIComponent(lc)}` +
         `&cc=${encodeURIComponent(cc)}` +
-        `&fields=code,product_name,product_name_es,product_name_en,generic_name,brands,image_front_url,image_url,nutriments`;
+        `&fields=code,product_name,product_name_es,product_name_en,generic_name,brands,image_front_url,image_url,nutriments,serving_quantity_unit,quantity`;
 
       const r = await fetch(url, { signal: params.signal });
       if (!r.ok) {
@@ -139,7 +163,7 @@ export const openFoodFactsService = {
     try {
       const url =
         `${BASE}/api/v2/product/${encodeURIComponent(code)}` +
-        `?fields=code,product_name,product_name_es,product_name_en,generic_name,brands,image_front_url,image_url,nutriments`;
+        `?fields=code,product_name,product_name_es,product_name_en,generic_name,brands,image_front_url,image_url,nutriments,serving_quantity_unit,quantity`;
 
       console.log("[OpenFoodFacts] 🌐 Haciendo request a:", url);
 

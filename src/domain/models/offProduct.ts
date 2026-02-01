@@ -13,4 +13,7 @@ export type OffProduct = {
 
   // Unidad de referencia (por ahora asumimos 100g)
   basis: "100g";
+
+  /** Unidad de cantidad: gramos (sólidos) o mililitros (líquidos). Por defecto "gr". */
+  unitType: "gr" | "ml";
 };

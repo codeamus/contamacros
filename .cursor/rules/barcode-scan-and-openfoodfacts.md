@@ -43,7 +43,7 @@ Jerarquía de búsqueda por **código de barras** en add-food:
 ### 3.1 Producto por código de barras (v2)
 
 - **Método y URL:** `GET /api/v2/product/{code}`
-- **Parámetros de query:** `fields=code,product_name,product_name_es,product_name_en,generic_name,brands,image_front_url,image_url,nutriments`
+- **Parámetros de query:** `fields=code,product_name,product_name_es,product_name_en,generic_name,brands,image_front_url,image_url,nutriments,serving_quantity_unit,quantity`
 - **Implementación:** `openFoodFactsService.getByBarcode(barcode, signal?)` en `src/data/openfoodfacts/openFoodFactsService.ts`.
 - **Respuesta:** JSON con `status` (1 = encontrado, 0 = no encontrado) y `product` (objeto con nutriments, code, nombres, etc.). Si `status === 0` se devuelve error "Producto no encontrado" (o `status_verbose`).
 
@@ -57,7 +57,7 @@ Jerarquía de búsqueda por **código de barras** en add-food:
 ### 3.3 Mapeo respuesta API (OFF) → modelo interno y generic_foods
 
 - **Función:** `mapOffProduct(raw)` dentro de `openFoodFactsService.ts` (no exportada).
-- **Modelo:** `OffProduct` en `src/domain/models/offProduct.ts`: `id`, `barcode?`, `name`, `brand?`, `imageUrl?`, `kcal_100g`, `protein_100g`, `carbs_100g`, `fat_100g`, `basis: "100g"`.
+- **Modelo:** `OffProduct` en `src/domain/models/offProduct.ts`: `id`, `barcode?`, `name`, `brand?`, `imageUrl?`, `kcal_100g`, `protein_100g`, `carbs_100g`, `fat_100g`, `basis: "100g"`, `unitType: "gr" | "ml"` (líquido vs sólido; se infiere de `serving_quantity_unit` o `quantity` en OFF).
 - **Nombre:** Se usa `pickName(raw)`: `product_name` → `product_name_es` → `product_name_en` → `generic_name` → "Producto sin nombre".
 - **Energía:** Open Food Facts puede devolver energía en kJ o kcal; `convertEnergyToKcal` normaliza a kcal (1 kcal = 4.184 kJ). Campos OFF: `energy-kcal_100g`, `energy-kj_100g` o `energy_100g` → `kcal_100g`.
 - **Macros:** OFF `nutriments.proteins_100g` → `protein_100g`; `nutriments.carbohydrates_100g` → `carbs_100g`; `nutriments.fat_100g` → `fat_100g`. Misma nomenclatura que `generic_foods` (protein_100g, carbs_100g, fat_100g, kcal_100g).

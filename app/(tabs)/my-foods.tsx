@@ -48,6 +48,8 @@ import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 
 type ExtendedFoodSearchItem = FoodSearchItem & {
   off?: OffProduct | null;
+  /** Cuando source es "off": 'gr' | 'ml'. Usado para sufijo y etiquetas (g vs ml). */
+  unitType?: "gr" | "ml";
 };
 
 type RecipeIngredient = {
@@ -440,6 +442,10 @@ function IngredientItem({
   const hasUnits =
     ingredient.food.grams_per_unit && ingredient.food.grams_per_unit > 0;
   const unitLabel = ingredient.food.unit_label_es || "unidad";
+  const isMl =
+    ingredient.food.unitType === "ml" || ingredient.food.base_unit === "ml";
+  const unitSuffix = isMl ? "ml" : "g";
+  const quantityLabel = isMl ? "mililitros" : "gramos";
 
   const [isEditing, setIsEditing] = useState(false);
   const [editMode, setEditMode] = useState<"grams" | "units">(
@@ -572,7 +578,7 @@ function IngredientItem({
                         styles.ingredientEditModeTextActive,
                     ]}
                   >
-                    gramos
+                    {quantityLabel}
                   </Text>
                 </Pressable>
               </View>
@@ -589,7 +595,7 @@ function IngredientItem({
                 onSubmitEditing={handleSave}
               />
               <Text style={styles.ingredientGramsLabel}>
-                {editMode === "units" ? unitLabel : "g"}
+                {editMode === "units" ? unitLabel : unitSuffix}
               </Text>
               <Pressable onPress={handleSave} style={styles.ingredientSaveBtn}>
                 <Feather name="check" size={14} color={colors.brand} />
@@ -600,7 +606,7 @@ function IngredientItem({
           <Text style={styles.ingredientGrams}>
             {hasUnits && currentUnits
               ? `${currentUnits} ${unitLabel}${currentUnits !== 1 ? "s" : ""}`
-              : `${ingredient.grams}g`}{" "}
+              : `${ingredient.grams}${unitSuffix}`}{" "}
             · {Math.round(macros.kcal)} kcal
           </Text>
         )}
@@ -845,6 +851,8 @@ export default function MyFoodsScreen() {
         fat_100g: res.data.fat_100g ?? null,
         off: res.data,
         verified: false,
+        base_unit: res.data.unitType === "ml" ? "ml" : "g",
+        unitType: res.data.unitType,
       };
 
       setSelectedIngredient(it);
@@ -1444,6 +1452,11 @@ export default function MyFoodsScreen() {
                           selectedIngredient.grams_per_unit > 0;
                         const unitLabel =
                           selectedIngredient.unit_label_es || "unidad";
+                        const isMl =
+                          selectedIngredient.unitType === "ml" ||
+                          selectedIngredient.base_unit === "ml";
+                        const unitSuffix = isMl ? "ml" : "g";
+                        const quantityLabel = isMl ? "mililitros" : "gramos";
 
                         return (
                           <View style={s.selectedIngredient}>
@@ -1522,7 +1535,7 @@ export default function MyFoodsScreen() {
                                           s.inputModeTextActive,
                                       ]}
                                     >
-                                      gramos
+                                      {quantityLabel}
                                     </Text>
                                   </Pressable>
                                 </View>
@@ -1552,7 +1565,7 @@ export default function MyFoodsScreen() {
                                 <Text style={s.gramsLabel}>
                                   {ingredientInputMode === "units"
                                     ? unitLabel
-                                    : "g"}
+                                    : unitSuffix}
                                 </Text>
                               </View>
                               <Pressable
