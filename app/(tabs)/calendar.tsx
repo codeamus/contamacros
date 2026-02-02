@@ -1,19 +1,17 @@
 // app/(tabs)/calendar.tsx
-import { foodLogRepository } from "@/data/food/foodLogRepository";
 import { useCalendarData } from "@/presentation/hooks/diary/useCalendarData";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { formatDateToSpanish, todayStrLocal } from "@/presentation/utils/date";
-import * as Haptics from "expo-haptics";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import * as Haptics from "expo-haptics";
+import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-  Animated,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  View,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -49,6 +47,19 @@ export default function CalendarScreen() {
 
   const [selectedDay, setSelectedDay] = useState<string | null>(
     todayStrLocal(),
+  );
+
+  // Resetear calendario al entrar/salir del foco para asegurar que siempre empiece en 'hoy'
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        // Al salir de la pantalla, resetear al día actual
+        const now = new Date();
+        setCurrentMonth(now.getMonth() + 1);
+        setCurrentYear(now.getFullYear());
+        setSelectedDay(todayStrLocal());
+      };
+    }, [])
   );
 
   // Calcular días del mes
@@ -115,11 +126,6 @@ export default function CalendarScreen() {
     return summaries.find((s) => s.day === selectedDay);
   }, [selectedDay, summaries]);
 
-  const isToday = useCallback((dateStr: string) => {
-    const today = todayStrLocal();
-    return dateStr === today;
-  }, []);
-  
   const isSelected = useCallback((dateStr: string) => {
     if (!selectedDay) return false;
     // Comparación estricta de strings
@@ -232,14 +238,11 @@ export default function CalendarScreen() {
           <View style={s.daysGrid}>
             {daysInMonth.map(({ day, dateStr, isCurrentMonth }) => {
               const calories = getCaloriesForDay(dateStr);
-              const today = isToday(dateStr);
               const selected = isSelected(dateStr);
               const hasData = calories > 0;
 
-              // Priorizar el estilo de selección sobre el de "hoy"
-              // Si está seleccionado, siempre mostrar como seleccionado (incluso si es hoy)
+              // Solo mostrar como seleccionado si el día coincide y es del mes actual
               const showAsSelected = selected && isCurrentMonth;
-              const showAsToday = today && !selected;
 
               return (
                 <Pressable
@@ -247,7 +250,6 @@ export default function CalendarScreen() {
                   style={[
                     s.dayCell,
                     !isCurrentMonth && s.dayCellOtherMonth,
-                    showAsToday && s.dayCellToday,
                     showAsSelected && s.dayCellSelected,
                   ]}
                   onPress={() => handleDayPress(dateStr)}
@@ -256,7 +258,6 @@ export default function CalendarScreen() {
                     style={[
                       s.dayNumber,
                       !isCurrentMonth && s.dayNumberOtherMonth,
-                      showAsToday && s.dayNumberToday,
                       showAsSelected && s.dayNumberSelected,
                     ]}
                   >
@@ -451,11 +452,6 @@ function makeStyles(colors: any, typography: any) {
     dayCellOtherMonth: {
       opacity: 0.3,
     },
-    dayCellToday: {
-      borderColor: colors.brand,
-      borderWidth: 2,
-      backgroundColor: `${colors.brand}15`,
-    },
     dayCellSelected: {
       borderColor: colors.brand,
       borderWidth: 2,
@@ -468,10 +464,6 @@ function makeStyles(colors: any, typography: any) {
     },
     dayNumberOtherMonth: {
       color: colors.textSecondary,
-    },
-    dayNumberToday: {
-      color: colors.brand,
-      fontWeight: "700",
     },
     dayNumberSelected: {
       color: colors.brand,
