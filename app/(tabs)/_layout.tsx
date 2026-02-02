@@ -1,21 +1,14 @@
 // app/(tabs)/_layout.tsx
-import WeightPredictor from "@/presentation/components/predictor/WeightPredictor";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as NavigationBar from "expo-navigation-bar";
-import { Tabs, useSegments } from "expo-router";
-import React, { useEffect, useMemo } from "react";
+import { Tabs } from "expo-router";
+import React, { useEffect } from "react";
 import { Platform, View } from "react-native";
 
 export default function TabsLayout() {
   const { theme } = useTheme();
   const { colors, typography } = theme;
-  const segments = useSegments();
-
-  // Detectar si estamos en la pantalla de scan
-  const isScanScreen = useMemo(() => {
-    return segments.includes("scan");
-  }, [segments]);
 
   useEffect(() => {
     if (Platform.OS === "android") {
@@ -138,8 +131,6 @@ export default function TabsLayout() {
         <Tabs.Screen name="calendar" options={{ href: null }} />
         <Tabs.Screen name="ranking" options={{ href: null }} />
       </Tabs>
-      {/* Predictor Inteligente - Persistente en toda la app (oculto en scan) */}
-      {!isScanScreen && <WeightPredictor />}
     </View>
   );
 }
