@@ -4,22 +4,17 @@ import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    StyleSheet,
+    Text,
+    View
 } from "react-native";
-import { useRouter } from "expo-router";
 
-type ProgressCardProps = {
-  onPressRanking?: () => void;
-};
+type ProgressCardProps = {};
 
-export default function ProgressCard({ onPressRanking }: ProgressCardProps) {
+export default function ProgressCard({}: ProgressCardProps) {
   const { theme } = useTheme();
   const { colors, typography } = theme;
-  const router = useRouter();
   const s = makeStyles(colors, typography);
 
   const [stats, setStats] = useState<UserStats | null>(null);
@@ -63,26 +58,6 @@ export default function ProgressCard({ onPressRanking }: ProgressCardProps) {
           />
           <Text style={s.title}>Progreso</Text>
         </View>
-        <Pressable
-          onPress={() => {
-            if (onPressRanking) {
-              onPressRanking();
-            } else {
-              router.push("/(tabs)/ranking");
-            }
-          }}
-          style={({ pressed }) => [
-            s.rankingButton,
-            pressed && { opacity: 0.7 },
-          ]}
-        >
-          <MaterialCommunityIcons
-            name="podium"
-            size={18}
-            color={colors.brand}
-          />
-          <Text style={s.rankingButtonText}>Ranking</Text>
-        </Pressable>
       </View>
 
       {/* Rango y Nivel */}
@@ -155,29 +130,6 @@ export default function ProgressCard({ onPressRanking }: ProgressCardProps) {
         </View>
       )}
 
-      {/* Accesos rápidos */}
-      <View style={s.quickActions}>
-        <Pressable
-          onPress={() => {
-            if (onPressRanking) {
-              onPressRanking();
-            } else {
-              router.push("/(tabs)/ranking");
-            }
-          }}
-          style={({ pressed }) => [
-            s.quickActionButton,
-            pressed && s.quickActionButtonPressed,
-          ]}
-        >
-          <MaterialCommunityIcons
-            name="podium"
-            size={20}
-            color={colors.brand}
-          />
-          <Text style={s.quickActionText}>Ver Ranking</Text>
-        </Pressable>
-      </View>
     </View>
   );
 }

@@ -1729,8 +1729,7 @@ export default function SettingsScreen() {
 
               <View style={s.modalBody}>
                 <Text style={s.modalDescription}>
-                  Ingresa tu nombre completo. Este nombre aparecerá en tu perfil
-                  y en el ranking.
+                  Ingresa tu nombre completo. Este nombre aparecerá en tu perfil.
                 </Text>
 
                 <View style={s.weightInputContainer}>

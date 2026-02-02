@@ -129,6 +129,7 @@ export default function TabsLayout() {
         <Tabs.Screen name="about-smart-coach-pro" options={{ href: null }} />
         <Tabs.Screen name="scan" options={{ href: null }} />
         <Tabs.Screen name="calendar" options={{ href: null }} />
+        <Tabs.Screen name="ranking" options={{ href: null }} />
       </Tabs>
     </View>
   );
