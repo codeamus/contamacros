@@ -160,21 +160,6 @@ function makeStyles(colors: any, typography: any) {
       fontWeight: "700",
       color: colors.textPrimary,
     },
-    rankingButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 12,
-      backgroundColor: colors.brand + "15",
-    },
-    rankingButtonText: {
-      ...typography.body,
-      fontSize: 13,
-      fontWeight: "600",
-      color: colors.brand,
-    },
     rankContainer: {
       marginBottom: 16,
     },
@@ -282,34 +267,6 @@ function makeStyles(colors: any, typography: any) {
       ...typography.body,
       fontSize: 13,
       color: colors.textSecondary,
-    },
-    quickActions: {
-      marginTop: 8,
-      flexDirection: "row",
-      gap: 10,
-    },
-    quickActionButton: {
-      flex: 1,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 8,
-      paddingVertical: 12,
-      paddingHorizontal: 16,
-      borderRadius: 12,
-      backgroundColor: colors.brand + "10",
-      borderWidth: 1,
-      borderColor: colors.brand + "30",
-    },
-    quickActionButtonPressed: {
-      opacity: 0.7,
-      transform: [{ scale: 0.98 }],
-    },
-    quickActionText: {
-      ...typography.subtitle,
-      fontSize: 14,
-      fontWeight: "700",
-      color: colors.brand,
     },
   });
 }
