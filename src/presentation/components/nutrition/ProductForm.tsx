@@ -9,14 +9,14 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 
 export type BaseUnit = "g" | "ml";
@@ -60,14 +60,14 @@ export default function ProductForm({
   // Unit support
   const [isUnit, setIsUnit] = useState(false);
   const [gramsPerUnit, setGramsPerUnit] = useState("");
-  const [unitLabel, setUnitLabel] = useState("1 unidad");
+  const [unitLabel, setUnitLabel] = useState("unidad");
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState({ name: false, kcal: false, gramsPerUnit: false });
 
   const unitSuffix = isUnit 
-    ? (unitLabel.trim() ? unitLabel : "1 unidad")
+    ? (unitLabel.trim() ? unitLabel : "unidad")
     : (baseUnit === "ml" ? "100 ml" : "100 g");
 
   const unitLabelShort = isUnit
@@ -351,7 +351,7 @@ export default function ProductForm({
                         style={styles.input}
                         value={unitLabel}
                         onChangeText={setUnitLabel}
-                        placeholder="Ej: 1 huevo, 1 rebanada"
+                        placeholder="Ej: unidad, huevo, rebanada"
                         placeholderTextColor={colors.textSecondary}
                     />
                 </View>

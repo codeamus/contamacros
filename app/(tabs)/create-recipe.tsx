@@ -27,10 +27,12 @@ import { userFoodsRepository } from "@/data/food/userFoodsRepository";
 import { openFoodFactsService } from "@/data/openfoodfacts/openFoodFactsService";
 import {
   mapGenericFoodDbArrayToSearchItems,
+  mapGenericFoodDbToSearchItem,
   mapUserFoodDbArrayToSearchItems,
   type FoodSearchItem,
 } from "@/domain/mappers/foodMappers";
 import type { OffProduct } from "@/domain/models/offProduct";
+import CreateGenericFoodByBarcodeModal from "@/presentation/components/nutrition/CreateGenericFoodByBarcodeModal";
 import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -142,10 +144,15 @@ export default function CreateRecipeScreen() {
   
   const [err, setErr] = useState<string | null>(null);
 
+  // Barcode / Scanner states
+  const [isSearchingBarcode, setIsSearchingBarcode] = useState(false);
+  const [showCreateGenericFoodModal, setShowCreateGenericFoodModal] = useState(false);
+  const [barcodeToCreate, setBarcodeToCreate] = useState<string | null>(null);
+
   const reqIdRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Barcode scan handling
+  // Barcode scan handling (Misma lógica que add-food.tsx)
   useEffect(() => {
     const barcode =
       typeof params.barcode === "string" ? params.barcode.trim() : "";
@@ -160,62 +167,101 @@ export default function CreateRecipeScreen() {
     const myReqId = ++reqIdRef.current;
 
     (async () => {
-      setErr(null);
-      setIsSearching(true);
+      try {
+        setErr(null);
+        setIsSearchingBarcode(true);
 
-      const res = await openFoodFactsService.getByBarcode(
-        barcode,
-        abortController.signal,
-      );
+        const res = await openFoodFactsService.getByBarcode(
+          barcode,
+          abortController.signal,
+        );
 
-      if (myReqId !== reqIdRef.current || abortController.signal.aborted) {
-        return;
-      }
-
-      setIsSearching(false);
-
-      if (!res.ok) {
-        if (res.message !== "Búsqueda cancelada.") {
-          setErr(res.message);
+        if (myReqId !== reqIdRef.current || abortController.signal.aborted) {
+          return;
         }
-        return;
-      }
 
-      const it: ExtendedFoodSearchItem = {
-        key: `off:${res.data.id}`,
-        source: "off",
-        name: res.data.name,
-        meta: res.data.brand ? res.data.brand : "Sin marca",
-        kcal_100g: res.data.kcal_100g ?? 0,
-        protein_100g: res.data.protein_100g ?? 0,
-        carbs_100g: res.data.carbs_100g ?? 0,
-        fat_100g: res.data.fat_100g ?? 0,
-        off: res.data,
-        verified: false,
-        base_unit: res.data.unitType === "ml" ? "ml" : "g",
-        unitType: res.data.unitType,
-      };
+        if ((res as any).message === "Búsqueda cancelada.") {
+          setIsSearchingBarcode(false);
+          return;
+        }
 
-      setSelectedIngredient(it);
-      setSearchQuery(res.data.name);
-      setSearchResults([]);
-      setShowSearch(false);
-      // Si tiene unidades, cambiar a modo unidades por defecto
-      if (it.grams_per_unit && it.grams_per_unit > 0) {
-        setIngredientInputMode("units");
-        setIngredientUnits("1");
-      } else {
-        setIngredientInputMode("grams");
-        const suggested = it.off?.servingQuantity;
-        if (suggested && suggested > 0) {
-          setIngredientGrams(String(suggested));
-        } else {
-          setIngredientGrams("100");
+        // 1) Prioridad API externa: Open Food Facts
+        if (res.ok && res.data) {
+          const it: ExtendedFoodSearchItem = {
+            key: `off:${res.data.id}`,
+            source: "off",
+            name: res.data.name,
+            meta: res.data.brand ? res.data.brand : "Sin marca",
+            kcal_100g: res.data.kcal_100g ?? 0,
+            protein_100g: res.data.protein_100g ?? 0,
+            carbs_100g: res.data.carbs_100g ?? 0,
+            fat_100g: res.data.fat_100g ?? 0,
+            off: res.data,
+            verified: false,
+            base_unit: res.data.unitType === "ml" ? "ml" : "g",
+            unitType: res.data.unitType,
+          };
+          
+          setIsSearchingBarcode(false);
+          setSelectedIngredient(it);
+          setSearchQuery(res.data.name);
+          setSearchResults([]);
+          setShowSearch(false);
+          
+          if (it.grams_per_unit && it.grams_per_unit > 0) {
+            setIngredientInputMode("units");
+            setIngredientUnits("1");
+          } else {
+            setIngredientInputMode("grams");
+            const suggested = it.off?.servingQuantity;
+            if (suggested && suggested > 0) {
+              setIngredientGrams(String(suggested));
+            } else {
+              setIngredientGrams("100");
+            }
+          }
+          
+          setTimeout(() => router.setParams({ barcode: undefined }), 500);
+          return;
+        }
+
+        // 2) Prioridad local (Supabase): generic_foods por barcode
+        const localRes = await genericFoodsRepository.getByBarcode(barcode);
+        if (myReqId !== reqIdRef.current || abortController.signal.aborted) return;
+
+        if (localRes.ok && localRes.data) {
+          const it = mapGenericFoodDbToSearchItem(localRes.data) as ExtendedFoodSearchItem;
+          setIsSearchingBarcode(false);
+          setSelectedIngredient(it);
+          setSearchQuery(localRes.data.name_es);
+          setSearchResults([]);
+          setShowSearch(false);
+          
+          if (it.grams_per_unit && it.grams_per_unit > 0) {
+            setIngredientInputMode("units");
+            setIngredientUnits("1");
+          } else {
+            setIngredientInputMode("grams");
+            setIngredientGrams("100");
+          }
+          
+          setTimeout(() => router.setParams({ barcode: undefined }), 500);
+          return;
+        }
+
+        // 3) No en OFF ni local: mostrar formulario para crear en generic_foods
+        setIsSearchingBarcode(false);
+        setErr(null);
+        setBarcodeToCreate(barcode);
+        setShowCreateGenericFoodModal(true);
+        setTimeout(() => router.setParams({ barcode: undefined }), 500);
+      } catch (error: any) {
+        console.error("[CreateRecipeScreen] 💥 Error en búsqueda por barcode:", error);
+        setIsSearchingBarcode(false);
+        if (error?.name !== "AbortError" && !abortController.signal.aborted) {
+          setErr(error?.message || "Error al buscar producto");
         }
       }
-      
-      // Limpiar params para evitar re-lectura
-      setTimeout(() => router.setParams({ barcode: undefined }), 500);
     })();
 
     return () => {
@@ -847,6 +893,43 @@ export default function CreateRecipeScreen() {
                 )}
             </Pressable>
         </View>
+
+        {/* Modal para crear alimento genérico cuando no existe */}
+        {barcodeToCreate && (
+          <CreateGenericFoodByBarcodeModal
+            visible={showCreateGenericFoodModal}
+            barcode={barcodeToCreate}
+            onClose={() => {
+              setShowCreateGenericFoodModal(false);
+              setBarcodeToCreate(null);
+            }}
+            onSuccess={(food) => {
+              setShowCreateGenericFoodModal(false);
+              setBarcodeToCreate(null);
+              // Al crearse, lo ponemos como seleccionado
+              const it = mapGenericFoodDbToSearchItem(food) as ExtendedFoodSearchItem;
+              setSelectedIngredient(it);
+              setSearchQuery(food.name_es);
+              setSearchResults([]);
+              setShowSearch(false);
+              if (it.grams_per_unit && it.grams_per_unit > 0) {
+                setIngredientInputMode("units");
+                setIngredientUnits("1");
+              } else {
+                setIngredientInputMode("grams");
+                setIngredientGrams("100");
+              }
+            }}
+          />
+        )}
+
+        {/* Indicador de carga de búsqueda de barcode */}
+        {isSearchingBarcode && (
+          <View style={s.searchOverlay}>
+            <ActivityIndicator size="large" color={colors.brand} />
+            <Text style={s.searchText}>Buscando producto...</Text>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -1056,7 +1139,7 @@ function IngredientItem({
           ) : (
             <Text style={styles.ingredientGrams}>
               {hasUnits && currentUnits
-                ? `${currentUnits} ${unitLabel}${currentUnits !== 1 ? "s" : ""}`
+                ? `${currentUnits} ${unitLabel.replace(/^1\s+/, "")}${currentUnits !== 1 && unitLabel.toLowerCase().includes("unidad") ? "es" : currentUnits !== 1 ? "s" : ""}`
                 : `${ingredient.grams}${unitSuffix}`}{" "}
               · {Math.round(macros.kcal)} kcal
             </Text>
@@ -1081,7 +1164,7 @@ function IngredientItem({
             <View style={styles.ingredientCounter}>
               <Text style={styles.ingredientCounterText}>
                 {hasUnits && currentUnits
-                  ? `${currentUnits} ${currentUnits === 1 ? unitLabel : unitLabel + "s"}`
+                  ? `${currentUnits} ${currentUnits === 1 ? unitLabel.replace(/^1\s+/, "") : unitLabel.replace(/^1\s+/, "") + (unitLabel.toLowerCase().includes("unidad") ? "es" : "s")}`
                   : `${ingredient.grams}g`}
               </Text>
             </View>
@@ -1464,9 +1547,9 @@ function makeStyles(colors: any, typography: any, insets: any) {
       width: "48%", // 2 columns
     },
     macroText: {
-      fontSize: 13,
-      fontWeight: '600',
-      color: colors.textPrimary,
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 12,
+      color: colors.textSecondary,
     },
     
     // Footer
@@ -1514,6 +1597,19 @@ function makeStyles(colors: any, typography: any, insets: any) {
       justifyContent: "center",
       alignItems: "center",
       height: "100%",
+    },
+    searchOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "rgba(0,0,0,0.4)",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 16,
+      zIndex: 100,
+    },
+    searchText: {
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 16,
+      color: "white",
     },
   });
 }
