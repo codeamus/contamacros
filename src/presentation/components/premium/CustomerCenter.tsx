@@ -1,4 +1,6 @@
 // src/presentation/components/premium/CustomerCenter.tsx
+import { RevenueCatService } from "@/domain/services/revenueCatService";
+import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useRevenueCat } from "@/presentation/hooks/subscriptions/useRevenueCat";
 import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
@@ -6,14 +8,14 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
-  Linking,
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Linking,
+    Modal,
+    Platform,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 
 type CustomerCenterProps = {
@@ -27,7 +29,8 @@ export default function CustomerCenter({
 }: CustomerCenterProps) {
   const { theme } = useTheme();
   const { colors, typography } = theme;
-  const { customerInfo, restorePurchases, reload } = useRevenueCat();
+  const { customerInfo, isPremium: revenueCatPremium, restorePurchases, reload } = useRevenueCat();
+  const { profile } = useAuth();
   const { showToast } = useToast();
   const [isRestoring, setIsRestoring] = useState(false);
   const s = makeStyles(colors, typography);
@@ -109,11 +112,16 @@ export default function CustomerCenter({
   };
 
   const hasActiveSubscription =
-    customerInfo?.entitlements.active["ContaMacros Pro"] !== undefined;
+    revenueCatPremium ||
+    (profile?.is_premium ?? false) ||
+    customerInfo?.entitlements.active[RevenueCatService.getEntitlementId()] !==
+      undefined;
 
   // Debug: Log para verificar el estado
   console.log("[CustomerCenter] Estado:", {
     hasActiveSubscription,
+    revenueCatPremium,
+    profilePremium: profile?.is_premium,
     platform: Platform.OS,
     customerInfo: customerInfo ? "presente" : "null",
   });
