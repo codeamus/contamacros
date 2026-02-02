@@ -155,6 +155,9 @@ export default function CalendarScreen() {
   }
 
   function handleDayPress(dateStr: string) {
+    const today = todayStrLocal();
+    if (dateStr > today) return; // No permitir seleccionar días futuros
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     // Actualizar directamente el estado
     setSelectedDay(dateStr);
@@ -240,6 +243,7 @@ export default function CalendarScreen() {
               const calories = getCaloriesForDay(dateStr);
               const selected = isSelected(dateStr);
               const hasData = calories > 0;
+              const isFuture = dateStr > todayStrLocal();
 
               // Solo mostrar como seleccionado si el día coincide y es del mes actual
               const showAsSelected = selected && isCurrentMonth;
@@ -251,14 +255,17 @@ export default function CalendarScreen() {
                     s.dayCell,
                     !isCurrentMonth && s.dayCellOtherMonth,
                     showAsSelected && s.dayCellSelected,
+                    isFuture && s.dayCellDisabled,
                   ]}
                   onPress={() => handleDayPress(dateStr)}
+                  disabled={isFuture}
                 >
                   <Text
                     style={[
                       s.dayNumber,
                       !isCurrentMonth && s.dayNumberOtherMonth,
                       showAsSelected && s.dayNumberSelected,
+                      isFuture && s.dayNumberDisabled,
                     ]}
                   >
                     {day}
@@ -452,6 +459,11 @@ function makeStyles(colors: any, typography: any) {
     dayCellOtherMonth: {
       opacity: 0.3,
     },
+    dayCellDisabled: {
+      opacity: 0.2,
+      backgroundColor: colors.border,
+      borderColor: "transparent",
+    },
     dayCellSelected: {
       borderColor: colors.brand,
       borderWidth: 2,
@@ -463,6 +475,9 @@ function makeStyles(colors: any, typography: any) {
       color: colors.textPrimary,
     },
     dayNumberOtherMonth: {
+      color: colors.textSecondary,
+    },
+    dayNumberDisabled: {
       color: colors.textSecondary,
     },
     dayNumberSelected: {
@@ -478,11 +493,10 @@ function makeStyles(colors: any, typography: any) {
     },
     dayIndicatorLow: {
       backgroundColor: colors.brand,
-      opacity: 0.5,
+      opacity: 0.3,
     },
     dayIndicatorMid: {
-      backgroundColor: colors.cta,
-      opacity: 0.7,
+      backgroundColor: colors.brand,
     },
     dayIndicatorHigh: {
       backgroundColor: colors.cta,
@@ -598,11 +612,10 @@ function makeStyles(colors: any, typography: any) {
     },
     legendDotLow: {
       backgroundColor: colors.brand,
-      opacity: 0.5,
+      opacity: 0.3,
     },
     legendDotMid: {
-      backgroundColor: colors.cta,
-      opacity: 0.7,
+      backgroundColor: colors.brand,
     },
     legendDotHigh: {
       backgroundColor: colors.cta,
