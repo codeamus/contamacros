@@ -1,23 +1,20 @@
-// src/presentation/components/nutrition/CreateFoodModal.tsx
 import { genericFoodsRepository } from "@/data/food/genericFoodsRepository";
-import { GamificationService, getUserRank } from "@/domain/services/gamificationService";
-import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 
 type CreateFoodModalProps = {
@@ -174,46 +171,12 @@ export default function CreateFoodModal({
         throw new Error(result.message || "Error al crear el alimento");
       }
 
-      // Registrar aporte en gamificación (+50 XP)
-      const contributionResult = await GamificationService.recordFoodContribution();
-
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
-      // Verificar si subió de rango
-      if (contributionResult.ok) {
-        const statsResult = await GamificationService.getUserStats();
-        if (statsResult.ok) {
-          const currentRank = getUserRank(statsResult.data.xp_points);
-          const previousRank = getUserRank(statsResult.data.xp_points - 50);
-          
-          if (currentRank.name !== previousRank.name) {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            showToast({
-              message: `¡Felicidades! Ahora eres ${currentRank.emoji} ${currentRank.name}`,
-              type: "success",
-              duration: 5000,
-            });
-          } else {
-            showToast({
-              message: "¡Alimento creado! +50 XP ganados 🎉",
-              type: "success",
-              duration: 3000,
-            });
-          }
-        } else {
-          showToast({
-            message: "¡Alimento creado! +50 XP ganados 🎉",
-            type: "success",
-            duration: 3000,
-          });
-        }
-      } else {
-        showToast({
-          message: "¡Alimento creado! +50 XP ganados 🎉",
-          type: "success",
-          duration: 3000,
-        });
-      }
+      showToast({
+        message: "¡Alimento creado!",
+        type: "success",
+        duration: 3000,
+      });
 
       // Resetear formulario
       setName("");
@@ -619,9 +582,6 @@ export default function CreateFoodModal({
                     />
                     <View style={s.saveButtonContent}>
                       <Text style={s.saveButtonText}>Agregar a la Comunidad</Text>
-                      <Text style={s.saveButtonSubtext}>
-                        Ganarás 50 puntos de experiencia 🎉
-                      </Text>
                     </View>
                   </>
                 )}

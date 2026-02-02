@@ -1,5 +1,4 @@
 import { supabase } from "@/data/supabase/supabaseClient";
-import { GamificationService } from "@/domain/services/gamificationService";
 
 export type GenericFoodDb = {
   id: string;
@@ -331,11 +330,7 @@ export const genericFoodsRepository = {
         return { ok: false, message: "No se pudo crear el alimento." };
       }
 
-      // Registrar aporte en gamificación (+50 XP)
-      await GamificationService.recordFoodContribution().catch((error) => {
-        console.warn("[genericFoodsRepository] Error al registrar aporte:", error);
-        // No fallar si la gamificación falla
-      });
+      // Registro de aporte en gamificación eliminado
 
       return { ok: true, data: data as GenericFoodDb };
     } catch (error) {
@@ -423,9 +418,7 @@ export const genericFoodsRepository = {
         return { ok: false, message: "No se pudo crear el alimento." };
       }
 
-      await GamificationService.recordFoodContribution().catch((err) => {
-        console.warn("[genericFoodsRepository] Error al registrar aporte:", err);
-      });
+      // Registro de aporte en gamificación eliminado
 
       return { ok: true, data: data as GenericFoodDb };
     } catch (error) {

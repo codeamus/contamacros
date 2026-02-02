@@ -1,35 +1,32 @@
 // app/(tabs)/settings.tsx
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Linking,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import {
-    SafeAreaView,
-    useSafeAreaInsets,
+  SafeAreaView,
+  useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
 import type { ActivityLevelDb, GoalDb } from "@/domain/models/profileDb";
 import {
-    calculateCalorieGoal,
-    calculateCalorieGoalFromProfile,
-    type GoalType,
+  calculateCalorieGoal,
+  calculateCalorieGoalFromProfile,
+  type GoalType,
 } from "@/domain/services/calorieGoals";
 import { computeMacroTargets } from "@/domain/services/macroTargets";
 import { UserService } from "@/domain/services/userService";
-import AchievementsList from "@/presentation/components/nutrition/AchievementsList";
-import ProgressCard from "@/presentation/components/nutrition/ProgressCard";
 import CustomerCenter from "@/presentation/components/premium/CustomerCenter";
 import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
 import { Avatar } from "@/presentation/components/ui/Avatar";
@@ -954,62 +951,6 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Progreso Section - Solo Premium */}
-        {isPremium && (
-          <View style={s.section}>
-            <ProgressCard
-              onPressRanking={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push("/(tabs)/ranking");
-              }}
-            />
-          </View>
-        )}
-
-        {/* Achievements Section - Solo Premium */}
-        {isPremium && (
-          <View style={s.section}>
-            <AchievementsList showHeader={true} />
-          </View>
-        )}
-
-        {/* Accesos Rápidos - Comunidad - Solo Premium */}
-        {isPremium && (
-          <View style={s.section}>
-            <Text style={s.sectionTitle}>Comunidad</Text>
-            <View style={s.sectionContent}>
-              <SettingItem
-                icon="podium"
-                label="Ranking"
-                value="Ver los mejores usuarios"
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push("/(tabs)/ranking");
-                }}
-                colors={colors}
-                typography={typography}
-              />
-              <View style={{ height: 10 }} />
-              <SettingItem
-                icon="medal"
-                label="Mis Medallas"
-                value="Ver todos tus logros y achievements"
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  // Las medallas ya están visibles arriba en la misma pantalla
-                  // El usuario puede hacer scroll hacia arriba para verlas
-                  showToast({
-                    message: "Haz scroll hacia arriba para ver tus medallas",
-                    type: "info",
-                    duration: 2000,
-                  });
-                }}
-                colors={colors}
-                typography={typography}
-              />
-            </View>
-          </View>
-        )}
 
         {/* Perfil Section */}
         <View style={s.section}>
