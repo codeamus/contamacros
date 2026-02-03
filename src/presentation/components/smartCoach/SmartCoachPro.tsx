@@ -10,12 +10,12 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-  ActivityIndicator,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Platform,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 
 /** Momento del día en español para mensajes personalizados */
@@ -612,8 +612,7 @@ export default function SmartCoachPro({
 function makeStyles(colors: any, typography: any) {
   return StyleSheet.create({
     container: {
-      marginHorizontal: 16,
-      marginVertical: 8,
+      flex: 1,
     },
     card: {
       borderRadius: 16,
