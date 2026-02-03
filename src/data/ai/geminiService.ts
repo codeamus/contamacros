@@ -152,142 +152,185 @@ export type SmartCoachRefinementContext = {
   proteinGap: number;
   carbsGap: number;
   fatGap: number;
+  caloriesConsumed: number;
+  proteinConsumed: number;
+  carbsConsumed: number;
+  fatConsumed: number;
   currentFoodName: string;
   currentMessage: string;
   userMessage: string;
   dietaryPreference: string | null;
 };
 
-export type SmartCoachRefinementResult =
-  | {
-      type: "food";
-      name: string;
-      protein_100g: number;
-      carbs_100g: number;
-      fat_100g: number;
-      kcal_100g: number;
-      recommendedAmount: number;
-      unitLabel?: string;
-      message: string;
-      ingredients: string[];
-      instructions: string[];
-      image_description?: string;
-      image_search_term?: string;
-    }
-  | {
-      type: "fallback";
-      message: string;
-    };
+export type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+  type?: "text" | "recipe" | "plan";
+  data?: any;
+};
+
+export type SmartCoachRecipe = {
+  name: string;
+  protein_100g: number;
+  carbs_100g: number;
+  fat_100g: number;
+  kcal_100g: number;
+  recommendedAmount: number;
+  unitLabel?: string;
+  ingredients: string[];
+  instructions: string[];
+  image_description?: string;
+  image_search_term?: string;
+};
+
+export type SmartCoachMeal = {
+  timeSlot: "Desayuno" | "Colación" | "Almuerzo" | "Once" | "Cena";
+  name: string;
+  description: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  recipe_data?: SmartCoachRecipe;
+};
+
+export type SmartCoachDayPlan = {
+  dayName: string; // "Lunes", "Martes", etc.
+  meals: SmartCoachMeal[];
+};
+
+export type SmartCoachMealPlan = {
+  title: string;
+  type: "daily" | "weekly";
+  days: SmartCoachDayPlan[];
+};
+
+export type SmartCoachChatResponse =
+  | { type: "text"; message: string }
+  | { type: "recipe"; message: string; recipe: SmartCoachRecipe }
+  | { type: "plan"; message: string; plan: SmartCoachMealPlan }
+  | { type: "fallback"; message: string };
 
 const FALLBACK_MSG =
-  "No encontré algo exacto en tu historial, pero basándome en tus metas, ¿qué te parece intentar otra opción que se ajuste a lo que tienes?";
+  "¡Estoy ajustando tu plan! Dame un segundo, campeón.";
 
-function cleanJsonString(s: string): string {
-  return s
-    .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
-    .replace(/\\n/g, "[NL]")
-    .replace(/\n/g, " ")
-    .replace(/\r/g, " ")
-    .replace(/\[NL\]/g, "\\n")
-    .replace(/[""]/g, '"')
-    .replace(/['']/g, "'")
-    .trim();
-}
-
-function parseSmartCoachResponse(text: string): SmartCoachRefinementResult {
+function parseSmartCoachResponse(text: string): SmartCoachChatResponse {
   const rawOriginal = text.trim();
   let raw = rawOriginal.replace(/```json|```/g, "").trim();
-  console.log("Respuesta cruda de Gemini:", raw);
-
+  
   let cleanJson = raw.match(/\{[\s\S]*\}/)?.[0] ?? raw;
-  cleanJson = cleanJson
-    .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
-    .replace(/\\n/g, "[NL]")
-    .replace(/\n/g, " ")
-    .replace(/\r/g, " ")
-    .replace(/\[NL\]/g, "\\n")
-    .replace(/[""]/g, '"')
-    .replace(/['']/g, "'")
-    .trim();
-
-  let parsed: any;
   try {
-    parsed = JSON.parse(cleanJson);
-  } catch (firstErr) {
-    cleanJson = cleanJsonString(cleanJson);
-    try {
-      parsed = JSON.parse(cleanJson);
-    } catch (secondErr) {
-      console.error("[geminiService] parseSmartCoachResponse falló. Raw original:", rawOriginal);
-      return { type: "fallback", message: FALLBACK_MSG };
+    const parsed = JSON.parse(cleanJson);
+    
+    if (parsed.type === "recipe") {
+      return {
+        type: "recipe",
+        message: parsed.message || "",
+        recipe: {
+          name: parsed.recipe.name || "Receta sugerida",
+          protein_100g: Number(parsed.recipe.protein_100g) || 0,
+          carbs_100g: Number(parsed.recipe.carbs_100g) || 0,
+          fat_100g: Number(parsed.recipe.fat_100g) || 0,
+          kcal_100g: Number(parsed.recipe.kcal_100g) || 0,
+          recommendedAmount: Number(parsed.recipe.recommendedAmount) || 100,
+          unitLabel: parsed.recipe.unitLabel,
+          ingredients: Array.isArray(parsed.recipe.ingredients) ? parsed.recipe.ingredients : [],
+          instructions: Array.isArray(parsed.recipe.instructions) ? parsed.recipe.instructions : [],
+          image_description: parsed.recipe.image_description,
+          image_search_term: parsed.recipe.image_search_term || parsed.recipe.name,
+        }
+      };
     }
+
+    if (parsed.type === "plan") {
+      return {
+        type: "plan",
+        message: parsed.message || "",
+        plan: {
+          title: parsed.plan.title || "Plan de comidas",
+          type: parsed.plan.type === "weekly" ? "weekly" : "daily",
+          days: Array.isArray(parsed.plan.days) ? parsed.plan.days.map((d: any) => ({
+            dayName: d.dayName || d.dayLabel || "Hoy",
+            meals: Array.isArray(d.meals) ? d.meals.map((m: any) => ({
+              ...m,
+              timeSlot: m.timeSlot || m.time || "Colación"
+            })) : []
+          })) : [{ dayName: "Hoy", meals: [] }],
+        }
+      };
+    }
+
+    return {
+      type: "text",
+      message: parsed.message || parsed.text || raw
+    };
+  } catch (err) {
+    console.error("[geminiService] parseSmartCoachResponse error:", err, "Original:", rawOriginal);
+    return { type: "text", message: rawOriginal };
   }
-
-  // Si la IA puso type "fallback" pero devolvió nombre o ingredientes, tratarlo como comida
-  if (parsed.type === "fallback" && (parsed.name != null || (Array.isArray(parsed.ingredients) && parsed.ingredients.length > 0))) {
-    parsed.type = "food";
-  }
-
-  if (parsed.type === "fallback") {
-    return { type: "fallback", message: typeof parsed.message === "string" ? parsed.message : FALLBACK_MSG };
-  }
-
-  const isFoodOrMeal = parsed.type === "food" || parsed.type === "meal";
-  if (!isFoodOrMeal) {
-    return { type: "fallback", message: FALLBACK_MSG };
-  }
-
-  const ingredients = Array.isArray(parsed.ingredients)
-    ? parsed.ingredients.filter((x: unknown) => typeof x === "string")
-    : [];
-  const instructions = Array.isArray(parsed.instructions)
-    ? parsed.instructions.filter((x: unknown) => typeof x === "string")
-    : [];
-
-  return {
-    type: "food",
-    name: typeof parsed.name === "string" ? parsed.name : "Alternativa",
-    protein_100g: Number(parsed.protein_100g) || 0,
-    carbs_100g: Number(parsed.carbs_100g) || 0,
-    fat_100g: Number(parsed.fat_100g) || 0,
-    kcal_100g: Number(parsed.kcal_100g) || 0,
-    recommendedAmount: Math.max(1, Math.round(Number(parsed.recommendedAmount) || 100)),
-    unitLabel: typeof parsed.unitLabel === "string" ? parsed.unitLabel : undefined,
-    message: typeof parsed.message === "string" ? parsed.message : "",
-    ingredients,
-    instructions,
-    image_description: typeof parsed.image_description === "string" ? parsed.image_description : "",
-    image_search_term: typeof parsed.image_search_term === "string" ? parsed.image_search_term : (typeof parsed.name === "string" ? parsed.name : "healthy food"),
-  };
 }
 
-/**
- * Pide a Gemini una alternativa de comida. Auto-recuperación: prueba 3 endpoints
- * (v1beta gemini-1.5-flash, v1beta gemini-pro, v1 gemini-1.5-flash) si hay 404.
- */
 export async function askSmartCoach(
-  context: SmartCoachRefinementContext
-): Promise<SmartCoachRefinementResult> {
+  context: SmartCoachRefinementContext,
+  history: ChatMessage[] = []
+): Promise<SmartCoachChatResponse> {
   const apiKey = API_KEY;
-  if (!apiKey) return { type: "fallback", message: FALLBACK_MSG };
+  if (!apiKey) return { type: "fallback", message: "API Key no configurada" };
 
-  // 1. Usamos el modelo 2.5 Flash que aparece en tus ajustes de AI Studio
   const URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
+  const historyText = history.map(m => `${m.role === 'user' ? 'Usuario' : 'Coach'}: ${m.content}`).join('\n');
+
   const promptText = `
-    Eres un Coach Nutricional Pro, motivador y enérgico.
-    CONTEXTO: El usuario dice "${context.userMessage}" sobre la comida "${context.currentFoodName}".
-    Déficit actual: ${context.calorieGap}kcal, ${context.proteinGap}g Proteína.
-    TAREA: Sugiere una alternativa que encaje en sus macros y genera una receta breve.
-    NUNCA digas que no encontraste algo. Si el usuario pide algo como "pizza", inventa una versión saludable (ej: masa de coliflor o integral) que encaje en sus macros. Sé creativo y resolutivo. Siempre devuelve una receta concreta (type: "food" o "meal"), nunca type "fallback".
-    IMPORTANTE: Escribe ingredients e instructions SIEMPRE en ESPAÑOL. Usa ingredientes disponibles en Chile. El JSON SIEMPRE debe incluir los campos ingredients e instructions (arrays de strings).
-    RESPUESTA: Devuelve ÚNICAMENTE un JSON con:
-    type ("food" o "meal"), name, protein_100g, carbs_100g, fat_100g, kcal_100g, recommendedAmount, message,
-    ingredients (array de strings en ESPAÑOL, ej: ["2 huevos", "100 g de pollo"]),
-    instructions (array de strings en ESPAÑOL, pasos numerables de preparación),
-    image_description (una frase corta, estética y apetitosa en ESPAÑOL, ej: "Un cremoso bowl de yogur griego con frutos rojos frescos y un toque de miel"),
-    image_search_term (nombre del plato o descripción en INGLÉS para búsqueda de imagen, ej: "greek yogurt bowl berries honey").
-    El campo message: máximo 3 frases cortas (para móvil). Usa frases como "¡Vamos máquina!" o "¡A darle con todo!".
+    Actúa como un Nutricionista Pro y Coach de Salud CHILENO, optimista y técnico. Tu tono es cercano (como un coach de gimnasio en Santiago) usando expresiones sutiles como "¡Dale!", "Súper" o "Impeque" de forma natural.
+    
+    ESTADO ACTUAL DE MACROS (IMPORTANTE):
+    - Consumido hoy: ${context.caloriesConsumed} kcal (P: ${context.proteinConsumed}g, C: ${context.carbsConsumed}g, F: ${context.fatConsumed}g)
+    - Macros Restantes: ${context.calorieGap} kcal (P: ${context.proteinGap}g, C: ${context.carbsGap}g, F: ${context.fatGap}g)
+    
+    PREFERENCIAS DIETÉTICAS: ${context.dietaryPreference || 'Ninguna'}.
+    
+    REGLAS DE LOCALIZACIÓN (CHILE):
+    - Vocabulario: Usa "Palta", "Porotos", "Maní", "Durazno".
+    - Tiempos de Comida (ESTRICTO): Usa "Desayuno", "Colación", "Almuerzo", "Once" y "Cena".
+    - Alimentos sugeridos: Prioriza Lider/Jumbo (Marraqueta sin miga, Quesillo, Jamón pavo, Jurel, etc.).
+    - Unidades: Usa estrictamente gramos (g) y mililitros (ml).
+
+    HISTORIAL DE LA SESIÓN ACTUAL (NO considerar días anteriores):
+    ${historyText}
+
+    MENSAJE ACTUAL DEL USUARIO:
+    "${context.userMessage}"
+
+    REGLAS DE RESPUESTA (JSON ÚNICAMENTE):
+    1. Eres plenamente consciente de los macros que le quedan al usuario para hoy. Si se ha pasado, ofrece soluciones constructivas con tu estilo chileno.
+    2. Si el usuario pide comida o dice "no sé qué comer", responde type: "recipe".
+    3. Si hace preguntas informativas o consejos, responde type: "text" (breve y motivador).
+    4. Si pide un plan (día/semana), responde type: "plan" equilibrando macros restantes y usando alimentos locales.
+    5. Idioma: ESPAÑOL CHILENO (excepto image_search_term en inglés).
+
+    ESTRUCTURA DEL JSON:
+    - Para "text": { "type": "text", "message": "Tu respuesta aquí" }
+    - Para "recipe": { 
+        "type": "recipe", 
+        "message": "Intro corta", 
+        "recipe": { 
+          "name": "Nombre", "protein_100g": X, "carbs_100g": X, "fat_100g": X, "kcal_100g": X, "recommendedAmount": X,
+          "ingredients": ["..."], "instructions": ["..."], "image_description": "...", "image_search_term": "..." 
+        }
+      }
+    - Para "plan": {
+        "type": "plan",
+        "message": "Intro",
+        "plan": {
+          "title": "Título",
+          "type": "daily" o "weekly",
+          "days": [{
+            "dayName": "Lunes",
+            "meals": [{ "timeSlot": "Desayuno", "name": "...", "description": "...", "calories": X, "protein": X, "carbs": X, "fat": X }]
+          }]
+        }
+      }
   `;
 
   try {
@@ -300,16 +343,10 @@ export async function askSmartCoach(
     });
 
     const data = await response.json();
-    
-    if (!response.ok) {
-      // Si el 2.5 da cuota, el log nos dirá si es por saturación
-      console.error("[geminiService] Error API con 2.5-flash:", data.error?.message);
-      return { type: "fallback", message: "¡Estoy ajustando tu plan! Dame un segundo, campeón." };
-    }
+    if (!response.ok) return { type: "fallback", message: FALLBACK_MSG };
 
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    const cleanText = text.replace(/```json|```/g, "").trim();
-    return parseSmartCoachResponse(cleanText);
+    return parseSmartCoachResponse(text);
   } catch (err) {
     console.error("[geminiService] askSmartCoach error:", err);
     return { type: "fallback", message: FALLBACK_MSG };

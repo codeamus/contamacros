@@ -142,10 +142,10 @@ export const foodLogRepository = {
       const foods = Array.from(foodMap.values())
         .map((food) => ({
           name: food.name,
-          protein_100g: food.protein_g, // Ya está normalizado aproximadamente
-          carbs_100g: food.carbs_g,
-          fat_100g: food.fat_g,
-          kcal_100g: food.calories,
+          protein_g: food.protein_g,
+          carbs_g: food.carbs_g,
+          fat_g: food.fat_g,
+          calories: food.calories,
           lastEaten: food.lastEaten,
           timesEaten: food.timesEaten,
         }))
@@ -153,25 +153,25 @@ export const foodLogRepository = {
         .filter((food) => {
           const macroValue =
             macro === "protein"
-              ? food.protein_100g
+              ? food.protein_g
               : macro === "carbs"
-                ? food.carbs_100g
-                : food.fat_100g;
+                ? food.carbs_g
+                : food.fat_g;
           return macroValue > 0;
         })
         .sort((a, b) => {
           const aMacro =
             macro === "protein"
-              ? a.protein_100g
+              ? a.protein_g
               : macro === "carbs"
-                ? a.carbs_100g
-                : a.fat_100g;
+                ? a.carbs_g
+                : a.fat_g;
           const bMacro =
             macro === "protein"
-              ? b.protein_100g
+              ? b.protein_g
               : macro === "carbs"
-                ? b.carbs_100g
-                : b.fat_100g;
+                ? b.carbs_g
+                : b.fat_g;
 
           // Priorizar frecuencia, luego valor del macro
           if (b.timesEaten !== a.timesEaten) {
@@ -583,6 +583,67 @@ export const foodLogRepository = {
           consistency,
         },
       };
+    } catch (e) {
+      return { ok: false, ...mapError(e) };
+    }
+  },
+
+  async createMany(
+    logs: Array<{
+      day: string;
+      meal: MealType;
+      name: string;
+      grams?: number | null;
+      calories: number;
+      protein_g: number;
+      carbs_g: number;
+      fat_g: number;
+      source?: string | null;
+      off_id?: string | null;
+      source_type?: "food" | "user_food" | "manual" | null;
+      food_id?: string | null;
+      user_food_id?: string | null;
+    }>,
+  ): Promise<RepoResult<FoodLogDb[]>> {
+    try {
+      const uidRes = await getUid();
+      if (!uidRes.ok) return uidRes as any;
+      const uid = uidRes.data;
+
+      const payloads = logs.map((input) => {
+        const inferredSourceType =
+          input.source_type ??
+          (input.user_food_id
+            ? "user_food"
+            : input.food_id
+              ? "food"
+              : "manual");
+
+        return {
+          day: input.day,
+          meal: input.meal,
+          name: input.name,
+          grams: input.grams ?? null,
+          calories: input.calories,
+          protein_g: input.protein_g,
+          carbs_g: input.carbs_g,
+          fat_g: input.fat_g,
+          source: input.source ?? null,
+          off_id: input.off_id ?? null,
+          source_type: inferredSourceType,
+          food_id: input.food_id ?? null,
+          user_food_id: input.user_food_id ?? null,
+          user_id: uid,
+        };
+      });
+
+      const { data, error } = await supabase
+        .from("food_logs")
+        .insert(payloads)
+        .select("*");
+
+      if (error) return { ok: false, message: error.message, code: error.code };
+      return { ok: true, data: (data as FoodLogDb[]) ?? [] };
     } catch (e) {
       return { ok: false, ...mapError(e) };
     }
