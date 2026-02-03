@@ -571,10 +571,22 @@ export default function AddFoodScreen() {
             verified: false,
             base_unit: res.data.unitType === "ml" ? "ml" : "g",
             unitType: res.data.unitType,
+            grams_per_unit: res.data.servingQuantity,
           };
+
           setSelected(it);
           setQuery(res.data.name);
           setResults([]);
+
+          // Prioridad: si tiene porción/serving, poner modo unidades 1
+          if (it.grams_per_unit && it.grams_per_unit > 0) {
+            setInputMode("units");
+            setUnitsStr("1");
+          } else {
+            setInputMode("grams");
+            setGramsStr("100");
+          }
+
           justProcessedBarcodeRef.current = true;
           // Incrementar contador de escaneo
           UsageService.incrementScanCount();

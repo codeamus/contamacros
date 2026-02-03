@@ -38,6 +38,7 @@ import type { OffProduct } from "@/domain/models/offProduct";
 import CreateGenericFoodByBarcodeModal from "@/presentation/components/nutrition/CreateGenericFoodByBarcodeModal";
 import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
 import { useFeatureAccess } from "@/presentation/hooks/premium/useFeatureAccess";
+import { useMacroScanner } from "@/presentation/hooks/scanner/useMacroScanner";
 import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -163,6 +164,38 @@ export default function CreateRecipeScreen() {
     limit: 5,
   });
 
+  // AI Scanner
+  const { isAnalyzing: isAnalyzingAi, captureAndAnalyze } = useMacroScanner({
+    onAnalysisComplete: (result) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const it: ExtendedFoodSearchItem = {
+        key: `ai:${Date.now()}`,
+        source: "off",
+        name: result.foodName,
+        meta: "Escaneado con IA",
+        kcal_100g: result.calories,
+        protein_100g: result.protein,
+        carbs_100g: result.carbs,
+        fat_100g: result.fats,
+        off: null,
+        verified: false,
+        base_unit: "g",
+      };
+      setSelectedIngredient(it);
+      setSearchQuery(result.foodName);
+      setSearchResults([]);
+      setShowSearch(false);
+      setIngredientInputMode("grams");
+      setIngredientGrams("100");
+    },
+    onLimitReached: () => setShowPaywall(true),
+  });
+
+  const handleOpenAiScanner = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    captureAndAnalyze();
+  }, [captureAndAnalyze]);
+
   // Cargar límite de recetas al montar
   useEffect(() => {
     (async () => {
@@ -226,6 +259,7 @@ export default function CreateRecipeScreen() {
             verified: false,
             base_unit: res.data.unitType === "ml" ? "ml" : "g",
             unitType: res.data.unitType,
+            grams_per_unit: res.data.servingQuantity,
           };
 
           setIsSearchingBarcode(false);
@@ -234,17 +268,13 @@ export default function CreateRecipeScreen() {
           setSearchResults([]);
           setShowSearch(false);
 
+          // Prioridad: si tiene porción/serving, poner modo unidades 1
           if (it.grams_per_unit && it.grams_per_unit > 0) {
             setIngredientInputMode("units");
             setIngredientUnits("1");
           } else {
             setIngredientInputMode("grams");
-            const suggested = it.off?.servingQuantity;
-            if (suggested && suggested > 0) {
-              setIngredientGrams(String(suggested));
-            } else {
-              setIngredientGrams("100");
-            }
+            setIngredientGrams("100");
           }
 
           setTimeout(() => router.setParams({ barcode: undefined }), 500);
@@ -614,10 +644,29 @@ export default function CreateRecipeScreen() {
           <View style={s.inputGroup}>
             <View style={s.inputLabelRow}>
               <Text style={s.inputLabel}>Agregar ingrediente</Text>
-              <Pressable onPress={handleOpenScanner} style={s.scanBtn}>
-                <Feather name="camera" size={16} color={colors.brand} />
-                <Text style={s.scanBtnText}>Escanear</Text>
-              </Pressable>
+              <View style={s.scanButtonsRow}>
+                <Pressable onPress={handleOpenScanner} style={s.scanBtnCompact}>
+                  <Feather name="maximize" size={14} color={colors.brand} />
+                  <Text style={s.scanBtnText}>Code</Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleOpenAiScanner}
+                  style={[s.scanBtnCompact, s.scanBtnAi]}
+                >
+                  {isAnalyzingAi ? (
+                    <ActivityIndicator size="small" color={colors.brand} />
+                  ) : (
+                    <>
+                      <MaterialCommunityIcons
+                        name={"auto-fix" as any}
+                        size={14}
+                        color={colors.brand}
+                      />
+                      <Text style={s.scanBtnText}>IA</Text>
+                    </>
+                  )}
+                </Pressable>
+              </View>
             </View>
 
             <TextInput
@@ -1328,13 +1377,33 @@ function makeStyles(colors: any, typography: any, insets: any) {
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 8,
       backgroundColor: colors.brand + "15",
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      borderRadius: 20,
+    },
+    scanButtonsRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+    scanBtnCompact: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      backgroundColor: colors.brand + "10",
+      paddingVertical: 4,
+      paddingHorizontal: 10,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.brand + "30",
+    },
+    scanBtnAi: {
+      backgroundColor: colors.brand + "20",
+      borderColor: colors.brand + "50",
     },
     scanBtnText: {
-      fontSize: 13,
+      fontSize: 12,
       fontWeight: "600",
       color: colors.brand,
     },
