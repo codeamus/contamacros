@@ -8,17 +8,17 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Animated,
-  Dimensions,
-  Linking,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Animated,
+    Dimensions,
+    Linking,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 import type { PurchasesOffering } from "react-native-purchases";
 import { PACKAGE_TYPE } from "react-native-purchases";
@@ -61,30 +61,32 @@ const BENEFIT_ICON_PRO = "#FBBF24"; // Destellos — ámbar, coherente con dark
 
 const BENEFITS = [
   {
-    icon: "camera-iris" as const,
-    title: "Escáner Nutricional IA Ilimitado",
+    icon: "barcode-scan" as const,
+    title: "Escáner de Barcode Ilimitado",
     description:
-      "Análisis instantáneo de platos y alimentos con Gemini 2.0 Flash. Versión gratuita limitada a 3 escaneos por día.",
-    iconColor: BENEFIT_ICON_AI,
-  },
-  {
-    icon: "creation" as const,
-    title: "Tu Futuro Pro",
-    description:
-      "Visualiza tu peso y progreso proyectado a 30 días basándonos en tu ritmo real.",
+      "Escanea productos sin límites. Versión gratuita limitada a 5 escaneos por día.",
     iconColor: BENEFIT_ICON_PRO,
   },
   {
-    icon: "brain" as const,
-    title: "Smart Coach Pro",
+    icon: "camera-iris" as const,
+    title: "Escáner Nutricional IA Ilimitado",
     description:
-      "Recomendaciones exactas de macros basadas en tu historial y metas.",
+      "Análisis instantáneo de platos con Gemini 2.0. Versión gratuita limitada a 1 uso histórico.",
+    iconColor: BENEFIT_ICON_AI,
   },
   {
-    icon: "file-chart" as const,
-    title: "Reportes para descargar",
+    icon: "chef-hat" as const,
+    title: "Recetas Ilimitadas",
     description:
-      "Exporta tus reportes en PDF y lleva tu progreso de calorías y macros donde quieras.",
+      "Guarda todas tus recetas favoritas. Versión gratuita limitada a 5 recetas totales.",
+    iconColor: BENEFIT_ICON_PRO,
+  },
+  {
+    icon: "history" as const,
+    title: "Historial Completo",
+    description:
+      "Accede a todo tu historial de comidas. Versión gratuita limitada a los últimos 7 días.",
+    iconColor: BENEFIT_ICON_AI,
   },
 ];
 

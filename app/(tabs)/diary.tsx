@@ -1,28 +1,35 @@
 // app/(tabs)/diary.tsx
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  Easing,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Swipeable } from "react-native-gesture-handler";
 import * as Haptics from "expo-haptics";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import React, {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
+import {
+    Alert,
+    Animated,
+    Easing,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View
+} from "react-native";
+import { Swipeable } from "react-native-gesture-handler";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { foodLogRepository } from "@/data/food/foodLogRepository";
 import type { FoodLogDb, MealType } from "@/domain/models/foodLogDb";
+import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
 import DateHeader from "@/presentation/components/ui/DateHeader";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useHealthSync } from "@/presentation/hooks/health/useHealthSync";
+import { useFeatureAccess } from "@/presentation/hooks/premium/useFeatureAccess";
 import { useRevenueCat } from "@/presentation/hooks/subscriptions/useRevenueCat";
 import { useStaggerAnimation } from "@/presentation/hooks/ui/useStaggerAnimation";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
@@ -110,9 +117,12 @@ function AnimatedMacroProgress({
   typography: any;
   animation: Animated.Value;
 }) {
-  const pct = useMemo(() => (target ? clamp01(value / target) : 0), [value, target]);
+  const pct = useMemo(
+    () => (target ? clamp01(value / target) : 0),
+    [value, target],
+  );
   const showTarget = useMemo(() => target && Number.isFinite(target), [target]);
-  
+
   const progressAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -239,7 +249,7 @@ function FoodItem({
     }).start();
   }, [itemAnim, index]);
 
-    const renderRightActions = (
+  const renderRightActions = (
     progress: Animated.AnimatedInterpolation<number>,
     dragX: Animated.AnimatedInterpolation<number>,
   ) => {
@@ -371,7 +381,7 @@ export default function DiaryScreen() {
   const { profile } = useAuth();
   const { theme } = useTheme();
   const { colors, typography } = theme;
-  
+
   // Health Sync (Premium) - Solo para el día de hoy
   // Usar RevenueCat como fuente de verdad para premium
   const { isPremium: revenueCatPremium } = useRevenueCat();
@@ -390,6 +400,9 @@ export default function DiaryScreen() {
   const [err, setErr] = useState<string | null>(null);
 
   const [filterMeal, setFilterMeal] = useState<MealFilter>("all");
+
+  const [showPaywall, setShowPaywall] = useState(false);
+  const { checkAccess } = useFeatureAccess();
 
   useEffect(() => {
     const m = params.meal;
@@ -433,9 +446,34 @@ export default function DiaryScreen() {
     });
   }, []);
 
+  const onDateChange = useCallback(
+    async (newDate: string) => {
+      // Si no es hoy, verificar si es <= 7 días de antigüedad
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const selectedDate = new Date(newDate + "T00:00:00");
+      const diffTime = today.getTime() - selectedDate.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays > 7) {
+        const access = await checkAccess("history");
+        if (!access.canAccess) {
+          setShowPaywall(true);
+          return;
+        }
+      }
+
+      router.replace({
+        pathname: "/(tabs)/diary",
+        params: { day: newDate },
+      });
+    },
+    [checkAccess],
+  );
+
   useFocusEffect(
     useCallback(() => {
-      // Cuando se enfoca desde el tab (sin parámetros explícitos), 
+      // Cuando se enfoca desde el tab (sin parámetros explícitos),
       // limpiar cualquier parámetro day persistente para mostrar siempre el día de hoy
       if (!params.day || params.day === "") {
         // No hay parámetro, usar día de hoy (ya está configurado arriba)
@@ -502,7 +540,9 @@ export default function DiaryScreen() {
     return targetKcal;
   }, [targetKcal, isPremium, isToday, caloriesBurned]);
 
-  const kcalPct = effectiveTargetKcal ? clamp01(totals.calories / effectiveTargetKcal) : 0;
+  const kcalPct = effectiveTargetKcal
+    ? clamp01(totals.calories / effectiveTargetKcal)
+    : 0;
   const kcalRemaining = effectiveTargetKcal
     ? Math.max(effectiveTargetKcal - totals.calories, 0)
     : null;
@@ -518,7 +558,7 @@ export default function DiaryScreen() {
   // Animaciones escalonadas
   const summaryAnimations = useStaggerAnimation(4, 80, 100);
   const mealAnimations = useStaggerAnimation(visibleMeals.length, 100, 300);
-  
+
   // Animación de la barra de calorías
   const caloriesProgressAnim = useRef(new Animated.Value(0)).current;
 
@@ -554,6 +594,7 @@ export default function DiaryScreen() {
             <DateHeader
               dateStr={day}
               kicker="Diario"
+              onDateChange={onDateChange}
               rightAction={{
                 icon: "plus",
                 onPress: () => {
@@ -639,9 +680,7 @@ export default function DiaryScreen() {
                     style={[
                       s.chipPillText,
                       {
-                        color: active
-                          ? colors.brand
-                          : colors.textSecondary,
+                        color: active ? colors.brand : colors.textSecondary,
                         fontFamily: typography.subtitle?.fontFamily,
                         fontWeight: active ? "600" : "400",
                       },
@@ -943,7 +982,10 @@ export default function DiaryScreen() {
                       }}
                       style={({ pressed }) => [
                         s.mealEmptyBtn,
-                        pressed && { opacity: 0.9, transform: [{ scale: 0.96 }] },
+                        pressed && {
+                          opacity: 0.9,
+                          transform: [{ scale: 0.96 }],
+                        },
                       ]}
                     >
                       <Feather name="plus" size={14} color={colors.brand} />
@@ -1022,6 +1064,11 @@ export default function DiaryScreen() {
         </View>
 
         <View style={{ height: 20 }} />
+        {/* Paywall Modal */}
+        <PremiumPaywall
+          visible={showPaywall}
+          onClose={() => setShowPaywall(false)}
+        />
       </ScrollView>
     </SafeAreaView>
   );

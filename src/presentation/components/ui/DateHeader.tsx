@@ -2,10 +2,16 @@
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { formatDateToSpanish } from "@/presentation/utils/date";
 import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import * as Haptics from "expo-haptics";
+import {
+    ActivityIndicator,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
+} from "react-native";
 
 interface DateHeaderProps {
   dateStr: string;
@@ -17,6 +23,7 @@ interface DateHeaderProps {
     icon: React.ComponentProps<typeof Feather>["name"];
     onPress: () => void;
   };
+  onDateChange?: (newDate: string) => void;
 }
 
 export default function DateHeader({
@@ -26,6 +33,7 @@ export default function DateHeader({
   onRefresh,
   loading = false,
   rightAction,
+  onDateChange,
 }: DateHeaderProps) {
   const { theme } = useTheme();
   const { colors, typography } = theme;
@@ -64,7 +72,14 @@ export default function DateHeader({
           style={s.iconBtn}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.push("/(tabs)/calendar");
+            if (onDateChange) {
+              // Si hay onDateChange, asumimos que el padre maneja la navegación o lógica especial
+              // Pero DateHeader suele ir directo al calendario.
+              // En diary.tsx le pasamos onDateChange para interceptar.
+              router.push("/(tabs)/calendar");
+            } else {
+              router.push("/(tabs)/calendar");
+            }
           }}
         >
           <Feather name="calendar" size={18} color={colors.textPrimary} />
@@ -79,7 +94,11 @@ export default function DateHeader({
             rightAction.onPress();
           }}
         >
-          <Feather name={rightAction.icon} size={18} color={colors.textPrimary} />
+          <Feather
+            name={rightAction.icon}
+            size={18}
+            color={colors.textPrimary}
+          />
         </Pressable>
       )}
     </View>

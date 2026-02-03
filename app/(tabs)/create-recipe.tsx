@@ -2,37 +2,42 @@
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
 } from "react";
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import Swipeable from "react-native-gesture-handler/Swipeable";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+    SafeAreaView,
+    useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 import { genericFoodsRepository } from "@/data/food/genericFoodsRepository";
 import { userFoodsRepository } from "@/data/food/userFoodsRepository";
 import { openFoodFactsService } from "@/data/openfoodfacts/openFoodFactsService";
 import {
-  mapGenericFoodDbArrayToSearchItems,
-  mapGenericFoodDbToSearchItem,
-  mapUserFoodDbArrayToSearchItems,
-  type FoodSearchItem,
+    mapGenericFoodDbArrayToSearchItems,
+    mapGenericFoodDbToSearchItem,
+    mapUserFoodDbArrayToSearchItems,
+    type FoodSearchItem,
 } from "@/domain/mappers/foodMappers";
 import type { OffProduct } from "@/domain/models/offProduct";
 import CreateGenericFoodByBarcodeModal from "@/presentation/components/nutrition/CreateGenericFoodByBarcodeModal";
+import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
+import { useFeatureAccess } from "@/presentation/hooks/premium/useFeatureAccess";
 import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -141,13 +146,34 @@ export default function CreateRecipeScreen() {
   const [ingredientInputMode, setIngredientInputMode] = useState<
     "grams" | "units"
   >("grams");
-  
+
   const [err, setErr] = useState<string | null>(null);
 
   // Barcode / Scanner states
   const [isSearchingBarcode, setIsSearchingBarcode] = useState(false);
-  const [showCreateGenericFoodModal, setShowCreateGenericFoodModal] = useState(false);
+  const [showCreateGenericFoodModal, setShowCreateGenericFoodModal] =
+    useState(false);
   const [barcodeToCreate, setBarcodeToCreate] = useState<string | null>(null);
+
+  const [showPaywall, setShowPaywall] = useState(false);
+  const { checkAccess } = useFeatureAccess();
+  const [recipeLimit, setRecipeLimit] = useState({
+    reached: false,
+    current: 0,
+    limit: 5,
+  });
+
+  // Cargar límite de recetas al montar
+  useEffect(() => {
+    (async () => {
+      const access = await checkAccess("recipe");
+      setRecipeLimit({
+        reached: !access.canAccess,
+        current: access.currentUsage,
+        limit: access.limit,
+      });
+    })();
+  }, [checkAccess]);
 
   const reqIdRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -201,13 +227,13 @@ export default function CreateRecipeScreen() {
             base_unit: res.data.unitType === "ml" ? "ml" : "g",
             unitType: res.data.unitType,
           };
-          
+
           setIsSearchingBarcode(false);
           setSelectedIngredient(it);
           setSearchQuery(res.data.name);
           setSearchResults([]);
           setShowSearch(false);
-          
+
           if (it.grams_per_unit && it.grams_per_unit > 0) {
             setIngredientInputMode("units");
             setIngredientUnits("1");
@@ -220,23 +246,26 @@ export default function CreateRecipeScreen() {
               setIngredientGrams("100");
             }
           }
-          
+
           setTimeout(() => router.setParams({ barcode: undefined }), 500);
           return;
         }
 
         // 2) Prioridad local (Supabase): generic_foods por barcode
         const localRes = await genericFoodsRepository.getByBarcode(barcode);
-        if (myReqId !== reqIdRef.current || abortController.signal.aborted) return;
+        if (myReqId !== reqIdRef.current || abortController.signal.aborted)
+          return;
 
         if (localRes.ok && localRes.data) {
-          const it = mapGenericFoodDbToSearchItem(localRes.data) as ExtendedFoodSearchItem;
+          const it = mapGenericFoodDbToSearchItem(
+            localRes.data,
+          ) as ExtendedFoodSearchItem;
           setIsSearchingBarcode(false);
           setSelectedIngredient(it);
           setSearchQuery(localRes.data.name_es);
           setSearchResults([]);
           setShowSearch(false);
-          
+
           if (it.grams_per_unit && it.grams_per_unit > 0) {
             setIngredientInputMode("units");
             setIngredientUnits("1");
@@ -244,7 +273,7 @@ export default function CreateRecipeScreen() {
             setIngredientInputMode("grams");
             setIngredientGrams("100");
           }
-          
+
           setTimeout(() => router.setParams({ barcode: undefined }), 500);
           return;
         }
@@ -256,7 +285,10 @@ export default function CreateRecipeScreen() {
         setShowCreateGenericFoodModal(true);
         setTimeout(() => router.setParams({ barcode: undefined }), 500);
       } catch (error: any) {
-        console.error("[CreateRecipeScreen] 💥 Error en búsqueda por barcode:", error);
+        console.error(
+          "[CreateRecipeScreen] 💥 Error en búsqueda por barcode:",
+          error,
+        );
         setIsSearchingBarcode(false);
         if (error?.name !== "AbortError" && !abortController.signal.aborted) {
           setErr(error?.message || "Error al buscar producto");
@@ -288,7 +320,17 @@ export default function CreateRecipeScreen() {
       // Clear reset param to avoid clearing on subsequent renders or back navigation
       router.setParams({ reset: undefined });
     }
-  }, [params.reset]);
+
+    // Verificar límite de recetas al cargar
+    (async () => {
+      const access = await checkAccess("recipe");
+      setRecipeLimit({
+        reached: access.limitReached,
+        current: access.currentUsage,
+        limit: access.limit,
+      });
+    })();
+  }, [params.reset, checkAccess]);
 
   // Búsqueda de ingredientes
   useEffect(() => {
@@ -370,9 +412,7 @@ export default function CreateRecipeScreen() {
       }
       clampedGrams = clamp(gramsNum, 1, 2000);
       const factor = selectedIngredient.grams_per_unit ?? 1;
-      units = hasUnits
-        ? Math.round(clampedGrams / factor)
-        : undefined;
+      units = hasUnits ? Math.round(clampedGrams / factor) : undefined;
     }
 
     // Verificar si el ingrediente ya existe (por key del alimento)
@@ -466,7 +506,11 @@ export default function CreateRecipeScreen() {
             ing.food.grams_per_unit && ing.food.grams_per_unit > 0;
           if (!hasUnits) return ing;
 
-          const newGrams = clamp(clamped * (ing.food.grams_per_unit ?? 1), 1, 2000);
+          const newGrams = clamp(
+            clamped * (ing.food.grams_per_unit ?? 1),
+            1,
+            2000,
+          );
           return { ...ing, units: clamped, grams: newGrams };
         }),
       );
@@ -515,6 +559,15 @@ export default function CreateRecipeScreen() {
     router.back();
   }, [canSaveRecipe, recipeName, ingredients, showToast]);
 
+  const onSavePress = useCallback(async () => {
+    const access = await checkAccess("recipe");
+    if (!access.canAccess) {
+      setShowPaywall(true);
+      return;
+    }
+    handleSaveRecipe();
+  }, [checkAccess, handleSaveRecipe]);
+
   const handleOpenScanner = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push({
@@ -530,369 +583,372 @@ export default function CreateRecipeScreen() {
         style={{ flex: 1 }}
       >
         <View style={s.header}>
-            <Pressable
-                onPress={() => router.replace("/(tabs)/my-foods")}
-                style={s.backButton}
-            >
-                <Feather name="arrow-left" size={24} color={colors.textPrimary} />
-            </Pressable>
-            <Text style={s.title}>Nueva receta</Text>
-            <View style={{ width: 40 }} />
+          <Pressable
+            onPress={() => router.replace("/(tabs)/my-foods")}
+            style={s.backButton}
+          >
+            <Feather name="arrow-left" size={24} color={colors.textPrimary} />
+          </Pressable>
+          <Text style={s.title}>Nueva receta</Text>
+          <View style={{ width: 40 }} />
         </View>
 
         <ScrollView
-            contentContainerStyle={s.contentContainer}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
+          contentContainerStyle={s.contentContainer}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-            {/* Nombre receta */}
-            <View style={s.inputGroup}>
+          {/* Nombre receta */}
+          <View style={s.inputGroup}>
             <Text style={s.inputLabel}>Nombre de la receta</Text>
             <TextInput
-                style={s.input}
-                value={recipeName}
-                onChangeText={setRecipeName}
-                placeholder="Ej: Arroz con Pollo"
-                placeholderTextColor={colors.textSecondary}
+              style={s.input}
+              value={recipeName}
+              onChangeText={setRecipeName}
+              placeholder="Ej: Arroz con Pollo"
+              placeholderTextColor={colors.textSecondary}
             />
-            </View>
+          </View>
 
-            {/* Agregar ingrediente */}
-            <View style={s.inputGroup}>
+          {/* Agregar ingrediente */}
+          <View style={s.inputGroup}>
             <View style={s.inputLabelRow}>
-                <Text style={s.inputLabel}>Agregar ingrediente</Text>
-                <Pressable onPress={handleOpenScanner} style={s.scanBtn}>
+              <Text style={s.inputLabel}>Agregar ingrediente</Text>
+              <Pressable onPress={handleOpenScanner} style={s.scanBtn}>
                 <Feather name="camera" size={16} color={colors.brand} />
                 <Text style={s.scanBtnText}>Escanear</Text>
-                </Pressable>
+              </Pressable>
             </View>
 
             <TextInput
-                style={s.input}
-                value={searchQuery}
-                onChangeText={(text) => {
+              style={s.input}
+              value={searchQuery}
+              onChangeText={(text) => {
                 setSearchQuery(text);
                 const shouldShow = text.length >= 2;
                 setShowSearch(shouldShow);
                 if (shouldShow) setIsSearching(true);
-                }}
-                placeholder="Buscar alimento..."
-                placeholderTextColor={colors.textSecondary}
+              }}
+              placeholder="Buscar alimento..."
+              placeholderTextColor={colors.textSecondary}
             />
 
             {/* Resultados búsqueda */}
             {showSearch && searchQuery.length >= 2 && (
-                <View style={s.searchResults}>
+              <View style={s.searchResults}>
                 {isSearching ? (
-                    <View style={s.searchLoading}>
-                    <ActivityIndicator
-                        size="small"
-                        color={colors.brand}
-                    />
-                    </View>
+                  <View style={s.searchLoading}>
+                    <ActivityIndicator size="small" color={colors.brand} />
+                  </View>
                 ) : searchResults.length === 0 ? (
-                    <Text style={s.searchEmpty}>
+                  <Text style={s.searchEmpty}>
                     No se encontraron resultados
-                    </Text>
+                  </Text>
                 ) : (
-                    searchResults.map((item) => (
+                  searchResults.map((item) => (
                     <Pressable
-                        key={item.key}
-                        onPress={() => {
-                        Haptics.impactAsync(
-                            Haptics.ImpactFeedbackStyle.Light,
-                        );
+                      key={item.key}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         setSelectedIngredient(item);
                         setShowSearch(false);
                         // Si tiene unidades, cambiar a modo unidades por defecto
-                        if (
-                            item.grams_per_unit &&
-                            item.grams_per_unit > 0
-                        ) {
-                            setIngredientInputMode("units");
-                            setIngredientUnits("1");
+                        if (item.grams_per_unit && item.grams_per_unit > 0) {
+                          setIngredientInputMode("units");
+                          setIngredientUnits("1");
                         } else {
-                            setIngredientInputMode("grams");
-                            setIngredientGrams("100");
+                          setIngredientInputMode("grams");
+                          setIngredientGrams("100");
                         }
-                        }}
-                        style={({ pressed }) => [
+                      }}
+                      style={({ pressed }) => [
                         s.searchItem,
                         pressed && { opacity: 0.7 },
-                        ]}
+                      ]}
                     >
-                        <View style={{ flex: 1 }}>
-                        <Text style={s.searchItemName}>
-                            {item.name}
-                        </Text>
-                        <Text style={s.searchItemMeta}>
-                            {item.meta}
-                        </Text>
-                        </View>
-                        <Feather
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.searchItemName}>{item.name}</Text>
+                        <Text style={s.searchItemMeta}>{item.meta}</Text>
+                      </View>
+                      <Feather
                         name="chevron-right"
                         size={16}
                         color={colors.textSecondary}
-                        />
+                      />
                     </Pressable>
-                    ))
+                  ))
                 )}
-                </View>
+              </View>
             )}
 
             {/* Error message */}
             {err && (
-                <View style={{ padding: 10, backgroundColor: '#fee2e2', borderRadius: 8, marginBottom: 10 }}>
-                    <Text style={{ color: '#ef4444' }}>{err}</Text>
-                </View>
+              <View
+                style={{
+                  padding: 10,
+                  backgroundColor: "#fee2e2",
+                  borderRadius: 8,
+                  marginBottom: 10,
+                }}
+              >
+                <Text style={{ color: "#ef4444" }}>{err}</Text>
+              </View>
             )}
 
             {/* Ingrediente seleccionado */}
             {selectedIngredient &&
-                (() => {
+              (() => {
                 const hasUnits =
-                    selectedIngredient.grams_per_unit &&
-                    selectedIngredient.grams_per_unit > 0;
-                const unitLabel =
-                    selectedIngredient.unit_label_es || "unidad";
+                  selectedIngredient.grams_per_unit &&
+                  selectedIngredient.grams_per_unit > 0;
+                const unitLabel = selectedIngredient.unit_label_es || "unidad";
                 const isMl =
-                    selectedIngredient.unitType === "ml" ||
-                    selectedIngredient.base_unit === "ml";
+                  selectedIngredient.unitType === "ml" ||
+                  selectedIngredient.base_unit === "ml";
                 const unitSuffix = isMl ? "ml" : "g";
                 const quantityLabel = isMl ? "mililitros" : "gramos";
 
                 return (
-                    <View style={s.selectedIngredient}>
+                  <View style={s.selectedIngredient}>
                     {/* Texto completo arriba */}
                     <View style={s.selectedIngredientHeader}>
-                        <Text style={s.selectedName}>
+                      <Text style={s.selectedName}>
                         {selectedIngredient.name}
-                        </Text>
-                        {selectedIngredient.meta && (
+                      </Text>
+                      {selectedIngredient.meta && (
                         <Text style={s.selectedMeta}>
-                            {selectedIngredient.meta}
+                          {selectedIngredient.meta}
                         </Text>
-                        )}
+                      )}
                     </View>
 
                     {/* Controles abajo */}
                     <View style={s.selectedIngredientControls}>
-                        {hasUnits && (
+                      {hasUnits && (
                         <View style={s.inputModeToggle}>
-                            <Pressable
+                          <Pressable
                             onPress={() => {
-                                setIngredientInputMode("units");
-                                // Calcular unidades desde gramos actuales
-                                const currentGrams =
+                              setIngredientInputMode("units");
+                              // Calcular unidades desde gramos actuales
+                              const currentGrams =
                                 toFloatSafe(ingredientGrams) || 100;
-                                const factor = selectedIngredient.grams_per_unit ?? 1;
-                                const calculatedUnits = Math.round(
+                              const factor =
+                                selectedIngredient.grams_per_unit ?? 1;
+                              const calculatedUnits = Math.round(
                                 currentGrams / factor,
-                                );
-                                setIngredientUnits(
-                                calculatedUnits.toString(),
-                                );
+                              );
+                              setIngredientUnits(calculatedUnits.toString());
                             }}
                             style={({ pressed }) => [
-                                s.inputModeBtn,
-                                ingredientInputMode === "units" &&
+                              s.inputModeBtn,
+                              ingredientInputMode === "units" &&
                                 s.inputModeBtnActive,
-                                pressed && { opacity: 0.7 },
+                              pressed && { opacity: 0.7 },
                             ]}
-                            >
+                          >
                             <Text
-                                style={[
+                              style={[
                                 s.inputModeText,
                                 ingredientInputMode === "units" &&
-                                    s.inputModeTextActive,
-                                ]}
+                                  s.inputModeTextActive,
+                              ]}
                             >
-                                {unitLabel}
+                              {unitLabel}
                             </Text>
-                            </Pressable>
-                            <Pressable
+                          </Pressable>
+                          <Pressable
                             onPress={() => {
-                                setIngredientInputMode("grams");
-                                // Calcular gramos desde unidades actuales
-                                const currentUnits =
+                              setIngredientInputMode("grams");
+                              // Calcular gramos desde unidades actuales
+                              const currentUnits =
                                 toFloatSafe(ingredientUnits) || 1;
-                                const calculatedGrams = Math.round(
+                              const calculatedGrams = Math.round(
                                 currentUnits *
-                                    selectedIngredient.grams_per_unit!,
-                                );
-                                setIngredientGrams(
-                                calculatedGrams.toString(),
-                                );
+                                  selectedIngredient.grams_per_unit!,
+                              );
+                              setIngredientGrams(calculatedGrams.toString());
                             }}
                             style={({ pressed }) => [
-                                s.inputModeBtn,
-                                ingredientInputMode === "grams" &&
+                              s.inputModeBtn,
+                              ingredientInputMode === "grams" &&
                                 s.inputModeBtnActive,
-                                pressed && { opacity: 0.7 },
+                              pressed && { opacity: 0.7 },
                             ]}
-                            >
+                          >
                             <Text
-                                style={[
+                              style={[
                                 s.inputModeText,
                                 ingredientInputMode === "grams" &&
-                                    s.inputModeTextActive,
-                                ]}
+                                  s.inputModeTextActive,
+                              ]}
                             >
-                                {quantityLabel}
+                              {quantityLabel}
                             </Text>
-                            </Pressable>
+                          </Pressable>
                         </View>
-                        )}
+                      )}
 
-                        <View style={s.gramsInput}>
+                      <View style={s.gramsInput}>
                         <TextInput
-                            style={s.gramsInputText}
-                            value={
+                          style={s.gramsInputText}
+                          value={
                             ingredientInputMode === "units"
-                                ? ingredientUnits
-                                : ingredientGrams
-                            }
-                            onChangeText={
+                              ? ingredientUnits
+                              : ingredientGrams
+                          }
+                          onChangeText={
                             ingredientInputMode === "units"
-                                ? setIngredientUnits
-                                : setIngredientGrams
-                            }
-                            placeholder={
-                            ingredientInputMode === "units"
-                                ? "1"
-                                : "100"
-                            }
-                            placeholderTextColor={colors.textSecondary}
-                            keyboardType="numeric"
+                              ? setIngredientUnits
+                              : setIngredientGrams
+                          }
+                          placeholder={
+                            ingredientInputMode === "units" ? "1" : "100"
+                          }
+                          placeholderTextColor={colors.textSecondary}
+                          keyboardType="numeric"
                         />
                         <Text style={s.gramsLabel}>
-                            {ingredientInputMode === "units"
+                          {ingredientInputMode === "units"
                             ? unitLabel
                             : unitSuffix}
                         </Text>
-                        </View>
-                        <Pressable
+                      </View>
+                      <Pressable
                         onPress={handleAddIngredient}
                         style={s.addIngredientBtn}
-                        >
-                        <Feather
-                            name="check"
-                            size={16}
-                            color={colors.onCta}
-                        />
-                        </Pressable>
+                      >
+                        <Feather name="check" size={16} color={colors.onCta} />
+                      </Pressable>
                     </View>
-                    </View>
+                  </View>
                 );
-                })()}
-            </View>
+              })()}
+          </View>
 
-            {/* Ingredientes agregados */}
-            {ingredients.length > 0 && (
+          {/* Ingredientes agregados */}
+          {ingredients.length > 0 && (
             <View style={s.inputGroup}>
-                <Text style={s.inputLabel}>
+              <Text style={s.inputLabel}>
                 Ingredientes ({ingredients.length})
-                </Text>
-                <View style={{ gap: 8 }}>
+              </Text>
+              <View style={{ gap: 8 }}>
                 {ingredients.map((ing) => {
-                    const macros = computeFrom100gMacros(
+                  const macros = computeFrom100gMacros(
                     {
-                        kcal_100g: ing.food.kcal_100g,
-                        protein_100g: ing.food.protein_100g,
-                        carbs_100g: ing.food.carbs_100g,
-                        fat_100g: ing.food.fat_100g,
+                      kcal_100g: ing.food.kcal_100g,
+                      protein_100g: ing.food.protein_100g,
+                      carbs_100g: ing.food.carbs_100g,
+                      fat_100g: ing.food.fat_100g,
                     },
                     ing.grams,
-                    );
-                    return (
-                        <IngredientItem
-                            key={ing.id}
-                            ingredient={ing}
-                            macros={macros}
-                            colors={colors}
-                            styles={s}
-                            onUpdateGrams={(val) =>
-                                handleUpdateIngredientGrams(ing.id, val)
-                            }
-                            onUpdateUnits={(val) =>
-                                handleUpdateIngredientUnits(ing.id, val)
-                            }
-                            onRemove={() => handleRemoveIngredient(ing.id)}
-                        />
-                    );
+                  );
+                  return (
+                    <IngredientItem
+                      key={ing.id}
+                      ingredient={ing}
+                      macros={macros}
+                      colors={colors}
+                      styles={s}
+                      onUpdateGrams={(val) =>
+                        handleUpdateIngredientGrams(ing.id, val)
+                      }
+                      onUpdateUnits={(val) =>
+                        handleUpdateIngredientUnits(ing.id, val)
+                      }
+                      onRemove={() => handleRemoveIngredient(ing.id)}
+                    />
+                  );
                 })}
-                </View>
+              </View>
             </View>
-            )}
+          )}
 
-            {ingredients.length > 0 && (
+          {ingredients.length > 0 && (
             <View style={s.totalsCard}>
-                <Text style={s.totalsTitle}>Macros Totales</Text>
-                <View style={s.macrosRow}>
+              <Text style={s.totalsTitle}>Macros Totales</Text>
+              <View style={s.macrosRow}>
                 <View style={s.macroChip}>
-                    <MaterialCommunityIcons
+                  <MaterialCommunityIcons
                     name="fire"
                     size={16}
                     color={colors.textSecondary}
-                    />
-                    <Text style={s.macroText}>
+                  />
+                  <Text style={s.macroText}>
                     {Math.round(recipeTotals.calories)} kcal
-                    </Text>
+                  </Text>
                 </View>
                 <View style={s.macroChip}>
-                    <MaterialCommunityIcons
+                  <MaterialCommunityIcons
                     name="food-steak"
                     size={16}
                     color={colors.textSecondary}
-                    />
-                    <Text style={s.macroText}>
+                  />
+                  <Text style={s.macroText}>
                     P {recipeTotals.protein.toFixed(1)}g
-                    </Text>
+                  </Text>
                 </View>
                 <View style={s.macroChip}>
-                    <MaterialCommunityIcons
+                  <MaterialCommunityIcons
                     name="bread-slice"
                     size={16}
                     color={colors.textSecondary}
-                    />
-                    <Text style={s.macroText}>
+                  />
+                  <Text style={s.macroText}>
                     C {recipeTotals.carbs.toFixed(1)}g
-                    </Text>
+                  </Text>
                 </View>
                 <View style={s.macroChip}>
-                    <MaterialCommunityIcons
+                  <MaterialCommunityIcons
                     name="peanut"
                     size={16}
                     color={colors.textSecondary}
-                    />
-                    <Text style={s.macroText}>
+                  />
+                  <Text style={s.macroText}>
                     F {recipeTotals.fat.toFixed(1)}g
-                    </Text>
+                  </Text>
                 </View>
-                </View>
+              </View>
             </View>
-            )}
+          )}
 
-            <View style={{ height: 40 }} />
+          <View style={{ height: 40 }} />
         </ScrollView>
         {/* Footer flotante con botón guardar */}
         <View style={s.footer}>
-            <Pressable
-                onPress={handleSaveRecipe}
-                style={({ pressed }) => [
-                s.saveButton,
-                pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] },
-                !canSaveRecipe && s.saveButtonDisabled,
-                ]}
-                disabled={!canSaveRecipe}
+          <Pressable
+            onPress={onSavePress}
+            style={({ pressed }) => [
+              s.saveButton,
+              pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] },
+              !canSaveRecipe && s.saveButtonDisabled,
+            ]}
+            disabled={!canSaveRecipe}
+          >
+            {saving ? (
+              <ActivityIndicator color={colors.onCta} />
+            ) : (
+              <Text style={s.saveButtonText}>Guardar Receta</Text>
+            )}
+          </Pressable>
+          {recipeLimit.reached && (
+            <Text
+              style={{
+                textAlign: "center",
+                marginTop: 8,
+                color: colors.cta,
+                fontSize: 12,
+                fontWeight: "600",
+              }}
             >
-                {saving ? (
-                <ActivityIndicator color={colors.onCta} />
-                ) : (
-                <Text style={s.saveButtonText}>Guardar Receta</Text>
-                )}
-            </Pressable>
+              Has alcanzado el límite de {recipeLimit.limit} recetas (Plan Free)
+            </Text>
+          )}
         </View>
+
+        <PremiumPaywall
+          visible={showPaywall}
+          onClose={() => setShowPaywall(false)}
+        />
 
         {/* Modal para crear alimento genérico cuando no existe */}
         {barcodeToCreate && (
@@ -907,7 +963,9 @@ export default function CreateRecipeScreen() {
               setShowCreateGenericFoodModal(false);
               setBarcodeToCreate(null);
               // Al crearse, lo ponemos como seleccionado
-              const it = mapGenericFoodDbToSearchItem(food) as ExtendedFoodSearchItem;
+              const it = mapGenericFoodDbToSearchItem(
+                food,
+              ) as ExtendedFoodSearchItem;
               setSelectedIngredient(it);
               setSearchQuery(food.name_es);
               setSearchResults([]);
@@ -934,7 +992,6 @@ export default function CreateRecipeScreen() {
     </SafeAreaView>
   );
 }
-
 
 function IngredientItem({
   ingredient,
@@ -1047,9 +1104,9 @@ function IngredientItem({
   );
 
   const currentUnits = hasUnits
-  ? ingredient.units ||
-    Math.round(ingredient.grams / (ingredient.food.grams_per_unit ?? 1))
-  : null;
+    ? ingredient.units ||
+      Math.round(ingredient.grams / (ingredient.food.grams_per_unit ?? 1))
+    : null;
 
   const renderRightActions = () => {
     return (
@@ -1083,7 +1140,8 @@ function IngredientItem({
                     onPress={() => setEditMode("units")}
                     style={({ pressed }) => [
                       styles.ingredientEditModeBtn,
-                      editMode === "units" && styles.ingredientEditModeBtnActive,
+                      editMode === "units" &&
+                        styles.ingredientEditModeBtnActive,
                       pressed && { opacity: 0.7 },
                     ]}
                   >
@@ -1101,7 +1159,8 @@ function IngredientItem({
                     onPress={() => setEditMode("grams")}
                     style={({ pressed }) => [
                       styles.ingredientEditModeBtn,
-                      editMode === "grams" && styles.ingredientEditModeBtnActive,
+                      editMode === "grams" &&
+                        styles.ingredientEditModeBtnActive,
                       pressed && { opacity: 0.7 },
                     ]}
                   >
@@ -1121,7 +1180,9 @@ function IngredientItem({
                 <TextInput
                   style={styles.ingredientGramsInput}
                   value={editMode === "units" ? unitsStr : gramsStr}
-                  onChangeText={editMode === "units" ? setUnitsStr : setGramsStr}
+                  onChangeText={
+                    editMode === "units" ? setUnitsStr : setGramsStr
+                  }
                   keyboardType="numeric"
                   autoFocus
                   placeholderTextColor={colors.textSecondary}
@@ -1131,7 +1192,10 @@ function IngredientItem({
                 <Text style={styles.ingredientGramsLabel}>
                   {editMode === "units" ? unitLabel : unitSuffix}
                 </Text>
-                <Pressable onPress={handleSave} style={styles.ingredientSaveBtn}>
+                <Pressable
+                  onPress={handleSave}
+                  style={styles.ingredientSaveBtn}
+                >
                   <Feather name="check" size={14} color={colors.brand} />
                 </Pressable>
               </View>
@@ -1216,10 +1280,10 @@ function makeStyles(colors: any, typography: any, insets: any) {
       borderBottomColor: colors.border,
     },
     backButton: {
-      width: 40, 
+      width: 40,
       height: 40,
       borderRadius: 20,
-      alignItems: "center", 
+      alignItems: "center",
       justifyContent: "center",
       backgroundColor: colors.surface,
     },
@@ -1230,7 +1294,7 @@ function makeStyles(colors: any, typography: any, insets: any) {
       color: colors.textPrimary,
     },
     contentContainer: {
-        padding: 20,
+      padding: 20,
     },
     inputGroup: {
       marginBottom: 24,
@@ -1238,15 +1302,15 @@ function makeStyles(colors: any, typography: any, insets: any) {
     inputLabel: {
       ...typography.subtitle,
       fontSize: 16,
-      fontWeight: '600',
+      fontWeight: "600",
       color: colors.textPrimary,
       marginBottom: 8,
     },
     inputLabelRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: 8,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 8,
     },
     input: {
       backgroundColor: colors.surface,
@@ -1258,261 +1322,261 @@ function makeStyles(colors: any, typography: any, insets: any) {
       color: colors.textPrimary,
       ...typography.body,
     },
-    
+
     // Scanner Button
     scanBtn: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 6,
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 8,
-        backgroundColor: colors.brand + "15",
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 8,
+      backgroundColor: colors.brand + "15",
     },
     scanBtnText: {
-        fontSize: 13,
-        fontWeight: "600",
-        color: colors.brand,
+      fontSize: 13,
+      fontWeight: "600",
+      color: colors.brand,
     },
 
     // Search results
     searchResults: {
-        marginTop: 8,
-        backgroundColor: colors.surface,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: colors.border,
-        overflow: "hidden",
-        maxHeight: 250,
+      marginTop: 8,
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: "hidden",
+      maxHeight: 250,
     },
     searchItem: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border + "50",
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border + "50",
     },
     searchItemName: {
-        ...typography.body,
-        fontSize: 14,
-        fontWeight: "600",
-        color: colors.textPrimary,
+      ...typography.body,
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.textPrimary,
     },
     searchItemMeta: {
-        fontSize: 12,
-        color: colors.textSecondary,
+      fontSize: 12,
+      color: colors.textSecondary,
     },
     searchEmpty: {
-        padding: 16,
-        textAlign: "center",
-        color: colors.textSecondary,
-        fontSize: 14,
+      padding: 16,
+      textAlign: "center",
+      color: colors.textSecondary,
+      fontSize: 14,
     },
     searchLoading: {
-        padding: 16,
-        alignItems: "center",
+      padding: 16,
+      alignItems: "center",
     },
 
     // Selected Ingredient
     selectedIngredient: {
-        marginTop: 12,
-        backgroundColor: colors.surface,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: colors.brand,
-        padding: 14,
+      marginTop: 12,
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.brand,
+      padding: 14,
     },
     selectedIngredientHeader: {
-        marginBottom: 12,
+      marginBottom: 12,
     },
     selectedName: {
-        ...typography.subtitle,
-        fontSize: 16,
-        fontWeight: "700",
-        color: colors.textPrimary,
+      ...typography.subtitle,
+      fontSize: 16,
+      fontWeight: "700",
+      color: colors.textPrimary,
     },
     selectedMeta: {
-        fontSize: 13,
-        color: colors.textSecondary,
-        marginTop: 2,
+      fontSize: 13,
+      color: colors.textSecondary,
+      marginTop: 2,
     },
     selectedIngredientControls: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 10,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
     },
     inputModeToggle: {
-        flexDirection: "row",
-        backgroundColor: colors.background,
-        borderRadius: 8,
-        padding: 2,
-        borderWidth: 1,
-        borderColor: colors.border,
+      flexDirection: "row",
+      backgroundColor: colors.background,
+      borderRadius: 8,
+      padding: 2,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
     inputModeBtn: {
-        paddingHorizontal: 8,
-        paddingVertical: 6,
-        borderRadius: 6,
+      paddingHorizontal: 8,
+      paddingVertical: 6,
+      borderRadius: 6,
     },
     inputModeBtnActive: {
-        backgroundColor: colors.textPrimary,
+      backgroundColor: colors.textPrimary,
     },
     inputModeText: {
-        fontSize: 12,
-        fontWeight: "600",
-        color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: "600",
+      color: colors.textSecondary,
     },
     inputModeTextActive: {
-        color: colors.background,
+      color: colors.background,
     },
     gramsInput: {
-        flex: 1,
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: colors.background,
-        borderWidth: 1,
-        borderColor: colors.border,
-        borderRadius: 8,
-        paddingHorizontal: 10,
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+      paddingHorizontal: 10,
     },
     gramsInputText: {
-        flex: 1,
-        paddingVertical: 8,
-        fontSize: 16,
-        fontWeight: "600",
-        color: colors.textPrimary,
-        textAlign: "right",
+      flex: 1,
+      paddingVertical: 8,
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.textPrimary,
+      textAlign: "right",
     },
     gramsLabel: {
-        marginLeft: 6,
-        fontSize: 13,
-        color: colors.textSecondary,
-        fontWeight: "500",
+      marginLeft: 6,
+      fontSize: 13,
+      color: colors.textSecondary,
+      fontWeight: "500",
     },
     addIngredientBtn: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: colors.brand,
-        alignItems: "center",
-        justifyContent: "center",
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: colors.brand,
+      alignItems: "center",
+      justifyContent: "center",
     },
 
     // Ingredient Item (List)
     ingredientItem: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-        padding: 12,
-        backgroundColor: colors.surface,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: colors.border,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      padding: 12,
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
     ingredientName: {
-        fontSize: 15,
-        fontWeight: "600",
-        color: colors.textPrimary,
-        marginBottom: 4,
+      fontSize: 15,
+      fontWeight: "600",
+      color: colors.textPrimary,
+      marginBottom: 4,
     },
     ingredientGrams: {
-        fontSize: 13,
-        color: colors.textSecondary,
+      fontSize: 13,
+      color: colors.textSecondary,
     },
     ingredientActions: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 6,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
     },
     ingredientAdjustBtn: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        backgroundColor: colors.background,
-        borderWidth: 1,
-        borderColor: colors.border,
-        alignItems: "center",
-        justifyContent: "center",
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: "center",
+      justifyContent: "center",
     },
     ingredientCounter: {
-        minWidth: 50,
-        alignItems: "center",
+      minWidth: 50,
+      alignItems: "center",
     },
     ingredientCounterText: {
-        fontSize: 13,
-        fontWeight: "600",
-        color: colors.textPrimary,
+      fontSize: 13,
+      fontWeight: "600",
+      color: colors.textPrimary,
     },
     ingredientEditBtn: {
-        marginLeft: 4,
-        padding: 6,
+      marginLeft: 4,
+      padding: 6,
     },
     removeIngredientBtn: {
-        marginLeft: 2,
-        padding: 6,
+      marginLeft: 2,
+      padding: 6,
     },
 
     // Inline Edit
     ingredientEditContainer: {
-        marginTop: 6,
-        gap: 8,
+      marginTop: 6,
+      gap: 8,
     },
     ingredientEditModeToggle: {
-        flexDirection: "row",
-        alignSelf: "flex-start",
-        backgroundColor: colors.background,
-        borderRadius: 6,
-        padding: 2,
-        borderWidth: 1,
-        borderColor: colors.border,
+      flexDirection: "row",
+      alignSelf: "flex-start",
+      backgroundColor: colors.background,
+      borderRadius: 6,
+      padding: 2,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
     ingredientEditModeBtn: {
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 4,
     },
     ingredientEditModeBtnActive: {
-        backgroundColor: colors.textPrimary,
+      backgroundColor: colors.textPrimary,
     },
     ingredientEditModeText: {
-        fontSize: 11,
-        fontWeight: "600",
-        color: colors.textSecondary,
+      fontSize: 11,
+      fontWeight: "600",
+      color: colors.textSecondary,
     },
     ingredientEditModeTextActive: {
-        color: colors.background,
+      color: colors.background,
     },
     ingredientEditRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 8,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
     },
     ingredientGramsInput: {
-        flex: 1,
-        backgroundColor: colors.background,
-        borderWidth: 1,
-        borderColor: colors.brand,
-        borderRadius: 6,
-        paddingVertical: 4,
-        paddingHorizontal: 8,
-        fontSize: 14,
-        color: colors.textPrimary,
+      flex: 1,
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.brand,
+      borderRadius: 6,
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+      fontSize: 14,
+      color: colors.textPrimary,
     },
     ingredientGramsLabel: {
-        fontSize: 13,
-        color: colors.textSecondary,
-        width: 40,
+      fontSize: 13,
+      color: colors.textSecondary,
+      width: 40,
     },
     ingredientSaveBtn: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        backgroundColor: colors.brand + "20",
-        alignItems: "center",
-        justifyContent: "center",
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: colors.brand + "20",
+      alignItems: "center",
+      justifyContent: "center",
     },
-    
+
     // Totals
     totalsCard: {
       backgroundColor: colors.surface,
@@ -1551,7 +1615,7 @@ function makeStyles(colors: any, typography: any, insets: any) {
       fontSize: 12,
       color: colors.textSecondary,
     },
-    
+
     // Footer
     footer: {
       padding: 20,

@@ -1,7 +1,8 @@
 // src/presentation/hooks/scanner/useMacroScanner.ts
 import { getErrorMessage } from "@/core/errors/errorHandler";
 import { analyzeFoodImage, type MacroAnalysisResult } from "@/data/ai/geminiService";
-import { canScanToday, incrementScanCount } from "@/domain/services/scanLimitService";
+import { UsageService } from "@/domain/services/usageService";
+import { useFeatureAccess } from "@/presentation/hooks/premium/useFeatureAccess";
 import { usePremium } from "@/presentation/hooks/subscriptions/usePremium";
 import { useToast } from "@/presentation/hooks/ui/useToast";
 import * as ImageManipulator from "expo-image-manipulator";
@@ -21,7 +22,8 @@ export function useMacroScanner(options?: UseMacroScannerOptions) {
   const [isRetrying, setIsRetrying] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<MacroAnalysisResult | null>(null);
   const { showToast } = useToast();
-  const { isPremium } = usePremium();
+   const { isPremium } = usePremium();
+   const { checkAccess } = useFeatureAccess();
 
   const captureAndAnalyze = useCallback(async () => {
     // Lock in-flight: evitar llamadas concurrentes
@@ -31,14 +33,12 @@ export function useMacroScanner(options?: UseMacroScannerOptions) {
     
     isAnalyzingInFlight = true;
 
-    // Verificar límite diario solo si NO es premium
-    if (!isPremium) {
-      const canScan = await canScanToday();
-      if (!canScan) {
-        // Límite alcanzado, notificar al componente padre
-        options?.onLimitReached?.();
-        return;
-      }
+    // Verificar límite de IA solo si NO es premium
+    const access = await checkAccess("ai");
+    if (!access.canAccess) {
+      options?.onLimitReached?.();
+      isAnalyzingInFlight = false;
+      return;
     }
 
     setIsAnalyzing(true);
@@ -101,7 +101,7 @@ export function useMacroScanner(options?: UseMacroScannerOptions) {
         
         // Incrementar contador solo si NO es premium y el análisis fue exitoso
         if (!isPremium) {
-          await incrementScanCount();
+          await UsageService.incrementAiScanCount();
         }
         
         options?.onAnalysisComplete?.(result);

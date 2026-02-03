@@ -1,22 +1,22 @@
 // app/(tabs)/add-food.tsx
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
 } from "react";
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -28,17 +28,20 @@ import { userFoodsRepository } from "@/data/food/userFoodsRepository";
 import { openFoodFactsService } from "@/data/openfoodfacts/openFoodFactsService";
 import { supabase } from "@/data/supabase/supabaseClient";
 import {
-  mapGenericFoodDbArrayToSearchItems,
-  mapGenericFoodDbToSearchItem,
-  mapUserFoodDbArrayToSearchItems,
-  type FoodSearchItem,
+    mapGenericFoodDbArrayToSearchItems,
+    mapGenericFoodDbToSearchItem,
+    mapUserFoodDbArrayToSearchItems,
+    type FoodSearchItem,
 } from "@/domain/mappers/foodMappers";
 import type { MealType } from "@/domain/models/foodLogDb";
 import type { OffProduct } from "@/domain/models/offProduct";
+import { UsageService } from "@/domain/services/usageService";
 import CreateGenericFoodByBarcodeModal from "@/presentation/components/nutrition/CreateGenericFoodByBarcodeModal";
+import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useFavorites } from "@/presentation/hooks/food/useFavorites";
 import { useRecentFoods } from "@/presentation/hooks/food/useRecentFoods";
+import { useFeatureAccess } from "@/presentation/hooks/premium/useFeatureAccess";
 import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { todayStrLocal } from "@/presentation/utils/date";
@@ -249,6 +252,8 @@ export default function AddFoodScreen() {
   const [results, setResults] = useState<ExtendedFoodSearchItem[]>([]);
   const [selected, setSelected] = useState<ExtendedFoodSearchItem | null>(null);
   const [isInputFocused, setIsInputFocused] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const { checkAccess } = useFeatureAccess();
 
   // Log cuando selected cambia
   useEffect(() => {
@@ -511,6 +516,15 @@ export default function AddFoodScreen() {
           "[AddFoodScreen] 🔄 Iniciando búsqueda por barcode:",
           barcode,
         );
+
+        // Verificar límite de escaneo si no es premium
+        const access = await checkAccess("barcode");
+        if (!access.canAccess) {
+          setShowPaywall(true);
+          router.setParams({ barcode: undefined });
+          return;
+        }
+
         isBarcodeSearchRef.current = true; // Marcar que hay búsqueda de barcode en curso
         setErr(null);
         setIsSearchingMore(true);
@@ -522,10 +536,10 @@ export default function AddFoodScreen() {
 
         console.log("[AddFoodScreen] 📦 Respuesta de OpenFoodFacts:", {
           ok: res.ok,
-          hasData: !!res.data,
-          message: res.message,
-          productName: res.data?.name,
-          productId: res.data?.id,
+          hasData: res.ok ? !!res.data : false,
+          message: !res.ok ? res.message : undefined,
+          productName: res.ok ? res.data.name : undefined,
+          productId: res.ok ? res.data.id : undefined,
         });
 
         // Verificar si la request fue cancelada
@@ -538,7 +552,7 @@ export default function AddFoodScreen() {
         setIsSearchingMore(false);
         isBarcodeSearchRef.current = false;
 
-        if (res.message === "Búsqueda cancelada.") {
+        if (!res.ok && res.message === "Búsqueda cancelada.") {
           return;
         }
 
@@ -562,6 +576,9 @@ export default function AddFoodScreen() {
           setQuery(res.data.name);
           setResults([]);
           justProcessedBarcodeRef.current = true;
+          // Incrementar contador de escaneo
+          UsageService.incrementScanCount();
+
           setTimeout(() => {
             router.setParams({ barcode: undefined });
             setTimeout(() => {
@@ -583,6 +600,9 @@ export default function AddFoodScreen() {
           setResults([]);
           setErr(null);
           justProcessedBarcodeRef.current = true;
+          // Incrementar contador de escaneo
+          UsageService.incrementScanCount();
+
           setTimeout(() => {
             router.setParams({ barcode: undefined });
             setTimeout(() => {
@@ -727,7 +747,7 @@ export default function AddFoodScreen() {
     } else {
       // Sin unidades: modo gramos
       setInputMode("grams");
-      
+
       // Si viene de OFF y tiene porción sugerida, usarla. Si no, 100.
       const suggested = selected.off?.servingQuantity;
       if (suggested && suggested > 0) {
@@ -735,7 +755,7 @@ export default function AddFoodScreen() {
       } else {
         setGramsStr("100");
       }
-      
+
       setUnitsStr("1");
       lastUserInputRef.current = null; // Reset ref
     }
@@ -872,10 +892,10 @@ export default function AddFoodScreen() {
       source: "off",
       name: p.name,
       meta: p.brand ? p.brand : "Sin marca",
-      kcal_100g: p.kcal_100g ?? null,
-      protein_100g: p.protein_100g ?? null,
-      carbs_100g: p.carbs_100g ?? null,
-      fat_100g: p.fat_100g ?? null,
+      kcal_100g: p.kcal_100g ?? 0,
+      protein_100g: p.protein_100g ?? 0,
+      carbs_100g: p.carbs_100g ?? 0,
+      fat_100g: p.fat_100g ?? 0,
       off: p,
       verified: false,
       base_unit: p.unitType === "ml" ? "ml" : "g",
@@ -1057,16 +1077,16 @@ export default function AddFoodScreen() {
           <View style={s.header}>
             <Pressable
               style={s.iconBtn}
-                onPress={() => {
-                  if (selected) {
-                    justSelectedManuallyRef.current = false; // Resetear el flag
-                    setSelected(null);
-                  } else if (router.canGoBack()) {
-                    router.back();
-                  } else {
-                    router.replace("/(tabs)/diary");
-                  }
-                }}
+              onPress={() => {
+                if (selected) {
+                  justSelectedManuallyRef.current = false; // Resetear el flag
+                  setSelected(null);
+                } else if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace("/(tabs)/diary");
+                }
+              }}
             >
               <Feather name="arrow-left" size={18} color={colors.textPrimary} />
             </Pressable>
@@ -1922,17 +1942,22 @@ export default function AddFoodScreen() {
                     <Text style={s.portionHintText}>
                       {inputMode === "units"
                         ? (() => {
-                            const unitLabel = selected.unit_label_es || "unidad";
-                            const unitText = unitLabel.replace(/^\d+\s*/, "").trim() || unitLabel;
+                            const unitLabel =
+                              selected.unit_label_es || "unidad";
+                            const unitText =
+                              unitLabel.replace(/^\d+\s*/, "").trim() ||
+                              unitLabel;
                             return `1 ${unitText} = ${selected.grams_per_unit}${isMl ? " ml" : "g"}`;
                           })()
                         : (() => {
-                             const unitLabel = selected.unit_label_es || "unidad";
-                             const unitText = unitLabel.replace(/^\d+\s*/, "").trim() || unitLabel;
-                             const count = unitsNum;
-                             return `${Math.round(count * 10) / 10} ${unitText + (count !== 1 ? "s" : "")} = ${Math.round(gramsNum)}${isMl ? " ml" : "g"}`;
-                          })()
-                      }
+                            const unitLabel =
+                              selected.unit_label_es || "unidad";
+                            const unitText =
+                              unitLabel.replace(/^\d+\s*/, "").trim() ||
+                              unitLabel;
+                            const count = unitsNum;
+                            return `${Math.round(count * 10) / 10} ${unitText + (count !== 1 ? "s" : "")} = ${Math.round(gramsNum)}${isMl ? " ml" : "g"}`;
+                          })()}
                     </Text>
                   </View>
                 )}
@@ -2053,6 +2078,10 @@ export default function AddFoodScreen() {
             duration: 2500,
           });
         }}
+      />
+      <PremiumPaywall
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
       />
     </SafeAreaView>
   );

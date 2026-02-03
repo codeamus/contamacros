@@ -1,5 +1,7 @@
 // app/(tabs)/calendar.tsx
+import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
 import { useCalendarData } from "@/presentation/hooks/diary/useCalendarData";
+import { useFeatureAccess } from "@/presentation/hooks/premium/useFeatureAccess";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { formatDateToSpanish, todayStrLocal } from "@/presentation/utils/date";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -29,6 +31,9 @@ export default function CalendarScreen() {
   const { theme } = useTheme();
   const { colors, typography } = theme;
   const s = makeStyles(colors, typography);
+
+  const [showPaywall, setShowPaywall] = useState(false);
+  const { checkAccess } = useFeatureAccess();
 
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(today.getMonth() + 1);
@@ -158,6 +163,22 @@ export default function CalendarScreen() {
 
   async function handleViewDay() {
     if (!selectedDay) return;
+
+    // Verificar límite de historial (7 días) si no es premium
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedDate = new Date(selectedDay + "T00:00:00");
+    const diffTime = today.getTime() - selectedDate.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays > 7) {
+      const access = await checkAccess("history");
+      if (!access.canAccess) {
+        setShowPaywall(true);
+        return;
+      }
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push({
       pathname: "/(tabs)/diary",
@@ -351,6 +372,12 @@ export default function CalendarScreen() {
             </View>
           </View>
         </View>
+
+        {/* Paywall Modal */}
+        <PremiumPaywall
+          visible={showPaywall}
+          onClose={() => setShowPaywall(false)}
+        />
       </ScrollView>
     </SafeAreaView>
   );
