@@ -1,4 +1,3 @@
-import type { SmartCoachRecommendation } from "@/domain/models/smartCoach";
 import SmartCoachPro from "@/presentation/components/smartCoach/SmartCoachPro";
 import React from "react";
 import { Animated, View } from "react-native";
@@ -6,17 +5,10 @@ import { ActivityCard } from "./ActivityCard";
 
 type HomeSliderProps = {
   slideAnimation: Animated.Value | null | undefined;
-  /** Smart Coach */
-  recommendation: SmartCoachRecommendation | null;
-  smartCoachLoading: boolean;
   isPremium: boolean;
   caloriesConsumed: number;
   caloriesTargetForCoach: number;
-  dietaryPreference?: string | null;
-  onFoodAdded: () => void;
   onShowPaywall: () => void;
-  onViewFullPlan: (() => void) | undefined;
-  onViewSuccessPlan: (() => void) | undefined;
   /** Activity */
   caloriesBurned: number;
   isSyncing: boolean;
@@ -27,16 +19,10 @@ type HomeSliderProps = {
 
 export function HomeSlider({
   slideAnimation,
-  recommendation,
-  smartCoachLoading,
   isPremium,
   caloriesConsumed,
   caloriesTargetForCoach,
-  dietaryPreference,
-  onFoodAdded,
   onShowPaywall,
-  onViewFullPlan,
-  onViewSuccessPlan,
   caloriesBurned,
   isSyncing,
   syncCalories,
@@ -63,16 +49,10 @@ export function HomeSlider({
     >
       <View style={{ gap: 14 }}>
         <SmartCoachPro
-          recommendation={recommendation}
-          loading={smartCoachLoading}
           isPremium={isPremium}
           caloriesConsumed={caloriesConsumed}
           caloriesTarget={caloriesTargetForCoach}
-          dietaryPreference={dietaryPreference ?? undefined}
-          onFoodAdded={onFoodAdded}
           onShowPaywall={onShowPaywall}
-          onViewFullPlan={onViewFullPlan}
-          onViewSuccessPlan={onViewSuccessPlan}
         />
 
         <ActivityCard

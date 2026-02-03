@@ -15,15 +15,27 @@ import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useTodayMeals } from "@/presentation/hooks/diary/useTodayMeals";
 import { useTodaySummary } from "@/presentation/hooks/diary/useTodaySummary";
 import { useHealthSync } from "@/presentation/hooks/health/useHealthSync";
-import { useSmartCoachPro } from "@/presentation/hooks/smartCoach/useSmartCoachPro";
 import { useRevenueCat } from "@/presentation/hooks/subscriptions/useRevenueCat";
 import { useStaggerAnimation } from "@/presentation/hooks/ui/useStaggerAnimation";
-import { useSmartCoachRecommendationStore } from "@/presentation/state/smartCoachRecommendationStore";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Linking, Platform, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  Animated,
+  Linking,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 function clamp01(n: number) {
@@ -71,22 +83,7 @@ export default function HomeScreen() {
     return caloriesTarget;
   }, [caloriesTarget, isPremium, caloriesBurned]);
 
-  const smartCoach = useSmartCoachPro(
-    profile,
-    effectiveTargetForCoach,
-    totals.calories,
-    totals.protein,
-    totals.carbs,
-    totals.fat,
-    isPremium,
-  );
-
-  const setSmartCoachRecommendation = useSmartCoachRecommendationStore(
-    (s) => s.setRecommendation,
-  );
-  const openSuccessScreen = useSmartCoachRecommendationStore(
-    (s) => s.openSuccessScreen,
-  );
+  /* useSmartCoachPro removed as it's not needed for the new Greeting Card layout */
 
   const hasTargets =
     caloriesTarget > 0 && proteinTarget > 0 && carbsTarget > 0 && fatTarget > 0;
@@ -156,10 +153,6 @@ export default function HomeScreen() {
     }
   }, [reloadSummary, reloadMeals, isPremium, reloadHealth]);
 
-  const handleFoodAdded = useCallback(async () => {
-    await Promise.all([reloadSummary(), reloadMeals()]);
-  }, [reloadSummary, reloadMeals]);
-
   const handleOpenSettings = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
@@ -196,40 +189,18 @@ export default function HomeScreen() {
       >
         <HomeHeader day={day} loading={loading} />
 
-        {hasTargets && (
-          <HomeSlider
-            slideAnimation={cardAnimations[0]}
-            recommendation={smartCoach.recommendation}
-            smartCoachLoading={smartCoach.loading}
-            isPremium={isPremium}
-            caloriesConsumed={totals.calories}
-            caloriesTargetForCoach={effectiveTargetForCoach}
-            dietaryPreference={profile?.dietary_preference ?? undefined}
-            onFoodAdded={handleFoodAdded}
-            onShowPaywall={() => setPaywallVisible(true)}
-            onViewFullPlan={
-              smartCoach.recommendation
-                ? () => {
-                    setSmartCoachRecommendation(smartCoach.recommendation!);
-                    router.push("/smart-coach-pro");
-                  }
-                : undefined
-            }
-            onViewSuccessPlan={
-              isPremium && caloriesBurned > 0
-                ? () => {
-                    openSuccessScreen(caloriesBurned);
-                    router.push("/smart-coach-pro");
-                  }
-                : undefined
-            }
-            caloriesBurned={caloriesBurned}
-            isSyncing={isSyncing}
-            syncCalories={syncCalories}
-            cancelSync={cancelSync}
-            onOpenSettings={handleOpenSettings}
-          />
-        )}
+        <HomeSlider
+          slideAnimation={cardAnimations[0]}
+          isPremium={isPremium}
+          caloriesConsumed={totals.calories}
+          caloriesTargetForCoach={effectiveTargetForCoach}
+          onShowPaywall={() => setPaywallVisible(true)}
+          caloriesBurned={caloriesBurned}
+          isSyncing={isSyncing}
+          syncCalories={syncCalories}
+          cancelSync={cancelSync}
+          onOpenSettings={handleOpenSettings}
+        />
 
         {!hasTargets && (
           <MissingTargetsNotice
