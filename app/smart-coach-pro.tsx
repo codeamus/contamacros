@@ -1,17 +1,17 @@
 // app/smart-coach-pro.tsx
 // Pantalla Smart Coach Pro a pantalla completa (fuera de tabs: sin tab bar ni FAB)
 import {
-  askSmartCoach,
-  type SmartCoachRefinementContext,
+    askSmartCoach,
+    type SmartCoachRefinementContext,
 } from "@/data/ai/geminiService";
 import { foodLogRepository } from "@/data/food/foodLogRepository";
 import {
-  genericFoodsRepository,
-  type GenericFoodDb,
+    genericFoodsRepository,
+    type GenericFoodDb,
 } from "@/data/food/genericFoodsRepository";
 import type {
-  CalorieRecommendation,
-  MacroRecommendation,
+    CalorieRecommendation,
+    MacroRecommendation,
 } from "@/domain/models/smartCoach";
 import Skeleton from "@/presentation/components/ui/Skeleton";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
@@ -29,18 +29,18 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import {
-  SafeAreaView,
-  useSafeAreaInsets,
+    SafeAreaView,
+    useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
 const PAGE_PADDING = 20;
@@ -277,7 +277,11 @@ export default function SmartCoachProScreen() {
   const handleBack = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     clearRecommendation();
-    router.replace("/(tabs)/home");
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/(tabs)/home");
+    }
   }, [clearRecommendation]);
 
   const handleQuickAdd = useCallback(async () => {
@@ -492,7 +496,11 @@ export default function SmartCoachProScreen() {
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               clearRecommendation();
-              router.replace("/(tabs)/home");
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace("/(tabs)/home");
+              }
             }}
             style={({ pressed }) => [
               s.quickAddButton,
@@ -748,7 +756,11 @@ export default function SmartCoachProScreen() {
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               clearRecommendation();
-              router.replace("/(tabs)/home");
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace("/(tabs)/home");
+              }
             }}
             style={({ pressed }) => [
               s.quickAddButton,
