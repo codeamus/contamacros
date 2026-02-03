@@ -6,13 +6,7 @@ import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View
-} from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const WEEKDAYS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -40,7 +34,7 @@ export default function CalendarScreen() {
   const [currentMonth, setCurrentMonth] = useState(today.getMonth() + 1);
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
 
-  const { summaries, loading, getCaloriesForDay } = useCalendarData(
+  const { loading, getCaloriesForDay, reload } = useCalendarData(
     currentYear,
     currentMonth,
   );
@@ -52,6 +46,7 @@ export default function CalendarScreen() {
   // Resetear calendario al entrar/salir del foco para asegurar que siempre empiece en 'hoy'
   useFocusEffect(
     useCallback(() => {
+      reload();
       return () => {
         // Al salir de la pantalla, resetear al día actual
         const now = new Date();
@@ -59,7 +54,7 @@ export default function CalendarScreen() {
         setCurrentYear(now.getFullYear());
         setSelectedDay(todayStrLocal());
       };
-    }, [])
+    }, [reload]),
   );
 
   // Calcular días del mes
@@ -69,8 +64,11 @@ export default function CalendarScreen() {
     const firstDayOfWeek = firstDay.getDay();
     const daysCount = lastDay.getDate();
 
-    const days: Array<{ day: number; dateStr: string; isCurrentMonth: boolean }> =
-      [];
+    const days: Array<{
+      day: number;
+      dateStr: string;
+      isCurrentMonth: boolean;
+    }> = [];
 
     // Días del mes anterior (para completar la primera semana)
     const prevMonthLastDay = new Date(currentYear, currentMonth - 1, 0);
@@ -121,16 +119,14 @@ export default function CalendarScreen() {
     return getCaloriesForDay(selectedDay);
   }, [selectedDay, getCaloriesForDay]);
 
-  const selectedDaySummary = useMemo(() => {
-    if (!selectedDay) return null;
-    return summaries.find((s) => s.day === selectedDay);
-  }, [selectedDay, summaries]);
-
-  const isSelected = useCallback((dateStr: string) => {
-    if (!selectedDay) return false;
-    // Comparación estricta de strings
-    return String(dateStr) === String(selectedDay);
-  }, [selectedDay]);
+  const isSelected = useCallback(
+    (dateStr: string) => {
+      if (!selectedDay) return false;
+      // Comparación estricta de strings
+      return String(dateStr) === String(selectedDay);
+    },
+    [selectedDay],
+  );
 
   function navigateMonth(direction: "prev" | "next") {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -155,9 +151,6 @@ export default function CalendarScreen() {
   }
 
   function handleDayPress(dateStr: string) {
-    const today = todayStrLocal();
-    if (dateStr > today) return; // No permitir seleccionar días futuros
-
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     // Actualizar directamente el estado
     setSelectedDay(dateStr);
@@ -180,10 +173,7 @@ export default function CalendarScreen() {
       >
         {/* Header */}
         <View style={s.header}>
-          <Pressable
-            style={s.headerBackBtn}
-            onPress={() => router.back()}
-          >
+          <Pressable style={s.headerBackBtn} onPress={() => router.back()}>
             <Feather name="arrow-left" size={20} color={colors.textPrimary} />
           </Pressable>
 
@@ -222,7 +212,11 @@ export default function CalendarScreen() {
             style={s.monthNavBtn}
             onPress={() => navigateMonth("next")}
           >
-            <Feather name="chevron-right" size={20} color={colors.textPrimary} />
+            <Feather
+              name="chevron-right"
+              size={20}
+              color={colors.textPrimary}
+            />
           </Pressable>
         </View>
 
@@ -248,6 +242,8 @@ export default function CalendarScreen() {
               // Solo mostrar como seleccionado si el día coincide y es del mes actual
               const showAsSelected = selected && isCurrentMonth;
 
+              const isClickable = hasData;
+
               return (
                 <Pressable
                   key={dateStr}
@@ -255,10 +251,10 @@ export default function CalendarScreen() {
                     s.dayCell,
                     !isCurrentMonth && s.dayCellOtherMonth,
                     showAsSelected && s.dayCellSelected,
-                    isFuture && s.dayCellDisabled,
+                    !isClickable && s.dayCellDisabled,
                   ]}
                   onPress={() => handleDayPress(dateStr)}
-                  disabled={isFuture}
+                  disabled={!isClickable}
                 >
                   <Text
                     style={[
@@ -275,7 +271,9 @@ export default function CalendarScreen() {
                       style={[
                         s.dayIndicator,
                         calories > 2000 && s.dayIndicatorHigh,
-                        calories > 1500 && calories <= 2000 && s.dayIndicatorMid,
+                        calories > 1500 &&
+                          calories <= 2000 &&
+                          s.dayIndicatorMid,
                         calories <= 1500 && s.dayIndicatorLow,
                       ]}
                     />
@@ -327,10 +325,7 @@ export default function CalendarScreen() {
             )}
 
             {selectedDayCalories > 0 && (
-              <Pressable
-                style={s.summaryButton}
-                onPress={handleViewDay}
-              >
+              <Pressable style={s.summaryButton} onPress={handleViewDay}>
                 <Text style={s.summaryButtonText}>Ver detalles del día</Text>
                 <Feather name="arrow-right" size={18} color={colors.brand} />
               </Pressable>
