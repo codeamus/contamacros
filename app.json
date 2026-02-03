@@ -84,7 +84,7 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
-      "versionCode": 15
+      "versionCode": 16
     },
     "androidNavigationBar": {
       "visible": "always",
