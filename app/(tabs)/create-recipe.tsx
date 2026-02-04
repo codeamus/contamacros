@@ -739,8 +739,8 @@ export default function CreateRecipeScreen() {
       type: "success",
     });
 
-    // Volver a la pantalla anterior
-    router.back();
+    // Volver a la pantalla de recetas (my-foods)
+    router.replace("/(tabs)/my-foods");
   }, [canSaveRecipe, recipeName, ingredients, showToast, isEditMode, recipeId]);
 
   const onSavePress = useCallback(async () => {
