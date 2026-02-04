@@ -56,6 +56,25 @@ type RecipeIngredient = {
   units?: number; // Cantidad de unidades (si aplica)
 };
 
+type RecipeIngredientJson = {
+  food: {
+    key: string;
+    source: ExtendedFoodSearchItem["source"];
+    name: string;
+    meta?: string;
+    kcal_100g: number;
+    protein_100g: number;
+    carbs_100g: number;
+    fat_100g: number;
+    unit_label_es?: string | null;
+    grams_per_unit?: number | null;
+    base_unit?: "g" | "ml" | null;
+    unitType?: "gr" | "ml";
+  };
+  grams: number;
+  units?: number;
+};
+
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
@@ -105,6 +124,95 @@ function calculateRecipeTotals(ingredients: RecipeIngredient[]) {
   );
 }
 
+function serializeRecipeIngredients(
+  ingredients: RecipeIngredient[],
+): RecipeIngredientJson[] {
+  return ingredients.map((ing) => ({
+    food: {
+      key: ing.food.key,
+      source: ing.food.source,
+      name: ing.food.name,
+      meta: ing.food.meta,
+      kcal_100g: Number(ing.food.kcal_100g) || 0,
+      protein_100g: Number(ing.food.protein_100g) || 0,
+      carbs_100g: Number(ing.food.carbs_100g) || 0,
+      fat_100g: Number(ing.food.fat_100g) || 0,
+      unit_label_es: ing.food.unit_label_es ?? null,
+      grams_per_unit:
+        ing.food.grams_per_unit != null
+          ? Number(ing.food.grams_per_unit)
+          : null,
+      base_unit: ing.food.base_unit ?? "g",
+      unitType: ing.food.unitType,
+    },
+    grams: ing.grams,
+    units: ing.units,
+  }));
+}
+
+function parseRecipeIngredients(raw: unknown): RecipeIngredient[] {
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map((row, idx) => {
+      const foodRaw = (row as any)?.food;
+      if (!foodRaw || typeof foodRaw !== "object") return null;
+
+      const key =
+        typeof (foodRaw as any).key === "string"
+          ? (foodRaw as any).key
+          : `unknown:${idx}`;
+      const source =
+        (foodRaw as any).source === "user_food" ||
+        (foodRaw as any).source === "food" ||
+        (foodRaw as any).source === "off"
+          ? ((foodRaw as any).source as ExtendedFoodSearchItem["source"])
+          : ("food" as const);
+      const name =
+        typeof (foodRaw as any).name === "string"
+          ? (foodRaw as any).name
+          : "Ingrediente";
+
+      const grams = clamp(Number((row as any)?.grams) || 0, 1, 2000);
+      const unitsRaw = (row as any)?.units;
+      const units =
+        unitsRaw == null ? undefined : clamp(Number(unitsRaw) || 0, 1, 1000);
+
+      const food: ExtendedFoodSearchItem = {
+        key,
+        source,
+        name,
+        meta:
+          typeof (foodRaw as any).meta === "string"
+            ? (foodRaw as any).meta
+            : undefined,
+        kcal_100g: Number((foodRaw as any).kcal_100g) || 0,
+        protein_100g: Number((foodRaw as any).protein_100g) || 0,
+        carbs_100g: Number((foodRaw as any).carbs_100g) || 0,
+        fat_100g: Number((foodRaw as any).fat_100g) || 0,
+        unit_label_es:
+          (foodRaw as any).unit_label_es == null
+            ? null
+            : String((foodRaw as any).unit_label_es),
+        grams_per_unit:
+          (foodRaw as any).grams_per_unit == null
+            ? null
+            : Number((foodRaw as any).grams_per_unit),
+        verified: false,
+        base_unit: (foodRaw as any).base_unit === "ml" ? "ml" : "g",
+        unitType: (foodRaw as any).unitType === "ml" ? "ml" : "gr",
+      };
+
+      return {
+        id: `db:${idx}:${key}`,
+        food,
+        grams,
+        units,
+      } satisfies RecipeIngredient;
+    })
+    .filter(Boolean) as RecipeIngredient[];
+}
+
 async function searchLocalFoods(q: string): Promise<ExtendedFoodSearchItem[]> {
   const [userFoodsRes, genericsRes] = await Promise.all([
     userFoodsRepository.search(q),
@@ -122,16 +230,25 @@ async function searchLocalFoods(q: string): Promise<ExtendedFoodSearchItem[]> {
 }
 
 export default function CreateRecipeScreen() {
-  const params = useLocalSearchParams<{ barcode?: string; reset?: string }>();
+  const params = useLocalSearchParams<{
+    barcode?: string;
+    reset?: string;
+    recipeId?: string;
+  }>();
   const { theme } = useTheme();
   const { colors, typography } = theme;
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
   const s = makeStyles(colors, typography, insets);
 
+  const recipeId =
+    typeof params.recipeId === "string" ? params.recipeId : "";
+  const isEditMode = !!recipeId;
+
   const [recipeName, setRecipeName] = useState("");
   const [ingredients, setIngredients] = useState<RecipeIngredient[]>([]);
   const [saving, setSaving] = useState(false);
+  const [loadingRecipe, setLoadingRecipe] = useState(false);
 
   // Búsqueda de ingredientes
   const [searchQuery, setSearchQuery] = useState("");
@@ -210,6 +327,37 @@ export default function CreateRecipeScreen() {
 
   const reqIdRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const loadedRecipeIdRef = useRef<string | null>(null);
+
+  // Cargar receta en modo edición
+  useEffect(() => {
+    if (!isEditMode) {
+      loadedRecipeIdRef.current = null;
+      return;
+    }
+
+    if (loadedRecipeIdRef.current === recipeId) return;
+    loadedRecipeIdRef.current = recipeId;
+
+    (async () => {
+      setLoadingRecipe(true);
+      const res = await userFoodsRepository.getById(recipeId);
+      setLoadingRecipe(false);
+
+      if (!res.ok) {
+        showToast({
+          message: res.message || "No se pudo cargar la receta",
+          type: "error",
+        });
+        if (router.canGoBack()) router.back();
+        else router.replace("/(tabs)/my-foods");
+        return;
+      }
+
+      setRecipeName(res.data.name ?? "");
+      setIngredients(parseRecipeIngredients(res.data.ingredients));
+    })();
+  }, [isEditMode, recipeId, showToast]);
 
   // Barcode scan handling (Misma lógica que add-food.tsx)
   useEffect(() => {
@@ -337,6 +485,7 @@ export default function CreateRecipeScreen() {
       setRecipeName("");
       setIngredients([]);
       setSaving(false);
+      setLoadingRecipe(false);
       setSearchQuery("");
       setSearchResults([]);
       setIsSearching(false);
@@ -556,9 +705,9 @@ export default function CreateRecipeScreen() {
 
     const totals = calculateRecipeTotals(ingredients);
     const totalGrams = ingredients.reduce((sum, ing) => sum + ing.grams, 0);
+    const ingredientsJson = serializeRecipeIngredients(ingredients);
 
-    const res = await userFoodsRepository.create({
-      base_food_id: null,
+    const payload = {
       name: recipeName.trim(),
       category: "receta",
       portion_unit: "g",
@@ -567,7 +716,12 @@ export default function CreateRecipeScreen() {
       protein: Math.round(totals.protein * 10) / 10,
       carbs: Math.round(totals.carbs * 10) / 10,
       fat: Math.round(totals.fat * 10) / 10,
-    });
+      ingredients: ingredientsJson,
+    };
+
+    const res = isEditMode
+      ? await userFoodsRepository.update(recipeId, payload)
+      : await userFoodsRepository.create({ base_food_id: null, ...payload });
 
     setSaving(false);
 
@@ -581,30 +735,37 @@ export default function CreateRecipeScreen() {
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showToast({
-      message: "Receta creada exitosamente",
+      message: isEditMode ? "Receta actualizada" : "Receta creada exitosamente",
       type: "success",
     });
 
     // Volver a la pantalla anterior
     router.back();
-  }, [canSaveRecipe, recipeName, ingredients, showToast]);
+  }, [canSaveRecipe, recipeName, ingredients, showToast, isEditMode, recipeId]);
 
   const onSavePress = useCallback(async () => {
+    if (isEditMode) {
+      handleSaveRecipe();
+      return;
+    }
     const access = await checkAccess("recipe");
     if (!access.canAccess) {
       setShowPaywall(true);
       return;
     }
     handleSaveRecipe();
-  }, [checkAccess, handleSaveRecipe]);
+  }, [checkAccess, handleSaveRecipe, isEditMode]);
 
   const handleOpenScanner = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push({
       pathname: "/(tabs)/scan",
-      params: { returnTo: "create-recipe" },
+      params: {
+        returnTo: "create-recipe",
+        recipeId: isEditMode ? recipeId : undefined,
+      },
     });
-  }, []);
+  }, [isEditMode, recipeId]);
 
   return (
     <SafeAreaView style={s.safe}>
@@ -614,12 +775,15 @@ export default function CreateRecipeScreen() {
       >
         <View style={s.header}>
           <Pressable
-            onPress={() => router.replace("/(tabs)/my-foods")}
+            onPress={() => {
+              if (router.canGoBack()) router.back();
+              else router.replace("/(tabs)/my-foods");
+            }}
             style={s.backButton}
           >
             <Feather name="arrow-left" size={24} color={colors.textPrimary} />
           </Pressable>
-          <Text style={s.title}>Nueva receta</Text>
+          <Text style={s.title}>{isEditMode ? "Editar receta" : "Nueva receta"}</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -971,15 +1135,17 @@ export default function CreateRecipeScreen() {
               pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] },
               !canSaveRecipe && s.saveButtonDisabled,
             ]}
-            disabled={!canSaveRecipe}
+            disabled={!canSaveRecipe || loadingRecipe}
           >
             {saving ? (
               <ActivityIndicator color={colors.onCta} />
             ) : (
-              <Text style={s.saveButtonText}>Guardar Receta</Text>
+              <Text style={s.saveButtonText}>
+                {isEditMode ? "Actualizar receta" : "Guardar receta"}
+              </Text>
             )}
           </Pressable>
-          {recipeLimit.reached && (
+          {recipeLimit.reached && !isEditMode && (
             <Text
               style={{
                 textAlign: "center",
@@ -1037,6 +1203,14 @@ export default function CreateRecipeScreen() {
             <Text style={s.searchText}>Buscando producto...</Text>
           </View>
         )}
+
+        {/* Indicador de carga de receta en modo edición */}
+        {loadingRecipe && (
+          <View style={s.searchOverlay}>
+            <ActivityIndicator size="large" color={colors.brand} />
+            <Text style={s.searchText}>Cargando receta...</Text>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -1091,7 +1265,13 @@ function IngredientItem({
         setUnitsStr(calculatedUnits.toString());
       }
     }
-  }, [ingredient.grams, ingredient.units, isEditing, hasUnits]);
+  }, [
+    ingredient.grams,
+    ingredient.units,
+    ingredient.food.grams_per_unit,
+    isEditing,
+    hasUnits,
+  ]);
 
   const handleSave = useCallback(() => {
     if (editMode === "units" && hasUnits && onUpdateUnits) {
@@ -1145,6 +1325,7 @@ function IngredientItem({
     [
       ingredient.grams,
       ingredient.units,
+      ingredient.food.grams_per_unit,
       hasUnits,
       editMode,
       onUpdateGrams,

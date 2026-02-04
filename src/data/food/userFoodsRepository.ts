@@ -16,6 +16,12 @@ export type UserFoodDb = {
   carbs: number;
   fat: number;
 
+  /**
+   * Ingredientes de la receta (jsonb).
+   * Puede ser null/undefined para alimentos antiguos o no-recetas.
+   */
+  ingredients?: unknown | null;
+
   created_at: string;
 };
 
@@ -93,6 +99,27 @@ export const userFoodsRepository = {
 
     if (error) return { ok: false, message: error.message, code: error.code };
     if (!data) return { ok: false, message: "No se pudo crear el alimento." };
+    return { ok: true, data: data as UserFoodDb };
+  },
+
+  async update(
+    id: string,
+    input: Partial<Omit<UserFoodDb, "id" | "user_id" | "created_at">>,
+  ): Promise<RepoResult<UserFoodDb>> {
+    const uidRes = await getUid();
+    if (!uidRes.ok) return uidRes;
+
+    const { data, error } = await supabase
+      .from("user_foods")
+      .update(input)
+      .eq("id", id)
+      .eq("user_id", uidRes.data)
+      .select("*")
+      .maybeSingle();
+
+    if (error) return { ok: false, message: error.message, code: error.code };
+    if (!data)
+      return { ok: false, message: "No se pudo actualizar el alimento." };
     return { ok: true, data: data as UserFoodDb };
   },
 

@@ -63,6 +63,28 @@ Estos campos permiten que el usuario registre sin necesidad de una pesa de alime
 - Los usuarios solo pueden ver, insertar y eliminar sus propios favoritos
 - Ver archivo `supabase/migrations/user_favorites_rls.sql` para las políticas completas
 
+### Tabla: `user_foods` (Alimentos/recetas del usuario)
+
+| Campo          | Tipo      | Descripción |
+| :------------- | :-------- | :---------- |
+| `id`           | uuid      | Identificador único del alimento/receta |
+| `user_id`      | uuid      | UUID del usuario (FK a auth.users.id) |
+| `base_food_id` | uuid      | (nullable) Referencia opcional a un alimento base |
+| `name`         | text      | Nombre del alimento/receta |
+| `category`     | text      | Categoría (ej: `"receta"`) |
+| `portion_unit` | text      | Unidad de porción (ej: `"g"`) |
+| `portion_base` | numeric   | Base de porción (ej: gramos totales de la receta) |
+| `calories`     | numeric   | Calorías (kcal) de la porción base |
+| `protein`      | numeric   | Proteínas (g) de la porción base |
+| `carbs`        | numeric   | Carbohidratos (g) de la porción base |
+| `fat`          | numeric   | Grasas (g) de la porción base |
+| `ingredients`  | jsonb     | **(nuevo)** Lista de ingredientes serializados (snapshot) para re-edición de la receta |
+| `created_at`   | timestamp | Fecha de creación |
+
+**Políticas RLS**:
+
+- Los usuarios solo pueden ver, insertar, actualizar y eliminar sus propios alimentos/recetas (por `user_id`)
+
 ### Tabla: `profiles`
 
 | Campo        | Tipo    | Descripción                                                              |

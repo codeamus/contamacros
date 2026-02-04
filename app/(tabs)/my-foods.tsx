@@ -20,7 +20,6 @@ import {
 import Swipeable from "react-native-gesture-handler/Swipeable";
 import {
   SafeAreaView,
-  useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
 import { genericFoodsRepository } from "@/data/food/genericFoodsRepository";
@@ -52,7 +51,6 @@ function FavoriteFoodItem({
   food,
   index,
   colors,
-  typography,
   styles,
   animations,
   onPress,
@@ -61,7 +59,6 @@ function FavoriteFoodItem({
   food: FoodSearchItem;
   index: number;
   colors: any;
-  typography: any;
   styles: any;
   animations: Animated.Value[];
   onPress: () => void;
@@ -206,18 +203,18 @@ function SwipeableFoodItem({
   food,
   index,
   colors,
-  typography,
   styles,
   animations,
   onDelete,
+  onEdit,
 }: {
   food: UserFoodDb;
   index: number;
   colors: any;
-  typography: any;
   styles: any;
   animations: Animated.Value[];
   onDelete: (id: string, name: string, skipConfirm: boolean) => void;
+  onEdit: (id: string) => void;
 }) {
   const swipeableRef = useRef<React.ComponentRef<typeof Swipeable>>(null);
 
@@ -278,15 +275,26 @@ function SwipeableFoodItem({
           <View style={{ flex: 1, gap: 8 }}>
             <View style={styles.foodHeader}>
               <Text style={styles.foodName}>{food.name}</Text>
-              <Pressable
-                onPress={() => onDelete(food.id, food.name, false)}
-                style={({ pressed }) => [
-                  styles.deleteBtn,
-                  pressed && { opacity: 0.7 },
-                ]}
-              >
-                <Feather name="trash-2" size={16} color={colors.cta} />
-              </Pressable>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Pressable
+                  onPress={() => onEdit(food.id)}
+                  style={({ pressed }) => [
+                    styles.editBtn,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <Feather name="edit-2" size={16} color={colors.brand} />
+                </Pressable>
+                <Pressable
+                  onPress={() => onDelete(food.id, food.name, false)}
+                  style={({ pressed }) => [
+                    styles.deleteBtn,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <Feather name="trash-2" size={16} color={colors.cta} />
+                </Pressable>
+              </View>
             </View>
 
             <View style={styles.macrosRow}>
@@ -347,15 +355,14 @@ export default function MyFoodsScreen() {
   const { theme } = useTheme();
   const { colors, typography } = theme;
   const { showToast } = useToast();
-  const insets = useSafeAreaInsets();
-  const s = makeStyles(colors, typography, insets);
+  const s = makeStyles(colors, typography);
 
   const [myFoods, setMyFoods] = useState<UserFoodDb[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   // Favoritos
-  const { favorites, isFavorite, toggleFavorite } = useFavorites();
+  const { favorites, toggleFavorite } = useFavorites();
   const [favoriteFoods, setFavoriteFoods] = useState<FoodSearchItem[]>([]);
   const [loadingFavorites, setLoadingFavorites] = useState(false);
 
@@ -457,6 +464,13 @@ export default function MyFoodsScreen() {
     [performDeleteFood],
   );
 
+  const handleEditFood = useCallback((id: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push({
+      pathname: "/(tabs)/create-recipe",
+      params: { recipeId: id },
+    });
+  }, []);
 
 
   const animations = useStaggerAnimation(myFoods.length, 50, 100);
@@ -482,7 +496,7 @@ export default function MyFoodsScreen() {
           type: "success",
         });
         // Los favoritos se actualizarán automáticamente cuando cambie el estado
-      } catch (error) {
+      } catch {
         showToast({
           message: "Error al eliminar de favoritos",
           type: "error",
@@ -575,10 +589,10 @@ export default function MyFoodsScreen() {
                 food={food}
                 index={index}
                 colors={colors}
-                typography={typography}
                 styles={s}
                 animations={animations}
                 onDelete={handleDeleteFood}
+                onEdit={handleEditFood}
               />
             ))}
           </View>
@@ -611,7 +625,6 @@ export default function MyFoodsScreen() {
                     food={food}
                     index={index}
                     colors={colors}
-                    typography={typography}
                     styles={s}
                     animations={favoriteAnimations}
                     onPress={() => handleFavoritePress(food)}
@@ -660,7 +673,7 @@ export default function MyFoodsScreen() {
 
 }
 
-function makeStyles(colors: any, typography: any, insets: { bottom: number }) {
+function makeStyles(colors: any, typography: any) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
     container: { padding: 18, gap: 14 },
@@ -767,6 +780,9 @@ function makeStyles(colors: any, typography: any, insets: { bottom: number }) {
       flex: 1,
     },
     deleteBtn: {
+      padding: 8,
+    },
+    editBtn: {
       padding: 8,
     },
     macrosRow: {

@@ -33,9 +33,11 @@ export default function ScanScreen() {
     meal?: string;
     returnTo?: string;
     mode?: string;
+    recipeId?: string;
   }>();
   const meal: MealType = isMealType(params.meal) ? params.meal : "snack";
   const returnTo = params.returnTo || "add-food";
+  const recipeId = typeof params.recipeId === "string" ? params.recipeId : "";
 
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
@@ -125,7 +127,7 @@ export default function ScanScreen() {
           );
           router.replace({
             pathname: "/(tabs)/create-recipe",
-            params: { barcode: data },
+            params: { barcode: data, recipeId: recipeId || undefined },
           });
         } else {
           console.log(
@@ -145,7 +147,7 @@ export default function ScanScreen() {
         setScanned(false);
       }
     },
-    [meal, returnTo],
+    [meal, returnTo, recipeId],
   );
 
   // Detectar modo desde params
