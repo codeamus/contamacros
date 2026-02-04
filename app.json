@@ -7,9 +7,6 @@
     "scheme": "contamacro",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "proguardRuleFiles": [
-      "proguard-rules.pro"
-    ],
     "icon": "./assets/images/adaptive-icon.png",
     "ios": {
       "bundleIdentifier": "com.codeamusdev2.contamacro",
@@ -28,6 +25,22 @@
         "ITSAppUsesNonExemptEncryption": false
       }
     },
+    "android": {
+      "package": "com.codeamusdev2.contamacro",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#1B3A2F"
+      },
+      "permissions": [
+        "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "versionCode": 17,
+      "proguardRuleFiles": [
+        "proguard-rules.pro"
+      ]
+    },
     "plugins": [
       "expo-router",
       [
@@ -41,11 +54,7 @@
             "extraGradleProps": [
               {
                 "name": "reanimated.newArchEnabled",
-                "value": "false"
-              },
-              {
-                "name": "worklets.newArchEnabled",
-                "value": "false"
+                "value": "true"
               },
               {
                 "name": "android.kotlin.suppressVersionCheck",
@@ -73,31 +82,11 @@
       "expo-image-picker",
       "@react-native-community/datetimepicker"
     ],
-    "android": {
-      "package": "com.codeamusdev2.contamacro",
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#1B3A2F"
-      },
-      "permissions": [
-        "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
-      ],
-      "versionCode": 16
-    },
-    "androidNavigationBar": {
-      "visible": "always",
-      "barStyle": "dark-content",
-      "backgroundColor": "#00000000",
-      "translucent": true
-    },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
     "extra": {
-      "router": {},
       "eas": {
         "projectId": "fabcdd10-479b-45df-a93b-78b3eaf2c612"
       }
