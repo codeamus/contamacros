@@ -36,6 +36,9 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
 
+  const [passwordHelper, setPasswordHelper] = useState<string | null>(null);
+  const [confirmHelper, setConfirmHelper] = useState<string | null>(null);
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -58,7 +61,8 @@ export default function RegisterScreen() {
   const passwordError = useMemo(() => {
     if (!touched.password) return null;
     if (!password.trim()) return "Crea una contraseña";
-    if (!isStrongEnoughPassword(password)) return "Mínimo 6 caracteres";
+    if (!isStrongEnoughPassword(password))
+      return "Debe contener mayúscula, minúscula, número y carácter especial. Mínimo 6 caracteres";
     return null;
   }, [password, touched.password]);
 
@@ -89,7 +93,7 @@ export default function RegisterScreen() {
         setFormError(translateAuthError(res.message));
         return;
       }
-      
+
       // ✅ Mostrar toast indicando que debe revisar su bandeja de entrada
       showToast({
         message: "Revisa tu bandeja de entrada para confirmar tu email",
@@ -97,7 +101,7 @@ export default function RegisterScreen() {
         duration: 4000,
         icon: "email-outline",
       });
-      
+
       // ✅ No redirigimos aquí.
       // AuthGate se encarga del flujo (onboarding / tabs) para evitar duplicidad.
     } catch (e) {
@@ -181,11 +185,24 @@ export default function RegisterScreen() {
                 setPassword(t);
                 if (!touched.password)
                   setTouched((s) => ({ ...s, password: true }));
+                setPasswordHelper(null); // Limpiar helper al cambiar
+              }}
+              onBlur={() => {
+                // Validar fortaleza y actualizar helper
+                const error = !password
+                  ? null
+                  : isStrongEnoughPassword(password)
+                    ? null
+                    : "Debe contener mayúscula, minúscula, número y carácter especial. Mínimo 6 caracteres";
+                setPasswordHelper(error);
               }}
               secureTextEntry={!showPassword}
               textContentType="newPassword"
               autoComplete="new-password"
             />
+<Text style={{ color: colors.cta, fontSize: 12, marginTop: 4 }}>
+  {passwordHelper}
+</Text>
 
             <AuthTextField
               label="Confirmar contraseña"
@@ -194,11 +211,21 @@ export default function RegisterScreen() {
                 setConfirm(t);
                 if (!touched.confirm)
                   setTouched((s) => ({ ...s, confirm: true }));
+                setConfirmHelper(null); // Limpiar helper al cambiar
+              }}
+              onBlur={() => {
+                // Validar que coincidan contraseñas y actualizar helper
+                const error =
+                  confirm === password ? null : "Las contraseñas no coinciden";
+                setConfirmHelper(error);
               }}
               secureTextEntry={!showConfirm}
               textContentType="newPassword"
               autoComplete="new-password"
             />
+<Text style={{ color: colors.cta, fontSize: 12, marginTop: 4 }}>
+  {confirmHelper}
+</Text>
 
             {!!formError && (
               <View style={styles.alert}>

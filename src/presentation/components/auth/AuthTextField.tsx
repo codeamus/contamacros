@@ -77,7 +77,7 @@ export default function AuthTextField({
           value={value}
           onChangeText={onChangeText}
           autoCorrect={false}
-          placeholderTextColor={colors.textSecondary}
+          placeholderTextColor={`${colors.textSecondary}80`} // agregando opacidad hexadecimal (50%)
           selectionColor={colors.brand}
           autoCapitalize={inputProps.autoCapitalize ?? "none"}
           underlineColorAndroid="transparent"

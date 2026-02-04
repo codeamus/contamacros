@@ -24,11 +24,22 @@ export function isValidEmail(email: string): boolean {
  */
 export function isStrongEnoughPassword(password: string): boolean {
   if (!password || typeof password !== "string") return false;
-  
+
   const trimmed = password.trim();
+
+  // Nueva validación: al menos una mayúscula, una minúscula, un número y un carácter especial
+  const hasUppercase = /[A-Z]/.test(trimmed);
+  const hasLowercase = /[a-z]/.test(trimmed);
+  const hasNumber = /\d/.test(trimmed);
+  const hasSpecialChar = /[^A-Za-z0-9]/.test(trimmed);
+
   return (
     trimmed.length >= VALIDATION_LIMITS.MIN_PASSWORD_LENGTH &&
-    trimmed.length <= VALIDATION_LIMITS.MAX_PASSWORD_LENGTH
+    trimmed.length <= VALIDATION_LIMITS.MAX_PASSWORD_LENGTH &&
+    hasUppercase &&
+    hasLowercase &&
+    hasNumber &&
+    hasSpecialChar
   );
 }
 
