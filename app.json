@@ -36,7 +36,7 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
-      "versionCode": 20,
+      "versionCode": 21,
       "proguardRuleFiles": [
         "proguard-rules.pro"
       ]
@@ -90,8 +90,6 @@
       "eas": {
         "projectId": "0e67065a-8031-4fd1-a60d-afec63c42b1c"
       },
-      "EXPO_PUBLIC_SUPABASE_URL": "https://ujiqvoraspnxghpvttcr.supabase.co",
-      "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqaXF2b3Jhc3BueGdocHZ0dGNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg1MDAyODQsImV4cCI6MjA4NDA3NjI4NH0.WHcXXVcS_njFYh3IVO5GCL3XrOlXHT6jdcOuz4owMmw",
       "router": {}
     },
     "owner": "codeamus"
