@@ -31,6 +31,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           onHide={hideToast}
           colors={theme.colors}
           typography={theme.typography}
+          position={toast.position}
         />
       )}
     </ToastContext.Provider>

@@ -9,8 +9,9 @@ export type ToastType = "success" | "error" | "info" | "warning";
 export type ToastConfig = {
   message: string;
   type?: ToastType;
-  duration?: number; // en ms
+  duration?: number;
   icon?: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+  position?: "top" | "bottom"; // ✅ Nueva propiedad opcional
 };
 
 type ToastProps = ToastConfig & {
@@ -24,81 +25,58 @@ export function Toast({
   type = "success",
   duration = 2500,
   icon,
+  position = "top", // ✅ Por defecto arriba para evitar el teclado
   onHide,
   colors,
   typography,
 }: ToastProps) {
   const insets = useSafeAreaInsets();
-  const translateY = useRef(new Animated.Value(100)).current;
+
+  // Ajustamos la animación inicial según la posición
+  const startValue = position === "top" ? -100 : 100;
+  const translateY = useRef(new Animated.Value(startValue)).current;
   const opacity = useRef(new Animated.Value(0)).current;
-  const scale = useRef(new Animated.Value(0.8)).current;
+  const scale = useRef(new Animated.Value(0.9)).current;
 
   useEffect(() => {
-    // Animación de entrada con efecto bounce suave
     Animated.parallel([
       Animated.spring(translateY, {
         toValue: 0,
         useNativeDriver: true,
-        tension: 65,
-        friction: 7,
+        tension: 80,
+        friction: 8,
       }),
       Animated.timing(opacity, {
         toValue: 1,
-        duration: 350,
+        duration: 300,
         useNativeDriver: true,
       }),
       Animated.spring(scale, {
         toValue: 1,
         useNativeDriver: true,
-        tension: 65,
-        friction: 7,
+        useNativeDriver: true,
       }),
     ]).start();
 
-    // Auto-dismiss
     const timer = setTimeout(() => {
       Animated.parallel([
         Animated.timing(translateY, {
-          toValue: 100,
+          toValue: startValue,
           duration: 250,
           useNativeDriver: true,
         }),
         Animated.timing(opacity, {
           toValue: 0,
-          duration: 250,
+          duration: 200,
           useNativeDriver: true,
         }),
-        Animated.timing(scale, {
-          toValue: 0.8,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        onHide();
-      });
+      ]).start(() => onHide());
     }, duration);
 
     return () => clearTimeout(timer);
-  }, [duration, onHide, translateY, opacity, scale]);
+  }, [duration, onHide, startValue]);
 
-  const getIconName = (): React.ComponentProps<
-    typeof MaterialCommunityIcons
-  >["name"] => {
-    if (icon) return icon;
-    switch (type) {
-      case "success":
-        return "check-circle";
-      case "error":
-        return "alert-circle";
-      case "warning":
-        return "alert";
-      case "info":
-        return "information";
-      default:
-        return "check-circle";
-    }
-  };
-
+  // Lógica de colores (mantenida igual a la tuya)
   const getIconColor = () => {
     switch (type) {
       case "success":
@@ -114,30 +92,18 @@ export function Toast({
     }
   };
 
-  const getBackgroundColor = () => {
-    switch (type) {
-      case "success":
-        return colors.surface;
-      case "error":
-        return colors.surface;
-      case "warning":
-        return colors.surface;
-      case "info":
-        return colors.surface;
-      default:
-        return colors.surface;
-    }
-  };
+  // ✅ Cálculo dinámico de posición
+  const positionStyle =
+    position === "top"
+      ? { top: insets.top + (Platform.OS === "ios" ? 10 : 20) }
+      : { bottom: insets.bottom + (Platform.OS === "ios" ? 88 : 70) + 16 };
 
-  // Altura aproximada de la barra de navegación inferior
-  const tabBarHeight = Platform.OS === "ios" ? 88 : 70;
-  
   return (
     <Animated.View
       style={[
         styles.container,
+        positionStyle,
         {
-          bottom: insets.bottom + tabBarHeight + 16,
           opacity,
           transform: [{ translateY }, { scale }],
         },
@@ -148,18 +114,24 @@ export function Toast({
         style={[
           styles.toast,
           {
-            backgroundColor: getBackgroundColor(),
-            borderColor:
-              type === "success" ? colors.brand : colors.border,
+            backgroundColor: colors.surface,
+            borderColor: type === "success" ? colors.brand : colors.border,
             borderWidth: type === "success" ? 1.5 : 1,
-            shadowColor: colors.textPrimary,
+            shadowColor: "#000",
           },
         ]}
       >
         <View style={styles.iconContainer}>
           <MaterialCommunityIcons
-            name={getIconName()}
-            size={24}
+            name={
+              icon ||
+              (type === "success"
+                ? "check-circle"
+                : type === "error"
+                  ? "alert-circle"
+                  : "information")
+            }
+            size={22}
             color={getIconColor()}
           />
         </View>
@@ -185,30 +157,28 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: "center",
-    zIndex: 9999,
+    zIndex: 10000, // Por encima de todo, incluso el header
   },
   toast: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    borderRadius: 18,
-    maxWidth: "95%",
-    minWidth: 120,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 20,
+    maxWidth: "90%",
     alignSelf: "center",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 10,
+    // Sombra más sutil y moderna
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 8,
   },
   iconContainer: {
-    marginRight: 12,
-    flexShrink: 0,
+    marginRight: 10,
   },
   message: {
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: "500",
+    fontSize: 14,
+    fontWeight: "600",
     flexShrink: 1,
   },
 });

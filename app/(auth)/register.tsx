@@ -19,6 +19,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -36,9 +37,6 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
 
-  const [passwordHelper, setPasswordHelper] = useState<string | null>(null);
-  const [confirmHelper, setConfirmHelper] = useState<string | null>(null);
-
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -51,6 +49,7 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Validaciones Memorizadas
   const emailError = useMemo(() => {
     if (!touched.email) return null;
     if (!email.trim()) return "Ingresa tu email";
@@ -62,7 +61,7 @@ export default function RegisterScreen() {
     if (!touched.password) return null;
     if (!password.trim()) return "Crea una contraseña";
     if (!isStrongEnoughPassword(password))
-      return "Debe contener mayúscula, minúscula, número y carácter especial. Mínimo 6 caracteres";
+      return "Debe contener mayúscula, minúscula, número y carácter especial.";
     return null;
   }, [password, touched.password]);
 
@@ -89,21 +88,23 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       const res = await signUp(email.trim(), password);
+
       if (!res.ok) {
         setFormError(translateAuthError(res.message));
         return;
       }
 
-      // ✅ Mostrar toast indicando que debe revisar su bandeja de entrada
+      // ✅ FLUJO VANGUARDISTA: Redirigir a verificación OTP
       showToast({
-        message: "Revisa tu bandeja de entrada para confirmar tu email",
-        type: "info",
+        message: "¡Código enviado! Revisa tu email",
+        type: "success",
         duration: 4000,
-        icon: "email-outline",
       });
 
-      // ✅ No redirigimos aquí.
-      // AuthGate se encarga del flujo (onboarding / tabs) para evitar duplicidad.
+      router.push({
+        pathname: "/(auth)/verify-otp",
+        params: { email: email.trim().toLowerCase() },
+      });
     } catch (e) {
       setFormError("No pudimos crear tu cuenta. Intenta nuevamente.");
     } finally {
@@ -111,7 +112,7 @@ export default function RegisterScreen() {
     }
   }
 
-  // Animación de entrada (igual a login)
+  // Animación de entrada
   const enter = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(enter, {
@@ -130,127 +131,148 @@ export default function RegisterScreen() {
       {
         translateY: enter.interpolate({
           inputRange: [0, 1],
-          outputRange: [10, 0],
+          outputRange: [15, 0],
         }),
       },
     ],
-  } as const;
+  };
 
   return (
     <View style={styles.screen}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
       >
-        <Animated.View style={[styles.card, cardAnimStyle]}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.logoWrap}>
-              <Image
-                source={logoLight}
-                style={styles.logo}
-                resizeMode="contain"
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.brand}>ContaMacro</Text>
-              <Text style={styles.title}>Crear cuenta</Text>
-            </View>
-          </View>
-
-          <Text style={styles.subtitle}>
-            Te tomará menos de un minuto. Luego configuramos tu objetivo.
-          </Text>
-
-          <View style={{ gap: 14, marginTop: 18 }}>
-            <AuthTextField
-              label="Email"
-              value={email}
-              onChangeText={(t) => {
-                setEmail(t);
-                if (!touched.email) setTouched((s) => ({ ...s, email: true }));
-              }}
-              placeholder="tuemail@gmail.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              error={emailError}
-              leftIcon={
-                <Feather name="mail" size={18} color={colors.textSecondary} />
-              }
-            />
-
-            <AuthTextField
-              label="Contraseña"
-              value={password}
-              onChangeText={(t) => {
-                setPassword(t);
-                if (!touched.password)
-                  setTouched((s) => ({ ...s, password: true }));
-                setPasswordHelper(null); // Limpiar helper al cambiar
-              }}
-              onBlur={() => {
-                // Validar fortaleza y actualizar helper
-                const error = !password
-                  ? null
-                  : isStrongEnoughPassword(password)
-                    ? null
-                    : "Debe contener mayúscula, minúscula, número y carácter especial. Mínimo 6 caracteres";
-                setPasswordHelper(error);
-              }}
-              secureTextEntry={!showPassword}
-              textContentType="newPassword"
-              autoComplete="new-password"
-            />
-<Text style={{ color: colors.cta, fontSize: 12, marginTop: 4 }}>
-  {passwordHelper}
-</Text>
-
-            <AuthTextField
-              label="Confirmar contraseña"
-              value={confirm}
-              onChangeText={(t) => {
-                setConfirm(t);
-                if (!touched.confirm)
-                  setTouched((s) => ({ ...s, confirm: true }));
-                setConfirmHelper(null); // Limpiar helper al cambiar
-              }}
-              onBlur={() => {
-                // Validar que coincidan contraseñas y actualizar helper
-                const error =
-                  confirm === password ? null : "Las contraseñas no coinciden";
-                setConfirmHelper(error);
-              }}
-              secureTextEntry={!showConfirm}
-              textContentType="newPassword"
-              autoComplete="new-password"
-            />
-<Text style={{ color: colors.cta, fontSize: 12, marginTop: 4 }}>
-  {confirmHelper}
-</Text>
-
-            {!!formError && (
-              <View style={styles.alert}>
-                <Feather name="alert-triangle" size={16} color={colors.onCta} />
-                <Text style={styles.alertText}>{formError}</Text>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <Animated.View style={[styles.card, cardAnimStyle]}>
+            {/* Header */}
+            <View style={styles.header}>
+              <View style={styles.logoWrap}>
+                <Image
+                  source={logoLight}
+                  style={styles.logo}
+                  resizeMode="contain"
+                />
               </View>
-            )}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.brand}>ContaMacros</Text>
+                <Text style={styles.title}>Crear cuenta</Text>
+              </View>
+            </View>
 
-            <PrimaryButton
-              title="Crear cuenta"
-              onPress={onSubmit}
-              loading={loading}
-              disabled={!canSubmit}
-            />
+            <Text style={styles.subtitle}>
+              Te tomará menos de un minuto. Luego configuramos tu objetivo.
+            </Text>
 
-            <Pressable onPress={() => router.back()}>
-              {({ pressed }) => (
-                <Text style={[styles.link, pressed && styles.linkPressed]}>
-                  Ya tengo cuenta{" "}
-                  <Text style={styles.linkStrong}>Iniciar sesión</Text>
-                </Text>
+            <View style={{ gap: 16, marginTop: 18 }}>
+              <AuthTextField
+                label="Email"
+                value={email}
+                onChangeText={(t) => {
+                  setEmail(t);
+                  if (!touched.email)
+                    setTouched((s) => ({ ...s, email: true }));
+                }}
+                placeholder="tuemail@gmail.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                error={emailError}
+                leftIcon={
+                  <Feather name="mail" size={18} color={colors.textSecondary} />
+                }
+              />
+
+              <AuthTextField
+                label="Contraseña"
+                value={password}
+                onChangeText={(t) => {
+                  setPassword(t);
+                  if (!touched.password)
+                    setTouched((s) => ({ ...s, password: true }));
+                }}
+                secureTextEntry={!showPassword}
+                placeholder="••••••••"
+                error={passwordError}
+                leftIcon={
+                  <Feather name="lock" size={18} color={colors.textSecondary} />
+                }
+                rightIcon={
+                  <Pressable onPress={() => setShowPassword(!showPassword)}>
+                    <Feather
+                      name={showPassword ? "eye-off" : "eye"}
+                      size={18}
+                      color={colors.textSecondary}
+                    />
+                  </Pressable>
+                }
+              />
+
+              <AuthTextField
+                label="Confirmar contraseña"
+                value={confirm}
+                onChangeText={(t) => {
+                  setConfirm(t);
+                  if (!touched.confirm)
+                    setTouched((s) => ({ ...s, confirm: true }));
+                }}
+                secureTextEntry={!showConfirm}
+                placeholder="••••••••"
+                error={confirmError}
+                leftIcon={
+                  <Feather
+                    name="shield"
+                    size={18}
+                    color={colors.textSecondary}
+                  />
+                }
+                rightIcon={
+                  <Pressable onPress={() => setShowConfirm(!showConfirm)}>
+                    <Feather
+                      name={showConfirm ? "eye-off" : "eye"}
+                      size={18}
+                      color={colors.textSecondary}
+                    />
+                  </Pressable>
+                }
+              />
+
+              {!!formError && (
+                <View style={styles.alert}>
+                  <Feather
+                    name="alert-triangle"
+                    size={16}
+                    color={colors.onCta}
+                  />
+                  <Text style={styles.alertText}>{formError}</Text>
+                </View>
               )}
-            </Pressable>
-          </View>
-        </Animated.View>
+
+              <View style={{ marginTop: 8 }}>
+                <PrimaryButton
+                  title="Crear cuenta"
+                  onPress={onSubmit}
+                  loading={loading}
+                  disabled={!canSubmit}
+                />
+              </View>
+
+              <Pressable
+                onPress={() => router.back()}
+                style={styles.footerLink}
+              >
+                {({ pressed }) => (
+                  <Text style={[styles.link, pressed && styles.linkPressed]}>
+                    Ya tengo cuenta{" "}
+                    <Text style={styles.linkStrong}>Iniciar sesión</Text>
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+          </Animated.View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </View>
   );
@@ -260,100 +282,94 @@ function makeStyles(colors: any, typography: any) {
   return StyleSheet.create({
     screen: {
       flex: 1,
-      padding: 18,
-      justifyContent: "center",
-      backgroundColor:
-        colors.background === "#22C55E"
-          ? "rgba(34,197,94,0.95)"
-          : colors.background,
+      backgroundColor: colors.background,
     },
-
-    card: {
+    scrollContent: {
+      flexGrow: 1,
+      justifyContent: "center",
       padding: 18,
-      borderRadius: 24,
+    },
+    card: {
+      padding: 24,
+      borderRadius: 32,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
       ...Platform.select({
         ios: {
           shadowColor: "#000",
-          shadowOpacity: 0.14,
-          shadowRadius: 22,
-          shadowOffset: { width: 0, height: 12 },
+          shadowOpacity: 0.1,
+          shadowRadius: 20,
+          shadowOffset: { width: 0, height: 10 },
         },
-        android: { elevation: 7 },
-        default: {},
+        android: { elevation: 6 },
       }),
     },
-
     header: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 12,
+      gap: 14,
+      marginBottom: 8,
     },
-
     logoWrap: {
-      width: 56,
-      height: 56,
-      borderRadius: 18,
+      width: 52,
+      height: 52,
+      borderRadius: 16,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: colors.surface, // mantiene contraste en light/dark
+      backgroundColor: colors.background,
       borderWidth: 1,
       borderColor: colors.border,
     },
-
     logo: {
-      width: 42,
-      height: 42,
+      width: 36,
+      height: 36,
     },
-
     brand: {
-      color: colors.textSecondary,
+      color: colors.primary || colors.textSecondary,
       fontFamily: typography.body?.fontFamily,
       fontSize: 12,
-      marginBottom: 2,
+      fontWeight: "700",
+      textTransform: "uppercase",
+      letterSpacing: 1,
     },
-
     title: {
       ...typography.title,
+      fontSize: 24,
       color: colors.textPrimary,
     },
-
     subtitle: {
       marginTop: 8,
       color: colors.textSecondary,
+      lineHeight: 20,
       ...typography.body,
     },
-
     alert: {
       flexDirection: "row",
       alignItems: "center",
       gap: 10,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
+      padding: 12,
       borderRadius: 14,
-      backgroundColor: colors.cta,
+      backgroundColor: colors.cta || "#ef4444",
     },
-
     alertText: {
       flex: 1,
-      color: colors.onCta,
-      fontFamily: typography.body?.fontFamily,
+      color: "#fff",
       fontSize: 12,
-      lineHeight: 16,
+      fontWeight: "600",
     },
-
+    footerLink: {
+      marginTop: 10,
+    },
     link: {
       color: colors.textSecondary,
       textAlign: "center",
-      marginTop: 6,
-      ...typography.body,
+      fontSize: 14,
     },
-    linkPressed: { opacity: 0.75, transform: [{ scale: 0.99 }] },
+    linkPressed: { opacity: 0.7 },
     linkStrong: {
       color: colors.textPrimary,
-      fontFamily: typography.subtitle?.fontFamily,
+      fontWeight: "bold",
     },
   });
 }
