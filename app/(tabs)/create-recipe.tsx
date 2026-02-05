@@ -1020,11 +1020,6 @@ export default function CreateRecipeScreen() {
                           placeholderTextColor={colors.textSecondary}
                           keyboardType="numeric"
                         />
-                        <Text style={s.gramsLabel}>
-                          {ingredientInputMode === "units"
-                            ? unitLabel
-                            : unitSuffix}
-                        </Text>
                       </View>
                       <Pressable
                         onPress={handleAddIngredient}
