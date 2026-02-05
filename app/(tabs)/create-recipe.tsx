@@ -2,37 +2,37 @@
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import React, {
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import Swipeable from "react-native-gesture-handler/Swipeable";
 import {
-    SafeAreaView,
-    useSafeAreaInsets,
+  SafeAreaView,
+  useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
 import { genericFoodsRepository } from "@/data/food/genericFoodsRepository";
 import { userFoodsRepository } from "@/data/food/userFoodsRepository";
 import { openFoodFactsService } from "@/data/openfoodfacts/openFoodFactsService";
 import {
-    mapGenericFoodDbArrayToSearchItems,
-    mapGenericFoodDbToSearchItem,
-    mapUserFoodDbArrayToSearchItems,
-    type FoodSearchItem,
+  mapGenericFoodDbArrayToSearchItems,
+  mapGenericFoodDbToSearchItem,
+  mapUserFoodDbArrayToSearchItems,
+  type FoodSearchItem,
 } from "@/domain/mappers/foodMappers";
 import type { OffProduct } from "@/domain/models/offProduct";
 import CreateGenericFoodByBarcodeModal from "@/presentation/components/nutrition/CreateGenericFoodByBarcodeModal";
@@ -241,8 +241,7 @@ export default function CreateRecipeScreen() {
   const insets = useSafeAreaInsets();
   const s = makeStyles(colors, typography, insets);
 
-  const recipeId =
-    typeof params.recipeId === "string" ? params.recipeId : "";
+  const recipeId = typeof params.recipeId === "string" ? params.recipeId : "";
   const isEditMode = !!recipeId;
 
   const [recipeName, setRecipeName] = useState("");
@@ -776,14 +775,15 @@ export default function CreateRecipeScreen() {
         <View style={s.header}>
           <Pressable
             onPress={() => {
-              if (router.canGoBack()) router.back();
-              else router.replace("/(tabs)/my-foods");
+              router.replace("/(tabs)/my-foods");
             }}
             style={s.backButton}
           >
             <Feather name="arrow-left" size={24} color={colors.textPrimary} />
           </Pressable>
-          <Text style={s.title}>{isEditMode ? "Editar receta" : "Nueva receta"}</Text>
+          <Text style={s.title}>
+            {isEditMode ? "Editar receta" : "Nueva receta"}
+          </Text>
           <View style={{ width: 40 }} />
         </View>
 
