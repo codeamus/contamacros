@@ -85,10 +85,11 @@
 
 ### 4.1 Parámetros
 
-- `profile` (ProfileDb | null): peso (`weight_kg`), metas de macros (`protein_g`, `carbs_g`, `fat_g`), `dietary_preference`.
+- `profile` (ProfileDb | null): peso (`weight_kg`), metas de macros (`protein_g`, `carbs_g`, `fat_g`), `dietary_preference` con soporte para 8 valores: `omnivore`, `flexitarian`, `pescatarian`, `vegetarian`, `vegan`, `paleo`, `keto`, `gluten_free`.
 - `caloriesTarget`: meta de calorías del día (en Home se pasa `effectiveTargetForCoach` = target + calorías quemadas si premium).
 - `caloriesConsumed`, `proteinConsumed`, `carbsConsumed`, `fatConsumed`: totales del día (p. ej. desde `useTodaySummary`).
 - `isPremium`: si es false, no se calcula recomendación (se deja `recommendation` en null).
+- Cambiar la dieta debe disparar recálculo automático (aunque calorías/macros no cambien).
 
 ### 4.2 Condiciones de salida temprana (no recomendación)
 
@@ -139,11 +140,19 @@
   1. **user_foods** (`getAllForSmartSearch`): se normalizan a base 100g con `portion_base`.
   2. **Historial** (`getUniqueFoodsFromHistory(30)`): últimos 30 días.
   3. **generic_foods** (`searchByTags`): tags según macro prioritario (proteína: "protein"/"proteina"; carbs: "carb"/"carbohidrato"/"fruit"; fat: "fat"/"grasa"/"dairy"; calories: mismo criterio).
-- **Filtro por preferencia dietética:** Se excluyen alimentos que no coinciden con `dietary_preference` (vegan, vegetarian, pescatarian) usando keywords de carne/pescado/lácteos.
+- **Filtro por preferencia dietética (8 dietas):**
+  - vegan: excluye carne + pescado/mariscos + lácteos + huevos.
+  - vegetarian: excluye carne + pescado/mariscos.
+  - pescatarian: excluye carne (pero permite pescado).
+  - gluten_free: excluye trigo/harina/pan/pasta/cebada/centeno/avena (heurístico por keywords/tags).
+  - keto: evita alto carbohidrato y azúcar/ultraprocesados; prioriza proteína y grasas (heurístico por macros + keywords).
+  - paleo: evita ultraprocesados, granos/legumbres y lácteos; prioriza comida real (heurístico por macros + keywords).
+  - flexitarian: no prohíbe, pero prioriza opciones sin carne cuando hay empate razonable.
+  - omnivore: sin filtro.
 - Se excluyen alimentos de **bajo aporte**: p. ej. kcal_100g < 30 (o < 50 para calorías), o densidad baja del macro prioritario; y una lista fija de nombres (zanahoria, lechuga, apio, etc.).
 - **Ordenación:** primero historial, luego por densidad del macro prioritario (mayor primero).
 - Se devuelve el **primer** candidato (mejor match).
-
+- Si no hay candidatos que cumplan la dieta, se devuelve `null` para que la IA la maneje.
 ### 4.8 Cálculos auxiliares
 
 - **Minutos para quemar calorías (MET):**
