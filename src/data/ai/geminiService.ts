@@ -3,6 +3,7 @@
 
 import { AppError, ErrorCode } from "@/core/errors/AppError";
 import { supabase } from "@/data/supabase/supabaseClient";
+import type { DietaryPreferenceDb } from "@/domain/models/profileDb";
 
 const API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
 
@@ -159,7 +160,7 @@ export type SmartCoachRefinementContext = {
   currentFoodName: string;
   currentMessage: string;
   userMessage: string;
-  dietaryPreference: string | null;
+  dietaryPreference: DietaryPreferenceDb | null;
 };
 
 export type ChatMessage = {
@@ -212,17 +213,39 @@ export type SmartCoachChatResponse =
   | { type: "fallback"; message: string };
 
 const FALLBACK_MSG =
-  "¡Estoy ajustando tu plan! Dame un segundo, campeón.";
+  "Tuve un problema generando la respuesta. ¿Me lo repites y lo intento de nuevo al tiro?";
+
+const INVALID_JSON_MSG =
+  "Ups, la respuesta de la IA vino con un formato inválido y no pude interpretarla. ¿Me la pides de nuevo?";
+
+function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...init, signal: controller.signal }).finally(() =>
+    clearTimeout(id),
+  );
+}
 
 function parseSmartCoachResponse(text: string): SmartCoachChatResponse {
   const rawOriginal = text.trim();
-  let raw = rawOriginal.replace(/```json|```/g, "").trim();
-  
-  let cleanJson = raw.match(/\{[\s\S]*\}/)?.[0] ?? raw;
+  // Limpieza de Markdown (fences) antes de parsear
+  let cleanText = rawOriginal.replace(/```json/g, "").replace(/```/g, "").trim();
+
+  // Extraer solo lo que está entre llaves { ... } si la IA agrega texto extra
+  const cleanJson = cleanText.match(/\{[\s\S]*\}/)?.[0] ?? cleanText;
   try {
     const parsed = JSON.parse(cleanJson);
     
     if (parsed.type === "recipe") {
+      const ingredientsOk = Array.isArray(parsed?.recipe?.ingredients);
+      const instructionsOk = Array.isArray(parsed?.recipe?.instructions);
+      if (!ingredientsOk || !instructionsOk) {
+        return { type: "fallback", message: INVALID_JSON_MSG };
+      }
       return {
         type: "recipe",
         message: parsed.message || "",
@@ -262,11 +285,12 @@ function parseSmartCoachResponse(text: string): SmartCoachChatResponse {
 
     return {
       type: "text",
-      message: parsed.message || parsed.text || raw
+      message: parsed.message || parsed.text || cleanText
     };
   } catch (err) {
-    console.error("[geminiService] parseSmartCoachResponse error:", err, "Original:", rawOriginal);
-    return { type: "text", message: rawOriginal };
+    console.error("[geminiService] parseSmartCoachResponse error:", err);
+    console.error("DEBUG: Error al parsear JSON:", cleanText);
+    return { type: "fallback", message: INVALID_JSON_MSG };
   }
 }
 
@@ -277,18 +301,24 @@ export async function askSmartCoach(
   const apiKey = API_KEY;
   if (!apiKey) return { type: "fallback", message: "API Key no configurada" };
 
-  const URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  // Mantener modelo estable
+  const MODEL = "gemini-2.5-flash";
+  const URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`;
 
   const historyText = history.map(m => `${m.role === 'user' ? 'Usuario' : 'Coach'}: ${m.content}`).join('\n');
 
+  const diet = context.dietaryPreference ?? "omnivore";
+
   const promptText = `
-    Actúa como un Nutricionista Pro y Coach de Salud CHILENO, optimista y técnico. Tu tono es cercano (como un coach de gimnasio en Santiago) usando expresiones sutiles como "¡Dale!", "Súper" o "Impeque" de forma natural.
+    Eres un Nutricionista Pro. El perfil del usuario es ${diet}. Es ESTRICTAMENTE OBLIGATORIO que todas las recetas, ingredientes y consejos que des respeten esta dieta. Si el usuario pide algo que no encaja, ofrece la versión adaptada a su dieta automáticamente.
+
+    IMPORTANT: Your response MUST be ONLY a valid JSON object. Do not include any introductory text, markdown code blocks, or explanations outside the JSON. Start your response with '{' and end with '}'.
+
+    Actúa como un Coach de Salud CHILENO, optimista y técnico. Tu tono es cercano (como un coach de gimnasio en Santiago) usando expresiones sutiles como "¡Dale!", "Súper" o "Impeque" de forma natural.
     
     ESTADO ACTUAL DE MACROS (IMPORTANTE):
     - Consumido hoy: ${context.caloriesConsumed} kcal (P: ${context.proteinConsumed}g, C: ${context.carbsConsumed}g, F: ${context.fatConsumed}g)
     - Macros Restantes: ${context.calorieGap} kcal (P: ${context.proteinGap}g, C: ${context.carbsGap}g, F: ${context.fatGap}g)
-    
-    PREFERENCIAS DIETÉTICAS: ${context.dietaryPreference || 'Ninguna'}.
     
     REGLAS DE LOCALIZACIÓN (CHILE):
     - Vocabulario: Usa "Palta", "Porotos", "Maní", "Durazno".
@@ -334,20 +364,68 @@ export async function askSmartCoach(
   `;
 
   try {
-    const response = await fetch(URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: promptText }] }]
-      }),
-    });
+    const response = await fetchWithTimeout(
+      URL,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: promptText }] }],
+        }),
+      },
+      20_000,
+    );
 
-    const data = await response.json();
-    if (!response.ok) return { type: "fallback", message: FALLBACK_MSG };
+    const bodyText = await response.text().catch(() => "");
+    let data: any = {};
+    try {
+      data = bodyText ? JSON.parse(bodyText) : {};
+    } catch {
+      data = { __nonJsonBody: bodyText };
+    }
+
+    if (!response.ok) {
+      const apiMsg = String(data?.error?.message ?? "").trim();
+      console.error("[geminiService] askSmartCoach non-ok:", {
+        status: response.status,
+        model: MODEL,
+        apiMsg,
+        data,
+      });
+      const debugMsg =
+        apiMsg || (bodyText ? bodyText.slice(0, 240) : "Sin cuerpo de error");
+      return {
+        type: "fallback",
+        message: __DEV__
+          ? `IA error (${response.status}): ${debugMsg}`
+          : FALLBACK_MSG,
+      };
+    }
 
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    if (!text) {
+      console.error("[geminiService] Respuesta sin candidate text:", {
+        status: response.status,
+        model: MODEL,
+        data,
+      });
+      return {
+        type: "fallback",
+        message: __DEV__
+          ? "IA error: Respuesta sin texto (candidates vacíos)."
+          : FALLBACK_MSG,
+      };
+    }
     return parseSmartCoachResponse(text);
   } catch (err) {
+    const name = String((err as any)?.name ?? "");
+    if (name === "AbortError") {
+      return {
+        type: "fallback",
+        message:
+          "La IA se demoró más de la cuenta. ¿Me lo repites y lo intento de nuevo?",
+      };
+    }
     console.error("[geminiService] askSmartCoach error:", err);
     return { type: "fallback", message: FALLBACK_MSG };
   }
@@ -386,7 +464,7 @@ export async function getRecipeImage(
     const apiUrl = `https://www.googleapis.com/customsearch/v1?q=${query}&searchType=image&key=${GOOGLE_CSE_API_KEY}&cx=${GOOGLE_CSE_CX}`;
     const response = await fetch(apiUrl);
     const json = (await response.json()) as {
-      items?: Array<{ link?: string }>;
+      items?: { link?: string }[];
       error?: { code?: number; message?: string };
     };
 

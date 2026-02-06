@@ -9,11 +9,17 @@ export type ActivityLevelDb =
   | "high"
   | "very_high";
 
-export type DietaryPreferenceDb =
+export type DietaryPreference =
   | "omnivore"
+  | "flexitarian"
+  | "pescatarian"
   | "vegetarian"
   | "vegan"
-  | "pescatarian";
+  | "paleo"
+  | "keto"
+  | "gluten_free";
+
+export type DietaryPreferenceDb = DietaryPreference;
 
 export type ProfileDb = {
   id: string;

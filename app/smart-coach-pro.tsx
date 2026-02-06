@@ -8,6 +8,7 @@ import {
   type SmartCoachRefinementContext,
 } from "@/data/ai/geminiService";
 import { foodLogRepository } from "@/data/food/foodLogRepository";
+import type { DietaryPreferenceDb } from "@/domain/models/profileDb";
 import { MacrosHeader } from "@/presentation/components/smartCoach/MacrosHeader";
 import { MealPlanCard } from "@/presentation/components/smartCoach/MealPlanCard";
 import { RecipeCard } from "@/presentation/components/smartCoach/RecipeCard";
@@ -21,11 +22,12 @@ import { todayStrLocal } from "@/presentation/utils/date";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -36,11 +38,26 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+const DIETARY_OPTIONS: Array<{
+  value: DietaryPreferenceDb;
+  label: string;
+  emoji: string;
+}> = [
+  { value: "omnivore", label: "Omnívoro", emoji: "🥩" },
+  { value: "flexitarian", label: "Flexi", emoji: "🥗" },
+  { value: "pescatarian", label: "Pescados", emoji: "🐟" },
+  { value: "vegetarian", label: "Vegetariano", emoji: "🥬" },
+  { value: "vegan", label: "Vegano", emoji: "🌱" },
+  { value: "paleo", label: "Paleo", emoji: "🥑" },
+  { value: "keto", label: "Keto", emoji: "🧈" },
+  { value: "gluten_free", label: "Sin gluten", emoji: "🌾✖" },
+];
+
 export default function SmartCoachProScreen() {
   const { theme } = useTheme();
   const { colors, typography } = theme;
   const s = makeStyles(colors, typography);
-  const { profile } = useAuth();
+  const { profile, updateProfile } = useAuth();
   const { showToast } = useToast();
   const { totals, reload: reloadSummary } = useTodaySummary();
   const { isPremium: revenueCatPremium } = useRevenueCat();
@@ -52,6 +69,7 @@ export default function SmartCoachProScreen() {
   const [chatText, setChatText] = useState("");
   const [loading, setLoading] = useState(false);
   const [planLoading, setPlanLoading] = useState(false);
+  const [savingDiet, setSavingDiet] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
   const caloriesTarget = profile?.daily_calorie_target ?? 0;
@@ -60,6 +78,14 @@ export default function SmartCoachProScreen() {
   const fatTarget = profile?.fat_g ?? 0;
   const effectiveCaloriesTarget =
     caloriesTarget + (isPremium ? caloriesBurned : 0);
+
+  const orderedDietOptions = useMemo(() => {
+    const active = profile?.dietary_preference ?? null;
+    if (!active) return DIETARY_OPTIONS;
+    const activeOpt = DIETARY_OPTIONS.find((o) => o.value === active);
+    if (!activeOpt) return DIETARY_OPTIONS;
+    return [activeOpt, ...DIETARY_OPTIONS.filter((o) => o.value !== active)];
+  }, [profile?.dietary_preference]);
 
   useEffect(() => {
     if (messages.length === 0) {
@@ -86,6 +112,8 @@ export default function SmartCoachProScreen() {
     const text = chatText.trim();
     if (!text || loading) return;
 
+    Keyboard.dismiss();
+
     const userMsg: ChatMessage = { role: "user", content: text };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
@@ -102,7 +130,7 @@ export default function SmartCoachProScreen() {
       proteinConsumed: totals.protein,
       carbsConsumed: totals.carbs,
       fatConsumed: totals.fat,
-      dietaryPreference: profile?.dietary_preference ?? null,
+      dietaryPreference: (profile?.dietary_preference ?? null) as DietaryPreferenceDb | null,
       currentFoodName: "",
       currentMessage: "",
     };
@@ -124,6 +152,59 @@ export default function SmartCoachProScreen() {
           content: "Lo siento, tuve un pequeño error. ¿Podrías repetirme eso?",
         },
       ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshAfterDietChange = async (
+    newDiet: DietaryPreferenceDb,
+    dietLabel: string,
+  ) => {
+    if (loading) return;
+    const lastUserMsg = [...messages]
+      .reverse()
+      .find((m) => m.role === "user")?.content;
+    if (!lastUserMsg) return;
+
+    setLoading(true);
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "assistant",
+        content: `Perfecto. Ajustando tu recomendación a ${dietLabel}…`,
+      },
+    ]);
+
+    const autoPrompt = `Cambié mi preferencia alimentaria a "${newDiet}". Repite la última receta/recomendación adaptándola estrictamente a esta dieta. Petición original: "${lastUserMsg}".`;
+
+    const context: SmartCoachRefinementContext = {
+      userMessage: autoPrompt,
+      calorieGap: effectiveCaloriesTarget - totals.calories,
+      proteinGap: proteinTarget - totals.protein,
+      carbsGap: carbsTarget - totals.carbs,
+      fatGap: fatTarget - totals.fat,
+      caloriesConsumed: totals.calories,
+      proteinConsumed: totals.protein,
+      carbsConsumed: totals.carbs,
+      fatConsumed: totals.fat,
+      dietaryPreference: newDiet,
+      currentFoodName: "",
+      currentMessage: "",
+    };
+
+    try {
+      const response = await askSmartCoach(context, [
+        ...messages,
+        { role: "user", content: autoPrompt },
+      ]);
+      const assistantMsg: ChatMessage = {
+        role: "assistant",
+        content: response.message,
+        type: response.type !== "fallback" ? (response.type as any) : "text",
+        data: (response as any).recipe || (response as any).plan || null,
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
     } finally {
       setLoading(false);
     }
@@ -388,6 +469,67 @@ export default function SmartCoachProScreen() {
         calories={{ current: totals.calories, target: effectiveCaloriesTarget }}
       />
 
+      <View style={s.dietBar}>
+        <Text style={[s.dietTitle, { color: colors.textSecondary }]}>
+          Preferencia alimentaria
+        </Text>
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={orderedDietOptions}
+          keyExtractor={(item) => item.value}
+          contentContainerStyle={s.dietList}
+          renderItem={({ item }) => {
+            const selected =
+              (profile?.dietary_preference ?? null) === item.value;
+            return (
+              <Pressable
+                onPress={async () => {
+                  if (savingDiet || selected) return;
+                  setSavingDiet(true);
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  const res = await updateProfile({
+                    dietary_preference: item.value,
+                  } as any);
+                  setSavingDiet(false);
+
+                  if (res.ok) {
+                    refreshAfterDietChange(item.value, item.label);
+                  } else {
+                    showToast({
+                      message: res.message ?? "Error al guardar tu dieta",
+                      type: "error",
+                    });
+                  }
+                }}
+                disabled={savingDiet || loading}
+                style={({ pressed }) => [
+                  s.dietChip,
+                  {
+                    backgroundColor: selected
+                      ? colors.brand + "14"
+                      : colors.surface,
+                    borderColor: selected ? colors.brand : colors.border,
+                    opacity: pressed ? 0.92 : 1,
+                  },
+                ]}
+              >
+                <Text style={s.dietEmoji}>{item.emoji}</Text>
+                <Text
+                  style={[
+                    s.dietLabel,
+                    { color: selected ? colors.brand : colors.textPrimary },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {item.label}
+                </Text>
+              </Pressable>
+            );
+          }}
+        />
+      </View>
+
       <FlatList
         ref={flatListRef}
         data={messages}
@@ -462,6 +604,21 @@ function makeStyles(colors: any, typography: any) {
       justifyContent: "center",
     },
     headerTitle: { ...typography.title, fontSize: 18 },
+    dietBar: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 6, gap: 10 },
+    dietTitle: { ...typography.caption, fontSize: 12, fontWeight: "700" },
+    dietList: { paddingRight: 8, gap: 10 },
+    dietChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderRadius: 999,
+      borderWidth: 1,
+      minHeight: 38,
+    },
+    dietEmoji: { fontSize: 14 },
+    dietLabel: { ...typography.body, fontSize: 13, fontWeight: "700" },
     chatList: { padding: 16, gap: 16 },
     messageRow: { flexDirection: "row", gap: 8, maxWidth: "85%" },
     userRow: { alignSelf: "flex-end", flexDirection: "row-reverse" },

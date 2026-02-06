@@ -4,7 +4,7 @@ import { exercisesRepository } from "@/data/exercise/exercisesRepository";
 import { foodLogRepository } from "@/data/food/foodLogRepository";
 import { genericFoodsRepository } from "@/data/food/genericFoodsRepository";
 import { userFoodsRepository } from "@/data/food/userFoodsRepository";
-import type { ProfileDb } from "@/domain/models/profileDb";
+import type { DietaryPreferenceDb, ProfileDb } from "@/domain/models/profileDb";
 import type {
     CalorieRecommendation,
     SmartCoachRecommendation,
@@ -86,7 +86,7 @@ type FoodMatch = {
   timesEaten?: number;
 };
 
-type DietaryPreference = "omnivore" | "vegetarian" | "vegan" | "pescatarian" | null;
+type DietaryPreference = DietaryPreferenceDb | null;
 
 /** Palabras que indican carne/productos no permitidos por preferencia (nombre en minúsculas) */
 const MEAT_KEYWORDS = ["carne", "vacuno", "res", "cerdo", "cordero", "pollo", "pavo", "pato", "ave", "chorizo", "jamon", "jamón", "bacon", "tocino", "salchicha", "vísceras", "visceras"];
@@ -380,9 +380,6 @@ function getMomentOfDayLabel(): string {
 async function findFirstMealSuggestion(
   profile: ProfileDb | null,
   caloriesTarget: number,
-  proteinTarget: number,
-  carbsTarget: number,
-  fatTarget: number,
 ): Promise<CalorieRecommendation | null> {
   const dietaryPreference = (profile?.dietary_preference ?? null) as DietaryPreference;
   const momentLabel = getMomentOfDayLabel();
@@ -549,9 +546,6 @@ export function useSmartCoachPro(
         const firstMealRec = await findFirstMealSuggestion(
           profile,
           Number(caloriesTarget),
-          Number(profile?.protein_g ?? 0),
-          Number(profile?.carbs_g ?? 0),
-          Number(profile?.fat_g ?? 0),
         );
         if (firstMealRec) {
           setRecommendation(firstMealRec);
