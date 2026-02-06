@@ -1,7 +1,17 @@
 // app.config.ts
 import type { ConfigContext } from "@expo/config";
-import "dotenv/config";
 import appJson from "./app.json";
+
+import dotenv from "dotenv";
+import path from "path";
+
+// 👇 carga .env de forma explícita (no dependas del cwd)
+dotenv.config({
+  path: path.resolve(__dirname, ".env"),
+});
+
+// Si usas profiles:
+// dotenv.config({ path: path.resolve(__dirname, ".env.production") });
 
 function required(v: string | undefined, name: string) {
   const value = (v ?? "").trim();
@@ -10,9 +20,7 @@ function required(v: string | undefined, name: string) {
 }
 
 export default ({ config }: ConfigContext) => ({
-  // base: tu app.json
   ...appJson.expo,
-  // preserve lo que Expo entregue
   ...config,
   extra: {
     ...(appJson.expo.extra ?? {}),
@@ -28,6 +36,6 @@ export default ({ config }: ConfigContext) => ({
     EXPO_PUBLIC_GEMINI_API_KEY: required(
       process.env.EXPO_PUBLIC_GEMINI_API_KEY,
       "EXPO_PUBLIC_GEMINI_API_KEY"
-    )
-  }
+    ),
+  },
 });
