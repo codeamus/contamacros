@@ -25,6 +25,15 @@ export default ({ config }: ConfigContext) => ({
   extra: {
     ...(appJson.expo.extra ?? {}),
     ...(config.extra ?? {}),
+    // RevenueCat (NO commitear keys; se inyectan por env / EAS secrets)
+    REVENUECAT_ANDROID_API_KEY: required(
+      process.env.REVENUECAT_ANDROID_API_KEY,
+      "REVENUECAT_ANDROID_API_KEY",
+    ),
+    REVENUECAT_APPLE_API_KEY: required(
+      process.env.REVENUECAT_APPLE_API_KEY,
+      "REVENUECAT_APPLE_API_KEY",
+    ),
     EXPO_PUBLIC_SUPABASE_URL: required(
       process.env.EXPO_PUBLIC_SUPABASE_URL,
       "EXPO_PUBLIC_SUPABASE_URL"
