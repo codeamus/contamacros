@@ -39,6 +39,20 @@
       "versionCode": 22,
       "proguardRuleFiles": [
         "proguard-rules.pro"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "contamacro"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
       ]
     },
     "plugins": [

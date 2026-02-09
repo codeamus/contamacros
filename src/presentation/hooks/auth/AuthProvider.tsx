@@ -5,9 +5,8 @@ import { AuthService } from "@/domain/services/authService";
 import { RevenueCatService } from "@/domain/services/revenueCatService";
 import type { Session } from "@supabase/supabase-js";
 import * as AppleAuthentication from "expo-apple-authentication";
-import * as AuthSession from "expo-auth-session";
-import Constants from "expo-constants";
 import * as Crypto from "expo-crypto";
+import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import React, {
   createContext,
@@ -41,30 +40,42 @@ type AuthState = {
   refreshProfile: () => Promise<ProfileDb | null>;
 
   updateProfile: (
-    input: Partial<ProfileDb> & Record<string, any>,
+    input: Partial<
+      Pick<
+        ProfileDb,
+        | "full_name"
+        | "avatar_url"
+        | "height_cm"
+        | "weight_kg"
+        | "goal"
+        | "goal_adjustment"
+        | "activity_level"
+        | "daily_calorie_target"
+        | "onboarding_completed"
+        | "protein_g"
+        | "carbs_g"
+        | "fat_g"
+        | "is_premium"
+        | "dietary_preference"
+      >
+    >,
   ) => Promise<{ ok: boolean; message?: string }>;
 };
 
 const Ctx = createContext<AuthState | null>(null);
 
-const APP_SCHEME = "contamacro";
-
 /**
- * En Expo Go: usamos el returnUrl por defecto (exp://.../--/auth/callback).
- * En build: usamos scheme (contamacro://auth/callback).
+ * Genera el redirect URI para OAuth en una app Expo + Expo Router.
  *
- * Nota: evitamos `useProxy` porque tu versión de tipos no lo soporta.
+ * Usamos `Linking.createURL("auth/callback")` para que:
+ * - En Expo Go sea algo como `exp://.../--/auth/callback`
+ * - En builds use el scheme configurado: `contamacro://auth/callback`
+ *
+ * Esto evita lógica legacy (`Constants.appOwnership`, `useProxy`) y mantiene
+ * el deep link alineado con la ruta `app/auth/callback.tsx`.
  */
 function getRedirectUri() {
-  const isExpoGo = Constants.appOwnership === "expo";
-
-  // OJO: en tu versión de types, `useProxy` puede no existir,
-  // pero en runtime sí funciona. Por eso el cast.
-  return AuthSession.makeRedirectUri({
-    scheme: isExpoGo ? undefined : APP_SCHEME,
-    path: "auth/callback",
-    ...(isExpoGo ? ({ useProxy: true } as any) : {}),
-  } as any);
+  return Linking.createURL("auth/callback");
 }
 
 function getParam(url: string, key: string) {
@@ -487,7 +498,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshProfile,
 
       updateProfile: async (input) => {
-        const res = await AuthService.updateMyProfile(input as any);
+        const res = await AuthService.updateMyProfile(input);
         if (!res.ok) return { ok: false, message: res.message };
         setProfile(res.data);
         return { ok: true };

@@ -54,3 +54,35 @@ Retorna:
 ---------------------
 
 Esta documentación facilita la comprensión y mantenimiento del archivo login.tsx.
+
+---------------------
+
+## OAuth Google/Apple (Deep Links + Expo Router)
+
+### Problema “Unmatched Route” (Android físico)
+Cuando el login OAuth termina en el navegador, Android abre la app con el deep link de retorno (por ejemplo `contamacro://auth/callback?...`). Si Expo Router **no tiene** una ruta que matchee `/auth/callback`, muestra el error **“Unmatched Route”**.
+
+### Ruta de captura (callback)
+- **Archivo**: `app/auth/callback.tsx`
+- **Ruta**: `/auth/callback`
+- **UI**: Muestra un `ActivityIndicator` centrado.
+- **Propósito**: Capturar el deep link para que Expo Router lo trate como ruta válida. El intercambio del `code` por sesión se hace en el provider de auth.
+
+### Redirect URI moderno
+En `src/presentation/hooks/auth/AuthProvider.tsx`, `getRedirectUri()` usa:
+- `Linking.createURL("auth/callback")` (de `expo-linking`)
+
+Resultado esperado:
+- Builds/dev-client: `contamacro://auth/callback`
+- (Si aplica) Expo Go: `exp://.../--/auth/callback`
+
+### PKCE (Supabase)
+El flujo recomendado en mobile es **PKCE**:
+- Supabase devuelve un `code` en la URL de retorno.
+- La app llama `supabase.auth.exchangeCodeForSession(code)` para obtener la sesión.
+- Importante: el cliente Supabase debe tener `flowType: "pkce"` configurado en `src/data/supabase/supabaseClient.ts`.
+
+### Configuración Expo (Android)
+En `app.json`:
+- **`expo.scheme`**: `"contamacro"`
+- **`android.intentFilters`**: debe aceptar `scheme: "contamacro"` y categorías `BROWSABLE` + `DEFAULT` para que Android entregue el deep link a la app.

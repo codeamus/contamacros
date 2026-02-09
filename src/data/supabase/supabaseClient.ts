@@ -22,6 +22,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
 
+    // ✅ Requerido para mobile + `exchangeCodeForSession(code)`
+    // (flujo OAuth PKCE).
+    flowType: "pkce",
+
     // En mobile NO hay “URL redirect” como en web. Mejor dejarlo false.
     // Esto además evita comportamientos raros en Android release.
     detectSessionInUrl: false,
