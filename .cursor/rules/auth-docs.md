@@ -1,42 +1,56 @@
-# Documentación de archivs de Autenticación
+# Documentación de app/(auth)/login.tsx
 
-Esta documentación cubre los detalles y funcionalidades claves de los archivos bajo la ruta `app/(auth)/`.
+## Descripción General
 
-## reset-password.tsx
-- Pantalla para restablecer contraseña cuando el usuario ha olvidado la suya.
-- Recibe el email como parámetro de búsqueda y permite ingresar un código OTP para validación.
-- Permite ingresar nueva contraseña y confirmarla.
-- Verifica el OTP y actualiza la contraseña usando Supabase.
-- Muestra toasts para feedback de errores o éxitos.
-- Redirige a login tras cambio exitoso.
+Este archivo contiene el componente `LoginScreen` que maneja la autenticación del usuario mediante un formulario de inicio de sesión.
+Provee campos para email y contraseña con validación, manejo de errores y soporte para inicio de sesión con Google y Apple.
 
-## forgot-password.tsx
-- Pantalla para solicitar envío de código OTP para recuperación de contraseña.
-- El usuario ingresa su email.
-- Se valida formato de email y se usa Supabase para enviar código OTP.
-- Muestra mensajes y redirige a reset-password con email para continuar flujo.
+---------------------
 
-## login.tsx
-- Pantalla de inicio de sesión con email y contraseña.
-- Define validaciones para email y nivel de seguridad de contraseña.
-- Implementa login con métodos tradicionales, Google y Apple.
-- Maneja errores específicos traducidos a mensajes amigables.
-- Contiene animación de entrada para UI suave.
+## Funciones Utilitarias
 
-## register.tsx
-- Pantalla para crear nueva cuenta.
-- Campos para email, contraseña y confirmar contraseña.
-- Valida email, seguridad de contraseña y coincidencia de contraseñas.
-- Envía datos a método de creación de cuenta, maneja errores.
-- Redirige a pantalla para verificación por OTP al crear cuenta.
+### translateAuthMessage
+Traduce mensajes de error provenientes del backend a mensajes amigables en español para el usuario.
 
-## verify-otp.tsx
-- Pantalla para ingresar código OTP enviado para confirmar cuenta.
-- Valida que el código sea de 6 dígitos.
-- Envía verificación a Supabase.
-- Muestra mensajes acorde a éxito o error.
-- Confirma cuenta y permite avanzar tras verificación.
+Parámetros:
+- `msg` (string): Mensaje original del backend.
 
----
+Retorna:
+- Mensaje traducido (string) o null si no hay mensaje.
 
-Esta documentación está disponible en `.cursor/rules/auth-docs.md` y se debe consultar cada vez que se requiera información sobre los archivos de autenticación.
+---------------------
+
+## Componente LoginScreen
+
+### Hooks y Estado
+- `useAuth()`: Provee funciones para autenticación (`signIn`, `signInWithGoogle`, `signInWithApple`).
+- `useTheme()`: Provee estilos temáticos (`colors`, `typography`).
+- Estados:
+  - `email`, `password`: Valores de inputs.
+  - `showPassword`: Muestra/oculta la contraseña.
+  - `touched`: Indica campos tocados para mostrar validaciones.
+  - `loading`: Indica si se está procesando inicio de sesión.
+  - `oauthLoading`: Indica si hay inicio con proveedor OAuth en proceso.
+  - `formError`: Mensajes de error para mostrar.
+
+### Validaciones
+- Email válido y requerido.
+- Contraseña con mínimo 6 caracteres y requerida.
+
+### Funciones
+- `onSubmit`: Maneja el envío del formulario con validación y llamada a `signIn`.
+- `onGoogle`: Inicia login con Google y maneja errores.
+- `onApple`: Inicia login con Apple y maneja errores.
+
+### Animaciones y Estilos
+- Animación de entrada con `Animated`.
+- Estilos dinámicos basados en el tema actual.
+
+### UI
+- Logo en header.
+- Campos con validación y feedback.
+- Botones para login tradicional y OAuth.
+
+---------------------
+
+Esta documentación facilita la comprensión y mantenimiento del archivo login.tsx.
