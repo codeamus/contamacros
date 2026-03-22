@@ -13,11 +13,13 @@ import {
 } from "react-native";
 
 type ActivityCardProps = {
+  isPremium: boolean;
   caloriesBurned: number;
   isSyncing: boolean;
   syncCalories: () => Promise<void>;
   cancelSync: () => void;
   onOpenSettings: () => void;
+  onShowPaywall: () => void;
 };
 
 const styles = StyleSheet.create({
@@ -56,7 +58,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    opacity: 0.7,
   },
   syncButtonPressed: {
     opacity: 0.7,
@@ -102,14 +103,120 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     textAlign: "center",
   },
+  // Premium upsell
+  upsellBody: {
+    gap: 10,
+  },
+  upsellFeatures: {
+    gap: 6,
+  },
+  upsellFeatureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  upsellFeatureText: {
+    fontSize: 13,
+    lineHeight: 18,
+    flex: 1,
+  },
+  upsellButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 11,
+    borderRadius: 14,
+    marginTop: 2,
+  },
+  upsellButtonText: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
 });
 
+function PremiumUpsell({ onShowPaywall }: { onShowPaywall: () => void }) {
+  const { theme } = useTheme();
+  const { colors, typography } = theme;
+
+  const features = [
+    {
+      icon: "watch" as const,
+      text:
+        Platform.OS === "ios"
+          ? "Sincroniza calorías quemadas desde tu Apple Watch"
+          : "Sincroniza calorías desde tu smartband o wearable",
+    },
+    {
+      icon: "sync" as const,
+      text: "Actualización automática cada vez que abres la app",
+    },
+    {
+      icon: "fire" as const,
+      text: "Ve tu balance calórico real: consumidas vs. quemadas",
+    },
+  ];
+
+  return (
+    <View style={styles.upsellBody}>
+      <View style={styles.upsellFeatures}>
+        {features.map((f, i) => (
+          <View key={i} style={styles.upsellFeatureRow}>
+            <MaterialCommunityIcons
+              name={f.icon}
+              size={16}
+              color={colors.brand}
+            />
+            <Text
+              style={[
+                styles.upsellFeatureText,
+                {
+                  fontFamily: typography.body?.fontFamily,
+                  color: colors.textSecondary,
+                },
+              ]}
+            >
+              {f.text}
+            </Text>
+          </View>
+        ))}
+      </View>
+
+      <Pressable
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          onShowPaywall();
+        }}
+        style={({ pressed }) => [
+          styles.upsellButton,
+          {
+            backgroundColor: colors.brand,
+            opacity: pressed ? 0.85 : 1,
+          },
+        ]}
+      >
+        <MaterialCommunityIcons name="crown" size={15} color="#fff" />
+        <Text
+          style={[
+            styles.upsellButtonText,
+            { fontFamily: typography.subtitle?.fontFamily, color: "#fff" },
+          ]}
+        >
+          Desbloquear con Premium
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
 export function ActivityCard({
+  isPremium,
   caloriesBurned,
   isSyncing,
   syncCalories,
   cancelSync,
   onOpenSettings,
+  onShowPaywall,
 }: ActivityCardProps) {
   const { theme } = useTheme();
   const { colors, typography } = theme;
@@ -124,11 +231,15 @@ export function ActivityCard({
         },
       ]}
     >
+      {/* Header */}
       <View style={styles.header}>
         <View
           style={[
             styles.iconContainer,
-            { backgroundColor: colors.brand + "15", borderColor: colors.brand + "30" },
+            {
+              backgroundColor: colors.brand + "15",
+              borderColor: colors.brand + "30",
+            },
           ]}
         >
           <MaterialCommunityIcons
@@ -159,7 +270,7 @@ export function ActivityCard({
             ]}
           >
             {Platform.OS === "ios" ? "Apple Health" : "Health Connect"}
-            {caloriesBurned > 0 && (
+            {isPremium && caloriesBurned > 0 && (
               <Text
                 style={{
                   color: colors.textSecondary,
@@ -172,176 +283,210 @@ export function ActivityCard({
             )}
           </Text>
         </View>
-        <Pressable
-          onPress={async () => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            try {
-              await syncCalories();
-            } catch {}
-          }}
-          disabled={isSyncing}
-          style={({ pressed }) => [
-            styles.syncButton,
-            { borderColor: colors.border, backgroundColor: "transparent" },
-            (pressed || isSyncing) && styles.syncButtonPressed,
-          ]}
-        >
-          {isSyncing ? (
-            <ActivityIndicator size="small" color={colors.brand} />
-          ) : (
-            <MaterialCommunityIcons
-              name="sync"
-              size={16}
-              color={colors.textSecondary}
-            />
-          )}
-        </Pressable>
-      </View>
 
-      <View style={styles.content}>
-        <View style={styles.valueContainer}>
-          {isSyncing ? (
-            <>
-              <Skeleton
-                height={32}
-                width={80}
-                radius={8}
-                bg={colors.border}
-                highlight={colors.border}
-                style={{ marginBottom: 4 }}
-              />
-              <Skeleton
-                height={14}
-                width={100}
-                radius={6}
-                bg={colors.border}
-                highlight={colors.border}
-                style={{ opacity: 0.7 }}
-              />
-            </>
-          ) : (
-            <>
-              <Text
-                style={[
-                  styles.value,
-                  {
-                    fontFamily: typography.title?.fontFamily,
-                    color: colors.textPrimary,
-                  },
-                ]}
-              >
-                {caloriesBurned > 0 ? caloriesBurned.toLocaleString() : "—"}
-              </Text>
-              <Text
-                style={[
-                  styles.unit,
-                  {
-                    fontFamily: typography.body?.fontFamily,
-                    color: colors.textSecondary,
-                  },
-                ]}
-              >
-                kcal quemadas
-              </Text>
-            </>
-          )}
-        </View>
-        {caloriesBurned > 0 && !isSyncing && (
-          <View
-            style={[
-              styles.badge,
-              { backgroundColor: "#10B98115", borderWidth: 1, borderColor: "#10B98130" },
+        {isPremium && (
+          <Pressable
+            onPress={async () => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              try {
+                await syncCalories();
+              } catch {}
+            }}
+            disabled={isSyncing}
+            style={({ pressed }) => [
+              styles.syncButton,
+              { borderColor: colors.border, backgroundColor: "transparent" },
+              (pressed || isSyncing) && styles.syncButtonPressed,
             ]}
           >
-            <MaterialCommunityIcons
-              name="check-circle"
-              size={14}
-              color="#10B981"
-            />
-            <Text style={[styles.badgeText, { fontFamily: typography.body?.fontFamily, color: "#10B981" }]}>
-              Sincronizado
-            </Text>
-          </View>
+            {isSyncing ? (
+              <ActivityIndicator size="small" color={colors.brand} />
+            ) : (
+              <MaterialCommunityIcons
+                name="sync"
+                size={16}
+                color={colors.textSecondary}
+              />
+            )}
+          </Pressable>
         )}
       </View>
 
-      {caloriesBurned === 0 && (
+      {/* Body */}
+      {isPremium ? (
         <>
-          {isSyncing ? (
-            <View style={[styles.emptyState, { borderTopColor: colors.border }]}>
-              <Text
+          <View style={styles.content}>
+            <View style={styles.valueContainer}>
+              {isSyncing ? (
+                <>
+                  <Skeleton
+                    height={32}
+                    width={80}
+                    radius={8}
+                    bg={colors.border}
+                    highlight={colors.border}
+                    style={{ marginBottom: 4 }}
+                  />
+                  <Skeleton
+                    height={14}
+                    width={100}
+                    radius={6}
+                    bg={colors.border}
+                    highlight={colors.border}
+                    style={{ opacity: 0.7 }}
+                  />
+                </>
+              ) : (
+                <>
+                  <Text
+                    style={[
+                      styles.value,
+                      {
+                        fontFamily: typography.title?.fontFamily,
+                        color: colors.textPrimary,
+                      },
+                    ]}
+                  >
+                    {caloriesBurned > 0 ? caloriesBurned.toLocaleString() : "0"}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.unit,
+                      {
+                        fontFamily: typography.body?.fontFamily,
+                        color: colors.textSecondary,
+                      },
+                    ]}
+                  >
+                    kcal quemadas
+                  </Text>
+                </>
+              )}
+            </View>
+            {caloriesBurned > 0 && !isSyncing && (
+              <View
                 style={[
-                  styles.emptyText,
-                  { fontFamily: typography.body?.fontFamily, color: colors.textSecondary },
+                  styles.badge,
+                  {
+                    backgroundColor: "#10B98115",
+                    borderWidth: 1,
+                    borderColor: "#10B98130",
+                  },
                 ]}
               >
-                Buscando datos...
-              </Text>
-              <Pressable
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  cancelSync();
-                }}
-                style={({ pressed }) => [
-                  { marginTop: 10, paddingVertical: 6, paddingHorizontal: 12 },
-                  pressed && { opacity: 0.7 },
-                ]}
-              >
+                <MaterialCommunityIcons
+                  name="check-circle"
+                  size={14}
+                  color="#10B981"
+                />
                 <Text
                   style={[
-                    styles.emptyText,
+                    styles.badgeText,
                     {
                       fontFamily: typography.body?.fontFamily,
-                      color: colors.brand,
-                      fontSize: 13,
+                      color: "#10B981",
                     },
                   ]}
                 >
-                  Cancelar
+                  Sincronizado
                 </Text>
-              </Pressable>
-            </View>
-          ) : (
-            <Pressable
-              onPress={onOpenSettings}
-              style={({ pressed }) => [
-                styles.emptyState,
-                { borderTopColor: colors.border },
-                {
-                  backgroundColor: `${colors.brand}14`,
-                  borderWidth: 1,
-                  borderColor: `${colors.brand}40`,
-                  borderRadius: 12,
-                  paddingVertical: 20,
-                  paddingHorizontal: 20,
-                  marginHorizontal: 4,
-                  minHeight: 72,
-                  justifyContent: "center",
-                },
-                pressed && {
-                  opacity: 0.85,
-                  backgroundColor: `${colors.brand}22`,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.emptyText,
-                  {
-                    fontFamily: typography.body?.fontFamily,
-                    fontWeight: "600",
-                    color: colors.brand,
-                    fontSize: 15,
-                    lineHeight: 22,
-                  },
-                ]}
-                numberOfLines={2}
-              >
-                Configurar permisos de salud en Ajustes
-              </Text>
-            </Pressable>
+              </View>
+            )}
+          </View>
+
+          {caloriesBurned === 0 && (
+            <>
+              {isSyncing ? (
+                <View
+                  style={[styles.emptyState, { borderTopColor: colors.border }]}
+                >
+                  <Text
+                    style={[
+                      styles.emptyText,
+                      {
+                        fontFamily: typography.body?.fontFamily,
+                        color: colors.textSecondary,
+                      },
+                    ]}
+                  >
+                    Buscando datos...
+                  </Text>
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      cancelSync();
+                    }}
+                    style={({ pressed }) => [
+                      {
+                        marginTop: 10,
+                        paddingVertical: 6,
+                        paddingHorizontal: 12,
+                      },
+                      pressed && { opacity: 0.7 },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.emptyText,
+                        {
+                          fontFamily: typography.body?.fontFamily,
+                          color: colors.brand,
+                          fontSize: 13,
+                        },
+                      ]}
+                    >
+                      Cancelar
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    onOpenSettings();
+                  }}
+                  style={({ pressed }) => [
+                    styles.emptyState,
+                    { borderTopColor: colors.border },
+                    {
+                      backgroundColor: `${colors.brand}14`,
+                      borderWidth: 1,
+                      borderColor: `${colors.brand}40`,
+                      borderRadius: 12,
+                      paddingVertical: 20,
+                      paddingHorizontal: 20,
+                      marginHorizontal: 4,
+                      minHeight: 72,
+                      justifyContent: "center",
+                    },
+                    pressed && {
+                      opacity: 0.85,
+                      backgroundColor: `${colors.brand}22`,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.emptyText,
+                      {
+                        fontFamily: typography.body?.fontFamily,
+                        fontWeight: "600",
+                        color: colors.brand,
+                        fontSize: 15,
+                        lineHeight: 22,
+                      },
+                    ]}
+                    numberOfLines={2}
+                  >
+                    Configurar permisos de salud en Ajustes
+                  </Text>
+                </Pressable>
+              )}
+            </>
           )}
         </>
+      ) : (
+        <PremiumUpsell onShowPaywall={onShowPaywall} />
       )}
     </View>
   );

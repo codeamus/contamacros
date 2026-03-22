@@ -56,11 +56,13 @@ export function HomeSlider({
         />
 
         <ActivityCard
+          isPremium={isPremium}
           caloriesBurned={caloriesBurned}
           isSyncing={isSyncing}
           syncCalories={syncCalories}
           cancelSync={cancelSync}
           onOpenSettings={onOpenSettings}
+          onShowPaywall={onShowPaywall}
         />
       </View>
     </Animated.View>
