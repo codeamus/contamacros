@@ -137,24 +137,17 @@ export const AuthService = {
     >,
   ): Promise<AuthResult<ProfileDb>> {
     try {
-      const { data: sdata, error: serr } = await supabase.auth.getSession();
-      if (serr) return { ok: false, message: serr.message };
-      const uid = sdata.session?.user?.id;
-      if (!uid) return { ok: false, message: "No hay sesión activa." };
+      const { data: userData, error: userErr } = await supabase.auth.getUser();
+      if (userErr) return { ok: false, message: userErr.message };
+      if (!userData.user) return { ok: false, message: "No hay sesión activa." };
 
       const { data, error } = await supabase
         .from("profiles")
-        .upsert(input)
-        .eq("id", uid)
+        .upsert({ ...input, id: userData.user.id }, { onConflict: "id" })
         .select("*")
-        .maybeSingle();
+        .single();
 
       if (error) return { ok: false, message: error.message, code: error.code };
-      if (!data)
-        return {
-          ok: false,
-          message: "No se pudo actualizar el perfil (sin filas).",
-        };
 
       return { ok: true, data: data as ProfileDb };
     } catch (e) {
