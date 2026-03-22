@@ -1277,13 +1277,7 @@ export default function SettingsScreen() {
             <SettingItem
               icon="help-circle-outline"
               label="Ayuda y soporte"
-              onPress={() => {
-                showToast({
-                  message: "Próximamente disponible",
-                  type: "info",
-                  duration: 2000,
-                });
-              }}
+              onPress={() => Linking.openURL("https://www.contamacros.cl/#faq")}
               colors={colors}
               typography={typography}
             />
@@ -1291,13 +1285,7 @@ export default function SettingsScreen() {
             <SettingItem
               icon="shield-check-outline"
               label="Privacidad"
-              onPress={() => {
-                showToast({
-                  message: "Próximamente disponible",
-                  type: "info",
-                  duration: 2000,
-                });
-              }}
+              onPress={() => Linking.openURL("https://www.contamacros.cl/privacidad")}
               colors={colors}
               typography={typography}
             />
