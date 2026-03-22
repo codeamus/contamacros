@@ -1,4 +1,5 @@
 // app/(auth)/login.tsx
+import AppleLoginButton from "@/presentation/components/auth/AppleLoginButton";
 import AuthTextField from "@/presentation/components/auth/AuthTextField";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
@@ -276,28 +277,9 @@ export default function LoginScreen() {
               </Text>
             </Pressable>
 
-            {/* Apple (solo iOS) - OCULTO */}
-            {false && Platform.OS === "ios" && (
-              <Pressable
-                onPress={onApple}
-                disabled={busy}
-                style={({ pressed }) => [
-                  styles.oauthButton,
-                  pressed && { transform: [{ scale: 0.99 }], opacity: 0.9 },
-                  busy && { opacity: 0.6 },
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name="apple"
-                  size={22}
-                  color={colors.textPrimary}
-                />
-                <Text style={styles.oauthText}>
-                  {oauthLoading === "apple"
-                    ? "Conectando..."
-                    : "Continuar con Apple"}
-                </Text>
-              </Pressable>
+            {/* Apple (solo iOS) */}
+            {Platform.OS === "ios" && (
+              <AppleLoginButton onPress={onApple} disabled={busy} />
             )}
 
             <Pressable
@@ -416,7 +398,7 @@ function makeStyles(colors: any, typography: any) {
 
     oauthButton: {
       height: 48,
-      borderRadius: 14,
+      borderRadius: 16,
       borderWidth: 1,
       borderColor: colors.border,
       alignItems: "center",
@@ -427,8 +409,9 @@ function makeStyles(colors: any, typography: any) {
     },
     oauthText: {
       color: colors.textPrimary,
-      fontFamily: typography.body?.fontFamily,
-      fontSize: 14,
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 16,
+      lineHeight: 20,
     },
   });
 }
