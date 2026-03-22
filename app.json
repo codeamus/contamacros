@@ -36,7 +36,7 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
-      "versionCode": 23,
+      "versionCode": 24,
       "proguardRuleFiles": [
         "proguard-rules.pro"
       ],

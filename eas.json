@@ -4,15 +4,18 @@
           "appVersionSource": "local"
      },
      "build": {
-          "local": {
-               "distribution": "internal",
+          "development": {
                "developmentClient": true,
-               "android": {
-                    "buildType": "apk"
-               },
+               "distribution": "internal",
                "ios": {
                     "simulator": true
+               },
+               "android": {
+                    "buildType": "apk"
                }
+          },
+          "local": {
+               "extends": "development"
           },
           "production": {
                "distribution": "store",
@@ -20,11 +23,12 @@
                "env": {
                     "NODE_ENV": "production"
                },
+               "ios": {
+                    "image": "latest",
+                    "buildConfiguration": "Release"
+               },
                "android": {
                     "buildType": "app-bundle"
-               },
-               "ios": {
-                    "buildConfiguration": "Release"
                }
           }
      },
