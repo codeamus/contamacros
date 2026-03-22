@@ -144,7 +144,7 @@ export const AuthService = {
 
       const { data, error } = await supabase
         .from("profiles")
-        .update(input)
+        .upsert(input)
         .eq("id", uid)
         .select("*")
         .maybeSingle();

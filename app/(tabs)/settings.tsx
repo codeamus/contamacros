@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -19,6 +20,7 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
+import { supabase } from "@/data/supabase/supabaseClient";
 import type { ActivityLevelDb, GoalDb } from "@/domain/models/profileDb";
 import {
   calculateCalorieGoal,
@@ -230,12 +232,56 @@ export default function SettingsScreen() {
     [setThemeMode, showToast],
   );
 
+  const [deleting, setDeleting] = useState(false);
+
   const onLogout = useCallback(() => {
     setLoading(true);
     signOut().finally(() => {
       setLoading(false);
     });
   }, [signOut]);
+
+  const handleDeleteAccount = useCallback(() => {
+    Alert.alert(
+      "Eliminar Cuenta",
+      "¿Estás seguro? Esta acción es irreversible y se borrarán todos tus datos (macros, historial y perfil) de forma permanente.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar definitivamente",
+          style: "destructive",
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              const { error } = await supabase.functions.invoke("delete-user");
+              if (error) {
+                showToast({
+                  message: "No pudimos eliminar tu cuenta. Intenta nuevamente.",
+                  type: "error",
+                  duration: 3000,
+                });
+                return;
+              }
+              await signOut();
+              showToast({
+                message: "Tu cuenta ha sido eliminada.",
+                type: "success",
+                duration: 3000,
+              });
+            } catch {
+              showToast({
+                message: "Ocurrió un error inesperado. Intenta nuevamente.",
+                type: "error",
+                duration: 3000,
+              });
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ],
+    );
+  }, [signOut, showToast]);
 
   const handleUpdateGoal = useCallback(
     async (newGoal: GoalDb) => {
@@ -1278,7 +1324,7 @@ export default function SettingsScreen() {
           <View style={s.sectionContent}>
             <Pressable
               onPress={onLogout}
-              disabled={loading}
+              disabled={loading || deleting}
               style={({ pressed }) => [
                 s.logoutButton,
                 {
@@ -1299,6 +1345,41 @@ export default function SettingsScreen() {
                 ]}
               >
                 {loading ? "Cerrando sesión..." : "Cerrar sesión"}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={handleDeleteAccount}
+              disabled={deleting || loading}
+              style={({ pressed }) => [
+                s.deleteButton,
+                {
+                  opacity: pressed ? 0.8 : 1,
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                },
+                (deleting || loading) && { opacity: 0.55 },
+              ]}
+            >
+              {deleting ? (
+                <ActivityIndicator size="small" color={colors.textSecondary} />
+              ) : (
+                <MaterialCommunityIcons
+                  name="delete-outline"
+                  size={20}
+                  color={colors.textSecondary}
+                />
+              )}
+              <Text
+                style={[
+                  s.deleteText,
+                  {
+                    fontFamily: typography.body?.fontFamily,
+                    color: colors.textSecondary,
+                  },
+                ]}
+              >
+                {deleting ? "Eliminando cuenta..." : "Eliminar cuenta"}
               </Text>
             </Pressable>
           </View>
@@ -1932,6 +2013,19 @@ function makeStyles(colors: any, typography: any, _insets: any) {
     logoutText: {
       fontSize: 16,
       fontWeight: "600",
+    },
+    deleteButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 14,
+      paddingHorizontal: 20,
+      borderRadius: 16,
+      borderWidth: 1,
+      gap: 10,
+    },
+    deleteText: {
+      fontSize: 14,
     },
     modalOverlay: {
       flex: 1,
