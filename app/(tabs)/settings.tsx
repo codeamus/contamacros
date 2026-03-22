@@ -199,6 +199,7 @@ export default function SettingsScreen() {
     syncCalories,
     isSyncing,
     caloriesBurned,
+    hasPermissions,
     error: healthError,
   } = useHealthSync(isPremium);
   const insets = useSafeAreaInsets();
@@ -997,7 +998,6 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-
         {/* Perfil Section */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>Perfil</Text>
@@ -1216,9 +1216,13 @@ export default function SettingsScreen() {
                   Platform.OS === "ios" ? "Apple Health" : "Health Connect"
                 }
                 value={
-                  caloriesBurned > 0
-                    ? `${caloriesBurned} kcal sincronizadas hoy`
-                    : "No conectado"
+                  isSyncing
+                    ? "Sincronizando..."
+                    : caloriesBurned > 0
+                      ? `${caloriesBurned} kcal sincronizadas hoy`
+                      : hasPermissions
+                        ? "Conectado"
+                        : "No conectado"
                 }
                 onPress={async () => {
                   try {
@@ -1810,7 +1814,8 @@ export default function SettingsScreen() {
 
               <View style={s.modalBody}>
                 <Text style={s.modalDescription}>
-                  Ingresa tu nombre completo. Este nombre aparecerá en tu perfil.
+                  Ingresa tu nombre completo. Este nombre aparecerá en tu
+                  perfil.
                 </Text>
 
                 <View style={s.weightInputContainer}>
@@ -2023,6 +2028,7 @@ function makeStyles(colors: any, typography: any, _insets: any) {
       borderRadius: 16,
       borderWidth: 1,
       gap: 10,
+      marginTop: 12,
     },
     deleteText: {
       fontSize: 14,

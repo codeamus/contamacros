@@ -8,6 +8,7 @@ export const StorageKeys = {
   AI_SCAN_DAILY_LIMIT: "ai_scan_daily_limit",
   FAVORITES_CACHE: "favorites_cache",
   RECENT_FOODS: "recent_foods",
+  HEALTH_CONNECTED: "health_connected",
 } as const;
 
 export type StorageKey = (typeof StorageKeys)[keyof typeof StorageKeys];

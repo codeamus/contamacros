@@ -1,4 +1,6 @@
 // src/presentation/hooks/health/useHealthSync.ts
+import { StorageKeys } from "@/core/storage/keys";
+import { storage } from "@/core/storage/storage";
 import { activityLogRepository } from "@/data/activity/activityLogRepository";
 import { todayStrLocal } from "@/presentation/utils/date";
 import * as Haptics from "expo-haptics";
@@ -24,8 +26,16 @@ export function useHealthSync(isPremium: boolean) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [hasPermissions, setHasPermissions] = useState(false);
 
   const day = todayStrLocal();
+
+  // Restaurar estado de conexión persistido
+  useEffect(() => {
+    storage.getString(StorageKeys.HEALTH_CONNECTED).then((v) => {
+      if (v === "true") setHasPermissions(true);
+    });
+  }, []);
 
   /**
    * Sincroniza calorías desde Apple Health (iOS).
@@ -240,6 +250,10 @@ export function useHealthSync(isPremium: boolean) {
       const res = await activityLogRepository.getTodayCalories(day);
       if (res.ok) {
         setCaloriesBurned(res.data);
+        if (res.data > 0) {
+          setHasPermissions(true);
+          storage.setString(StorageKeys.HEALTH_CONNECTED, "true");
+        }
       } else {
         setError(res.message);
       }
@@ -290,6 +304,8 @@ export function useHealthSync(isPremium: boolean) {
         }
 
         setCaloriesBurned(calories);
+        setHasPermissions(true);
+        storage.setString(StorageKeys.HEALTH_CONNECTED, "true");
         await loadTodayCalories();
 
         console.log("[useHealthSync] ✅ Sincronización completada:", {
@@ -435,10 +451,11 @@ export function useHealthSync(isPremium: boolean) {
       loading,
       error,
       isSyncing,
+      hasPermissions,
       syncCalories,
       cancelSync,
       reload: loadTodayCalories,
     }),
-    [caloriesBurned, loading, error, isSyncing, syncCalories, cancelSync, loadTodayCalories],
+    [caloriesBurned, loading, error, isSyncing, hasPermissions, syncCalories, cancelSync, loadTodayCalories],
   );
 }
