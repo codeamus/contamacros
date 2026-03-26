@@ -315,17 +315,21 @@ export function ActivityCard({
       {/* Body */}
       {isPremium ? (
         <>
-          <View style={styles.content}>
-            <View style={styles.valueContainer}>
+          <View style={[styles.content, { minHeight: 34 }]}>
+            <View
+              style={[
+                styles.valueContainer,
+                isSyncing && { alignItems: "center" },
+              ]}
+            >
               {isSyncing ? (
                 <>
                   <Skeleton
-                    height={32}
+                    height={28}
                     width={80}
                     radius={8}
                     bg={colors.border}
                     highlight={colors.border}
-                    style={{ marginBottom: 4 }}
                   />
                   <Skeleton
                     height={14}
@@ -333,7 +337,6 @@ export function ActivityCard({
                     radius={6}
                     bg={colors.border}
                     highlight={colors.border}
-                    style={{ opacity: 0.7 }}
                   />
                 </>
               ) : (
