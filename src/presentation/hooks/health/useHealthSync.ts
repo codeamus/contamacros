@@ -5,9 +5,9 @@ import { activityLogRepository } from "@/data/activity/activityLogRepository";
 import { todayStrLocal } from "@/presentation/utils/date";
 import * as Haptics from "expo-haptics";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AppState, AppStateStatus, Platform } from "react-native";
+import { AppState, AppStateStatus, Linking, Platform } from "react-native";
 
-const HEALTH_TIMEOUT_MS = 5_000;
+const HEALTH_TIMEOUT_MS = 10_000;
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([
@@ -29,6 +29,7 @@ export function useHealthSync(isPremium: boolean) {
   const [hasPermissions, setHasPermissions] = useState(false);
 
   const day = todayStrLocal();
+  const syncLockRef = useRef(false);
 
   // Restaurar estado de conexión persistido
   useEffect(() => {
@@ -181,44 +182,95 @@ export function useHealthSync(isPremium: boolean) {
     }
 
     const run = async (): Promise<number> => {
-      const HealthConnect = require("react-native-health-connect").default;
+      const {
+        initialize,
+        getSdkStatus,
+        getGrantedPermissions,
+        readRecords,
+        SdkAvailabilityStatus,
+      } = require("react-native-health-connect");
 
-      await HealthConnect.initialize();
-
-      const isAvailable = await HealthConnect.isAvailable();
-      if (!isAvailable) {
-        throw new Error("Health Connect no está disponible. Por favor, instálalo desde Google Play.");
+      // 1. Verificar disponibilidad del SDK
+      const status = await getSdkStatus();
+      if (status !== SdkAvailabilityStatus.SDK_AVAILABLE) {
+        throw new Error(
+          "Health Connect no está disponible. Por favor, instálalo desde Google Play."
+        );
       }
 
-      const permissions = [
-        { accessType: "read", recordType: "ActiveCaloriesBurned" },
-      ];
+      // 2. Inicializar el cliente (no registra ActivityResultLauncher, solo el HealthConnectClient)
+      await initialize();
 
-      const granted = await HealthConnect.requestPermission(permissions);
-      if (!granted) {
-        throw new Error("Permisos de Health Connect denegados");
+      // 3. Verificar permisos SIN llamar a requestPermission (que crashea por lateinit)
+      const alreadyGranted = await getGrantedPermissions();
+      const grantedSet = new Set(
+        (alreadyGranted ?? []).map(
+          (p: any) => `${p.accessType}:${p.recordType}`
+        )
+      );
+
+      const hasActiveCalories = grantedSet.has("read:ActiveCaloriesBurned");
+      const hasBasal = grantedSet.has("read:BasalMetabolicRate");
+
+      // 4. Si faltan permisos, abrir Health Connect para que el usuario los conceda
+      if (!hasActiveCalories) {
+        try {
+          const { openHealthConnectSettings } = require("react-native-health-connect");
+          await openHealthConnectSettings();
+        } catch {
+          // Fallback: abrir ajustes del sistema
+          await Linking.openSettings();
+        }
+        throw new Error("NEEDS_PERMISSIONS");
       }
 
+      // 5. Leer registros del día
       const today = new Date();
       const startOfDay = new Date(today);
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(today);
       endOfDay.setHours(23, 59, 59, 999);
 
-      const records = await HealthConnect.readRecords({
-        recordType: "ActiveCaloriesBurned",
-        timeRangeFilter: {
-          operator: "between",
-          startTime: startOfDay.toISOString(),
-          endTime: endOfDay.toISOString(),
-        },
+      const timeRangeFilter = {
+        operator: "between" as const,
+        startTime: startOfDay.toISOString(),
+        endTime: endOfDay.toISOString(),
+      };
+
+      const [activeResult, basalResult] = await Promise.all([
+        readRecords("ActiveCaloriesBurned", { timeRangeFilter }),
+        hasBasal
+          ? readRecords("BasalMetabolicRate", { timeRangeFilter }).catch(() => ({ records: [] }))
+          : Promise.resolve({ records: [] }),
+      ]);
+
+      // 6. Sumar calorías activas
+      const activeRecords = activeResult?.records || [];
+      const activeCalories = (Array.isArray(activeRecords) ? activeRecords : []).reduce(
+        (sum: number, record: any) => sum + (record.energy?.inKilocalories ?? 0),
+        0
+      );
+
+      // 7. Calcular gasto basal proporcional a las horas transcurridas hoy
+      const basalRecords = basalResult?.records || [];
+      let basalCalories = 0;
+      if (Array.isArray(basalRecords) && basalRecords.length > 0) {
+        const latestBasal = basalRecords[basalRecords.length - 1];
+        const dailyRate = latestBasal?.basalMetabolicRate?.inKilocaloriesPerDay ?? 0;
+        if (dailyRate > 0) {
+          const hoursElapsed = (today.getTime() - startOfDay.getTime()) / (1000 * 60 * 60);
+          basalCalories = (dailyRate / 24) * hoursElapsed;
+        }
+      }
+
+      const totalCalories = activeCalories + basalCalories;
+
+      console.log("[useHealthSync] Health Connect:", {
+        active: Math.round(activeCalories),
+        basal: Math.round(basalCalories),
+        total: Math.round(totalCalories),
       });
 
-      const totalCalories = records.reduce((sum: number, record: any) => {
-        return sum + (record.energy?.inKilocalories || 0);
-      }, 0);
-
-      console.log("[useHealthSync] Calorías leídas de Health Connect:", totalCalories);
       return Math.round(totalCalories);
     };
 
@@ -226,7 +278,7 @@ export function useHealthSync(isPremium: boolean) {
       return await withTimeout(run(), HEALTH_TIMEOUT_MS);
     } catch (err) {
       if (err instanceof Error && err.message === "HEALTH_TIMEOUT") {
-        console.warn("[useHealthSync] Health Connect SDK no respondió en 5s (HEALTH_TIMEOUT)");
+        console.warn("[useHealthSync] Health Connect SDK timeout");
         throw new Error("La conexión con Health Connect tardó demasiado. Intenta de nuevo.");
       }
       console.error("[useHealthSync] Error al leer Health Connect:", err);
@@ -275,6 +327,13 @@ export function useHealthSync(isPremium: boolean) {
         setError("La sincronización de salud es una función premium");
         return;
       }
+
+      // Bloqueo de concurrencia: evita que dos syncs simultáneos colapsen el bridge nativo
+      if (syncLockRef.current) {
+        console.log("[useHealthSync] Sync ya en curso, ignorando llamada duplicada");
+        return;
+      }
+      syncLockRef.current = true;
 
       const silent = options?.silent ?? false;
       setIsSyncing(true);
@@ -334,7 +393,9 @@ export function useHealthSync(isPremium: boolean) {
                 : typeof err === "string"
                   ? err
                   : "Error al sincronizar calorías";
-            if (msg === "SYNC_TIMEOUT" || msg === "HEALTH_TIMEOUT") {
+            if (msg === "NEEDS_PERMISSIONS") {
+              setError("Concede los permisos en Health Connect y vuelve a sincronizar.");
+            } else if (msg === "SYNC_TIMEOUT" || msg === "HEALTH_TIMEOUT") {
               console.warn("[useHealthSync] Sincronización cancelada por timeout (permisos o sistema)");
               setError("Tiempo de espera agotado. Intenta de nuevo.");
             } else {
@@ -348,6 +409,7 @@ export function useHealthSync(isPremium: boolean) {
           // Nunca relanzar: garantizar que finally se ejecute y la UI se desbloquee
         }
       } finally {
+        syncLockRef.current = false;
         setIsSyncing(false);
       }
     },
@@ -392,14 +454,19 @@ export function useHealthSync(isPremium: boolean) {
           return;
         }
 
+        // Solo auto-sync si ya tenemos permisos (evita popup al abrir la app)
+        if (!hasPermissions) {
+          console.log("[HealthSync] Sin permisos previos, omitiendo auto-sync");
+          return;
+        }
+
         console.log("[HealthSync] Sincronización automática disparada por cambio de estado");
         isSyncingRef.current = true;
         lastSyncTime.current = now;
 
-        syncCalories()
+        syncCalories({ silent: true })
           .catch((error) => {
             console.error("[HealthSync] Error en sincronización automática:", error);
-            // No mostrar error al usuario, es automático
           })
           .finally(() => {
             isSyncingRef.current = false;
@@ -414,7 +481,7 @@ export function useHealthSync(isPremium: boolean) {
     return () => {
       subscription.remove();
     };
-  }, [isPremium, syncCalories]);
+  }, [isPremium, hasPermissions, syncCalories]);
 
   // Cargar calorías al montar: diferido al siguiente tick para no bloquear el primer frame (Main Thread libre).
   // Sin await en el ciclo de vida; la UI se pinta de inmediato.

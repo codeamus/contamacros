@@ -33,10 +33,11 @@
       },
       "permissions": [
         "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
+        "android.permission.health.READ_BASAL_METABOLIC_RATE",
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
-      "versionCode": 24,
+      "versionCode": 25,
       "proguardRuleFiles": [
         "proguard-rules.pro"
       ],
@@ -94,7 +95,16 @@
         }
       ],
       "expo-image-picker",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "./plugins/withHealthConnect",
+        {
+          "permissions": [
+            "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
+            "android.permission.health.READ_BASAL_METABOLIC_RATE"
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
