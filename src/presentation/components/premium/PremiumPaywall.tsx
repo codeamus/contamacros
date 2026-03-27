@@ -62,31 +62,38 @@ const BENEFIT_ICON_PRO = "#FBBF24"; // Destellos — ámbar, coherente con dark
 const BENEFITS = [
   {
     icon: "barcode-scan" as const,
-    title: "Escáner de Barcode Ilimitado",
+    title: "Escáner de código de barras ilimitado",
     description:
-      "Escanea productos sin límites. Versión gratuita limitada a 5 escaneos por día.",
+      "Encuentra productos chilenos al instante. Sin límites de escaneos.",
     iconColor: BENEFIT_ICON_PRO,
   },
   {
     icon: "camera-iris" as const,
-    title: "Escáner Nutricional IA Ilimitado",
+    title: "Escáner nutricional IA ilimitado",
     description:
-      "Análisis instantáneo de platos con Gemini 2.0. Versión gratuita limitada a 1 uso histórico.",
+      "Fotos de tus platos para obtener macros al instante con IA.",
     iconColor: BENEFIT_ICON_AI,
   },
   {
     icon: "chef-hat" as const,
-    title: "Recetas Ilimitadas",
+    title: "Recetas ilimitadas",
     description:
-      "Guarda todas tus recetas favoritas. Versión gratuita limitada a 5 recetas totales.",
+      "Crea menús personalizados según tus objetivos sin restricciones.",
     iconColor: BENEFIT_ICON_PRO,
   },
   {
     icon: "history" as const,
-    title: "Historial Completo",
+    title: "Historial completo",
     description:
-      "Accede a todo tu historial de comidas. Versión gratuita limitada a los últimos 7 días.",
+      "Accede a todos tus registros históricos sin límites.",
     iconColor: BENEFIT_ICON_AI,
+  },
+  {
+    icon: "heart-pulse" as const,
+    title: "Sincronización de Salud",
+    description:
+      "Conecta tus calorías quemadas automáticamente con Apple Health y Google Fit.",
+    iconColor: BENEFIT_ICON_PRO,
   },
 ];
 
@@ -465,12 +472,31 @@ export default function PremiumPaywall({
           useNativeDriver: true,
         }),
       ]).start();
-    } else {
-      slideAnim.setValue(SCREEN_HEIGHT);
-      scaleAnim.setValue(0.9);
-      opacityAnim.setValue(0);
     }
   }, [visible, slideAnim, scaleAnim, opacityAnim]);
+
+  // Animación de salida antes de cerrar
+  const handleClose = () => {
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: SCREEN_HEIGHT,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 0.9,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      onClose();
+    });
+  };
 
   const handleSubscribe = async () => {
     if (isProcessing) return;
@@ -692,11 +718,11 @@ export default function PremiumPaywall({
   };
 
   const handleTermsPress = () => {
-    Linking.openURL("https://contamacro.app/terms");
+    Linking.openURL("https://www.apple.com/legal/internet-services/itunes/dev/stdeula/");
   };
 
   const handlePrivacyPress = () => {
-    Linking.openURL("https://contamacro.app/privacy");
+    Linking.openURL("https://www.contamacros.cl/privacidad");
   };
 
   const selectedPlanData = plansData[selectedPlan];
@@ -739,7 +765,7 @@ export default function PremiumPaywall({
       visible={visible}
       transparent
       animationType="none"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
       <Animated.View
         style={[
@@ -749,7 +775,7 @@ export default function PremiumPaywall({
           },
         ]}
       >
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
 
         <Animated.View
           style={[
@@ -786,6 +812,7 @@ export default function PremiumPaywall({
                   color={colors.brand}
                 />
               </Animated.View>
+              <Text style={s.proTitle}>ContaMacros Pro</Text>
               <Text style={s.title}>Lleva tu Nutrición al Siguiente Nivel</Text>
               <Text style={s.subtitle}>
                 Únete a la comunidad Pro y alcanza tus metas un 40% más rápido
@@ -1059,8 +1086,8 @@ export default function PremiumPaywall({
                 <>
                   <Text style={s.ctaButtonText}>
                     {selectedPlan === "lifetime"
-                      ? "Comprar ahora"
-                      : "Comenzar mi semana gratuita"}
+                      ? `Comprar ahora — ${selectedPlanData?.priceString ?? ""}`
+                      : `Suscribirse ahora — ${selectedPlanData?.priceString ?? ""}/${selectedPlanData?.period ?? ""}`}
                   </Text>
                   <MaterialCommunityIcons
                     name="arrow-right"
@@ -1070,6 +1097,14 @@ export default function PremiumPaywall({
                 </>
               )}
             </Pressable>
+
+            {/* Texto legal de autorenovación (Apple Guideline 3.1.2c) */}
+            <Text style={s.autoRenewText}>
+              La suscripción se renovará automáticamente a menos que se desactive
+              en la configuración de tu cuenta de iTunes al menos 24 horas antes
+              de que finalice el período actual. El pago se cargará a tu cuenta
+              de Apple ID al confirmar la compra.
+            </Text>
 
             {/* Botón Restaurar Compras */}
             <View style={s.restoreContainer}>
@@ -1100,17 +1135,17 @@ export default function PremiumPaywall({
             {/* Pie de página */}
             <View style={s.footer}>
               <Pressable onPress={handleTermsPress} style={s.footerLink}>
-                <Text style={s.footerLinkText}>Términos de servicio</Text>
+                <Text style={s.footerLinkText}>Términos de Uso (EULA)</Text>
               </Pressable>
               <Text style={s.footerSeparator}> • </Text>
               <Pressable onPress={handlePrivacyPress} style={s.footerLink}>
-                <Text style={s.footerLinkText}>Política de privacidad</Text>
+                <Text style={s.footerLinkText}>Política de Privacidad</Text>
               </Pressable>
             </View>
           </ScrollView>
 
           {/* Botón cerrar */}
-          <Pressable onPress={onClose} style={s.closeButton}>
+          <Pressable onPress={handleClose} style={s.closeButton}>
             <MaterialCommunityIcons
               name="close"
               size={24}
@@ -1154,6 +1189,16 @@ function makeStyles(colors: any, typography: any) {
       padding: 16,
       borderRadius: 24,
       backgroundColor: colors.brand + "15",
+    },
+    proTitle: {
+      ...typography.h1,
+      fontSize: 14,
+      fontWeight: "700",
+      color: colors.brand,
+      textAlign: "center",
+      letterSpacing: 1,
+      textTransform: "uppercase" as const,
+      marginBottom: 4,
     },
     title: {
       ...typography.h1,
@@ -1370,7 +1415,7 @@ function makeStyles(colors: any, typography: any) {
       shadowOpacity: 0.3,
       shadowRadius: 16,
       elevation: 8,
-      marginBottom: 24,
+      marginBottom: 12,
     },
     ctaButtonPressed: {
       opacity: 0.8,
@@ -1382,6 +1427,15 @@ function makeStyles(colors: any, typography: any) {
       fontWeight: "800",
       color: colors.onCta,
       letterSpacing: 0.5,
+    },
+    autoRenewText: {
+      ...typography.caption,
+      fontSize: 11,
+      color: colors.textSecondary,
+      textAlign: "center" as const,
+      lineHeight: 16,
+      marginBottom: 16,
+      paddingHorizontal: 12,
     },
     footer: {
       flexDirection: "row",
@@ -1472,10 +1526,12 @@ function makeStyles(colors: any, typography: any) {
       position: "absolute",
       top: 16,
       right: 16,
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: colors.surface,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: colors.textSecondary + "20",
+      borderWidth: 1,
+      borderColor: colors.border,
       alignItems: "center",
       justifyContent: "center",
       zIndex: 10,
