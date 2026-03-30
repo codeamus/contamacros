@@ -44,6 +44,7 @@ import { useRecentFoods } from "@/presentation/hooks/food/useRecentFoods";
 import { useFeatureAccess } from "@/presentation/hooks/premium/useFeatureAccess";
 import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
+import { useTour } from "@/presentation/hooks/tour/TourProvider";
 import { todayStrLocal } from "@/presentation/utils/date";
 import { MEAL_LABELS } from "@/presentation/utils/labels";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -254,6 +255,23 @@ export default function AddFoodScreen() {
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const { checkAccess } = useFeatureAccess();
+
+  // Tour: refs para scan buttons y meal chips (pasos 'scan-options' y 'meal-type')
+  const scanButtonsRef = useRef<View>(null);
+  const mealChipsRef = useRef<View>(null);
+  const { reportLayout } = useTour();
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      scanButtonsRef.current?.measure((_x, _y, width, height, pageX, pageY) => {
+        if (width > 0) reportLayout("scan-options", { x: pageX, y: pageY, width, height });
+      });
+      mealChipsRef.current?.measure((_x, _y, width, height, pageX, pageY) => {
+        if (width > 0) reportLayout("meal-type", { x: pageX, y: pageY, width, height });
+      });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [reportLayout]);
 
   // Log cuando selected cambia
   useEffect(() => {
@@ -1125,7 +1143,7 @@ export default function AddFoodScreen() {
               </Text>
 
               {/* Botones de escaneo */}
-              <View style={s.scanButtonsContainer}>
+              <View ref={scanButtonsRef} style={s.scanButtonsContainer}>
                 <Pressable
                   onPress={() =>
                     router.push({
@@ -1209,6 +1227,7 @@ export default function AddFoodScreen() {
               </View>
 
               {/* Meal chips */}
+              <View ref={mealChipsRef}>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -1249,6 +1268,7 @@ export default function AddFoodScreen() {
                   },
                 )}
               </ScrollView>
+              </View>
 
               {/* Historial de búsqueda - Mostrar PRIMERO cuando hay focus y el input está vacío */}
               {isInputFocused && !query.trim() && searchHistory.length > 0 && (

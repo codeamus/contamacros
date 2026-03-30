@@ -9,6 +9,7 @@ export const StorageKeys = {
   FAVORITES_CACHE: "favorites_cache",
   RECENT_FOODS: "recent_foods",
   HEALTH_CONNECTED: "health_connected",
+  FEATURE_TOUR_SEEN: "feature_tour_seen",
 } as const;
 
 export type StorageKey = (typeof StorageKeys)[keyof typeof StorageKeys];
