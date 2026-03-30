@@ -1,0 +1,8 @@
+{
+  "CFBundleDisplayName": "ContaMacros",
+  "CFBundleName": "ContaMacros",
+  "NSHealthShareUsageDescription": "ContaMacros lee tus calorías quemadas y pasos para ajustar tus metas diarias de macronutrientes automáticamente.",
+  "NSHealthUpdateUsageDescription": "ContaMacros sincroniza tus registros de comidas con Apple Health para mantener tu historial centralizado.",
+  "NSPhotoLibraryUsageDescription": "Selecciona una foto para personalizar tu perfil de usuario.",
+  "NSCameraUsageDescription": "Toma una foto para registrar tus comidas o actualizar tu avatar."
+}

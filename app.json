@@ -8,6 +8,9 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "icon": "./assets/images/adaptive-icon.png",
+    "locales": {
+      "es": "./locales/es.json"
+    },
     "ios": {
       "bundleIdentifier": "com.codeamusdev2.contamacro",
       "buildNumber": "13",
@@ -22,7 +25,9 @@
         "NSHealthUpdateUsageDescription": "ContaMacros sincroniza tus registros de comidas con Apple Health para mantener tu historial centralizado.",
         "NSPhotoLibraryUsageDescription": "Selecciona una foto para personalizar tu perfil de usuario.",
         "NSCameraUsageDescription": "Toma una foto para registrar tus comidas o actualizar tu avatar.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleDevelopmentRegion": "es_CL",
+        "CFBundleLocalizations": ["es"]
       }
     },
     "android": {
