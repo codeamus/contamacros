@@ -27,7 +27,9 @@
         "NSCameraUsageDescription": "Toma una foto para registrar tus comidas o actualizar tu avatar.",
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleDevelopmentRegion": "es_CL",
-        "CFBundleLocalizations": ["es"]
+        "CFBundleLocalizations": [
+          "es"
+        ]
       }
     },
     "android": {
@@ -42,7 +44,7 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
-      "versionCode": 25,
+      "versionCode": 26,
       "proguardRuleFiles": [
         "proguard-rules.pro"
       ],
