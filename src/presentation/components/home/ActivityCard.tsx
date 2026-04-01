@@ -18,7 +18,6 @@ type ActivityCardProps = {
   isSyncing: boolean;
   syncCalories: () => Promise<void>;
   cancelSync: () => void;
-  onOpenSettings: () => void;
   onShowPaywall: () => void;
 };
 
@@ -215,7 +214,6 @@ export function ActivityCard({
   isSyncing,
   syncCalories,
   cancelSync,
-  onOpenSettings,
   onShowPaywall,
 }: ActivityCardProps) {
   const { theme } = useTheme();
@@ -444,10 +442,17 @@ export function ActivityCard({
                 </View>
               ) : (
                 <Pressable
-                  onPress={() => {
+                  onPress={async () => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    onOpenSettings();
+                    try {
+                      // ✅ Primero intenta sincronizar (mostrará permission request nativo de iOS/Android)
+                      await syncCalories();
+                    } catch (error) {
+                      // Si falla, el usuario verá el error pero el permission request fue mostrado
+                      console.log("[ActivityCard] Sync error:", error);
+                    }
                   }}
+                  disabled={isSyncing}
                   style={({ pressed }) => [
                     styles.emptyState,
                     { borderTopColor: colors.border },
@@ -462,7 +467,7 @@ export function ActivityCard({
                       minHeight: 72,
                       justifyContent: "center",
                     },
-                    pressed && {
+                    (pressed || isSyncing) && {
                       opacity: 0.85,
                       backgroundColor: `${colors.brand}22`,
                     },
@@ -481,7 +486,7 @@ export function ActivityCard({
                     ]}
                     numberOfLines={2}
                   >
-                    Configurar permisos de salud en Ajustes
+                    {isSyncing ? "Sincronizando..." : "Habilitar sincronización de salud"}
                   </Text>
                 </Pressable>
               )}

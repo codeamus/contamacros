@@ -14,7 +14,6 @@ type HomeSliderProps = {
   isSyncing: boolean;
   syncCalories: () => Promise<void>;
   cancelSync: () => void;
-  onOpenSettings: () => void;
 };
 
 export function HomeSlider({
@@ -27,7 +26,6 @@ export function HomeSlider({
   isSyncing,
   syncCalories,
   cancelSync,
-  onOpenSettings,
 }: HomeSliderProps) {
   return (
     <Animated.View
@@ -61,7 +59,6 @@ export function HomeSlider({
           isSyncing={isSyncing}
           syncCalories={syncCalories}
           cancelSync={cancelSync}
-          onOpenSettings={onOpenSettings}
           onShowPaywall={onShowPaywall}
         />
       </View>

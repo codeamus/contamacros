@@ -30,8 +30,6 @@ import React, {
 } from "react";
 import {
   Animated,
-  Linking,
-  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -167,18 +165,6 @@ export default function HomeScreen() {
     }
   }, [reloadSummary, reloadMeals, isPremium, reloadHealth]);
 
-  const handleOpenSettings = useCallback(async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    try {
-      if (Platform.OS === "ios") {
-        await Linking.openURL("app-settings:");
-      } else {
-        await Linking.openSettings();
-      }
-    } catch (error) {
-      console.error("[Home] Error al abrir ajustes:", error);
-    }
-  }, []);
 
   function goAddFood(meal: MealType) {
     router.push({
@@ -213,7 +199,6 @@ export default function HomeScreen() {
           isSyncing={isSyncing}
           syncCalories={syncCalories}
           cancelSync={cancelSync}
-          onOpenSettings={handleOpenSettings}
         />
 
         {!hasTargets && (

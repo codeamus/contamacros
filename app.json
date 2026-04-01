@@ -111,7 +111,8 @@
             "android.permission.health.READ_BASAL_METABOLIC_RATE"
           ]
         }
-      ]
+      ],
+      "./plugins/withDisableLintExtraTranslation"
     ],
     "experiments": {
       "typedRoutes": true,
