@@ -11,7 +11,7 @@
     "lint": "expo lint",
     "-- Crear builds locales para Android y iOS": "eas build --platform android --profile production --local",
     "build:android:local": "dotenv -e .env -- eas build --platform android --profile production --local",
-    "build:ios:local": "eas build --platform ios --profile production --local",
+    "build:ios:local": "dotenv -e .env -- eas build --platform ios --profile production --local",
     "submit:android": "eas submit --platform android --profile production"
   },
   "dependencies": {
