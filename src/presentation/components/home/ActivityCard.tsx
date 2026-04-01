@@ -486,7 +486,7 @@ export function ActivityCard({
                     ]}
                     numberOfLines={2}
                   >
-                    {isSyncing ? "Sincronizando..." : "Habilitar sincronización de salud"}
+                    {isSyncing ? "Sincronizando..." : "Continuar"}
                   </Text>
                 </Pressable>
               )}
