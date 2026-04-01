@@ -232,7 +232,7 @@ export default function ScanScreen() {
               fontFamily: typography.subtitle?.fontFamily,
             }}
           >
-            Dar permiso
+            Continuar
           </Text>
         </Pressable>
 
