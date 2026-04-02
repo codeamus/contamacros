@@ -5,9 +5,10 @@ import { UsageService } from "@/domain/services/usageService";
 import { useFeatureAccess } from "@/presentation/hooks/premium/useFeatureAccess";
 import { usePremium } from "@/presentation/hooks/subscriptions/usePremium";
 import { useToast } from "@/presentation/hooks/ui/useToast";
+import { type CameraView } from "expo-camera";
 import * as ImageManipulator from "expo-image-manipulator";
-import * as ImagePicker from "expo-image-picker";
 import { useCallback, useState } from "react";
+import type { RefObject } from "react";
 
 type UseMacroScannerOptions = {
   onAnalysisComplete?: (result: MacroAnalysisResult) => void;
@@ -25,12 +26,12 @@ export function useMacroScanner(options?: UseMacroScannerOptions) {
    const { isPremium } = usePremium();
    const { checkAccess } = useFeatureAccess();
 
-  const captureAndAnalyze = useCallback(async () => {
+  const captureAndAnalyze = useCallback(async (cameraRef: RefObject<CameraView | null>) => {
     // Lock in-flight: evitar llamadas concurrentes
     if (isAnalyzing || isAnalyzingInFlight) {
       return;
     }
-    
+
     isAnalyzingInFlight = true;
 
     // Verificar límite de IA solo si NO es premium
@@ -44,36 +45,25 @@ export function useMacroScanner(options?: UseMacroScannerOptions) {
     setIsAnalyzing(true);
 
     try {
-      // Solicitar permisos de cámara si no están otorgados
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== "granted") {
-        throw new Error("Se necesitan permisos de cámara para escanear alimentos");
+      // Capturar directamente desde la CameraView ya visible en pantalla
+      // (sin abrir la cámara nativa — elimina el flujo redundante de dos cámaras)
+      if (!cameraRef.current) {
+        throw new Error("Cámara no disponible");
       }
 
-      // Capturar foto desde la cámara
-      const photo = await ImagePicker.launchCameraAsync({
-        mediaTypes: "images",
-        allowsEditing: false,
-        quality: 0.8,
+      const photo = await cameraRef.current.takePictureAsync({
         base64: true,
+        quality: 0.8,
       });
 
-      if (photo.canceled || !photo.assets[0]) {
-        setIsAnalyzing(false);
-        isAnalyzingInFlight = false;
-        return;
-      }
-
-      const asset = photo.assets[0];
-      
-      if (!asset.base64) {
+      if (!photo || !photo.base64) {
         throw new Error("No se pudo capturar la imagen");
       }
 
       // Compresión obligatoria: máximo 512px (ancho o alto) y calidad 0.3
       // Esto reduce drásticamente el tamaño del Base64, consumiendo el mínimo de tokens posible
       const manipulatedImage = await ImageManipulator.manipulateAsync(
-        asset.uri,
+        photo.uri,
         [{ resize: { width: 512 } }], // Máximo 512px de ancho (mantiene aspect ratio)
         {
           compress: 0.3, // Calidad 0.3 para optimización extrema de tokens
@@ -171,7 +161,7 @@ export function useMacroScanner(options?: UseMacroScannerOptions) {
       setIsAnalyzing(false);
       isAnalyzingInFlight = false; // Liberar lock
     }
-  }, [isAnalyzing, isPremium, options, showToast]);
+  }, [isAnalyzing, isPremium, checkAccess, options, showToast]);
 
   const resetAnalysis = useCallback(() => {
     setAnalysisResult(null);

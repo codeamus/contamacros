@@ -45,6 +45,9 @@ export default function ScanScreen() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [paywallVisible, setPaywallVisible] = useState(false);
 
+  // Ref para capturar foto directamente desde la CameraView (evita abrir cámara nativa 2 veces)
+  const cameraRef = useRef<CameraView>(null);
+
   // Evita dobles lecturas (iOS puede disparar 2 veces)
   const lockRef = useRef(false);
 
@@ -167,9 +170,9 @@ export default function ScanScreen() {
 
   const handleCapture = useCallback(() => {
     if (scanMode === "ai" && !isAnalyzing) {
-      captureAndAnalyze();
+      captureAndAnalyze(cameraRef);
     }
-  }, [scanMode, isAnalyzing, captureAndAnalyze]);
+  }, [scanMode, isAnalyzing, captureAndAnalyze, cameraRef]);
 
   const handleCloseConfirmModal = useCallback(() => {
     setShowConfirmModal(false);
@@ -254,6 +257,7 @@ export default function ScanScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: "black" }}>
       <CameraView
+        ref={cameraRef}
         style={StyleSheet.absoluteFillObject}
         facing="back"
         barcodeScannerSettings={
