@@ -511,7 +511,7 @@ export default function ReportsScreen() {
                 </View>
               ) : (
                 <View style={s.emptyState}>
-                  <Text style={s.emptyStateText}>No hay datos en este rango</Text>
+                  <Text style={s.emptyStateText}>Registrá comidas para ver tu gráfico de calorías aquí</Text>
                 </View>
               )}
             </View>
@@ -587,7 +587,7 @@ export default function ReportsScreen() {
                   </View>
                 ) : (
                   <View style={s.emptyState}>
-                    <Text style={s.emptyStateText}>Sin datos</Text>
+                    <Text style={s.emptyStateText}>Tu distribución de macros aparecerá aquí</Text>
                   </View>
                 )}
               </View>
@@ -635,7 +635,7 @@ export default function ReportsScreen() {
                   </View>
                 ) : (
                   <View style={s.emptyState}>
-                    <Text style={s.emptyStateText}>Sin datos</Text>
+                    <Text style={s.emptyStateText}>Registrá al menos un día para ver tu racha</Text>
                   </View>
                 )}
               </View>
@@ -691,7 +691,7 @@ export default function ReportsScreen() {
                 </View>
               ) : (
                 <View style={s.emptyState}>
-                  <Text style={s.emptyStateText}>No hay alimentos registrados</Text>
+                  <Text style={s.emptyStateText}>Tus alimentos más frecuentes aparecerán acá</Text>
                 </View>
               )}
             </View>

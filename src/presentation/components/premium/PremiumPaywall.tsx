@@ -1080,7 +1080,12 @@ export default function PremiumPaywall({
                   s.ctaButtonPressed,
               ]}
             >
-              {isProcessing || loadingPrices ? (
+              {isProcessing ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <ActivityIndicator size="small" color={colors.onCta} />
+                  <Text style={s.ctaButtonText}>Procesando...</Text>
+                </View>
+              ) : loadingPrices ? (
                 <ActivityIndicator size="small" color={colors.onCta} />
               ) : (
                 <>

@@ -565,13 +565,21 @@ export default function MyFoodsScreen() {
             </View>
             <Text style={s.emptyTitle}>Aún no tienes recetas</Text>
             <Text style={s.emptyText}>
-              Crea tu primera receta personalizada combinando ingredientes.
+              Pedile al Smart Coach que te arme una receta según tus macros del día, o créala vos combinando ingredientes.
             </Text>
-            <View style={{ marginTop: 16, width: "100%" }}>
+            <View style={{ marginTop: 16, width: "100%", gap: 10 }}>
               <PrimaryButton
-                title="Crear receta"
+                title="Pedirle una receta al Coach"
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  router.push("/smart-coach-pro" as any);
+                }}
+                icon={<MaterialCommunityIcons name="robot-happy-outline" size={18} color={colors.onCta} />}
+              />
+              <PrimaryButton
+                title="Crear receta manualmente"
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   router.push({
                     pathname: "/(tabs)/create-recipe",
                     params: { reset: "true" },
@@ -659,8 +667,18 @@ export default function MyFoodsScreen() {
               </View>
               <Text style={s.emptyTitle}>Aún no tienes favoritos</Text>
               <Text style={s.emptyText}>
-                Marca productos como favoritos desde la búsqueda para acceder rápidamente a ellos.
+                Cuando agregues un alimento, tocá la estrella para guardarlo acá y acceder rápido la próxima vez.
               </Text>
+              <View style={{ marginTop: 16, width: "100%" }}>
+                <PrimaryButton
+                  title="Agregar un alimento"
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push("/(tabs)/add-food" as any);
+                  }}
+                  icon={<Feather name="search" size={18} color={colors.onCta} />}
+                />
+              </View>
             </View>
           </View>
         )}
