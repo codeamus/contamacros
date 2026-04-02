@@ -2,7 +2,7 @@
 import { storage } from "@/core/storage/storage";
 import { StorageKeys } from "@/core/storage/keys";
 
-const DAILY_LIMIT = 3;
+const DAILY_LIMIT = 0; // Solo premium: 0 escaneos IA gratuitos
 
 type ScanLimitData = {
   date: string; // YYYY-MM-DD

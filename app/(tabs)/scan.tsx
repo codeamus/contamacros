@@ -66,8 +66,8 @@ export default function ScanScreen() {
     onLimitReached: () => {
       // Mostrar Alert cuando se alcanza el límite
       Alert.alert(
-        "Límite de escaneos alcanzado",
-        "Has alcanzado el límite de 3 escaneos diarios gratuitos. ¡Pásate a Premium para uso ilimitado!",
+        "Función exclusiva Premium",
+        "El escaneo por IA es exclusivo para usuarios Premium. ¡Activa tu plan para usarlo sin límites!",
         [
           {
             text: "Cancelar",

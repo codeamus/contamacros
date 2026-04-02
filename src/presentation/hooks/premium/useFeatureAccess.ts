@@ -16,7 +16,7 @@ export type FeatureAccess = {
 const LIMITS = {
   barcode: 5,
   recipe: 5,
-  ai: 1,
+  ai: 0, // Solo premium: 0 escaneos IA gratuitos
   history: 7, // días
 };
 
