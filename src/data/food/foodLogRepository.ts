@@ -588,6 +588,65 @@ export const foodLogRepository = {
     }
   },
 
+  async getDailyMacroBreakdown(
+    startDate: string,
+    endDate: string,
+  ): Promise<
+    RepoResult<
+      Array<{
+        day: string;
+        protein_g: number;
+        carbs_g: number;
+        fat_g: number;
+        calories: number;
+      }>
+    >
+  > {
+    try {
+      const uidRes = await getUid();
+      if (!uidRes.ok) return uidRes;
+      const uid = uidRes.data;
+
+      const { data, error } = await supabase
+        .from("food_logs")
+        .select("day, calories, protein_g, carbs_g, fat_g")
+        .eq("user_id", uid)
+        .gte("day", startDate)
+        .lte("day", endDate)
+        .order("day", { ascending: true });
+
+      if (error) return { ok: false, message: error.message, code: error.code };
+
+      const grouped = new Map<
+        string,
+        { protein_g: number; carbs_g: number; fat_g: number; calories: number }
+      >();
+
+      for (const log of data ?? []) {
+        const day = log.day as string;
+        const cur = grouped.get(day) ?? {
+          protein_g: 0,
+          carbs_g: 0,
+          fat_g: 0,
+          calories: 0,
+        };
+        cur.protein_g += (log.protein_g as number) || 0;
+        cur.carbs_g += (log.carbs_g as number) || 0;
+        cur.fat_g += (log.fat_g as number) || 0;
+        cur.calories += (log.calories as number) || 0;
+        grouped.set(day, cur);
+      }
+
+      const result = Array.from(grouped.entries())
+        .map(([day, macros]) => ({ day, ...macros }))
+        .sort((a, b) => a.day.localeCompare(b.day));
+
+      return { ok: true, data: result };
+    } catch (e) {
+      return { ok: false, ...mapError(e) };
+    }
+  },
+
   async createMany(
     logs: Array<{
       day: string;
