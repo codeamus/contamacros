@@ -33,7 +33,9 @@ import {
   type FoodSearchItem,
 } from "@/domain/mappers/foodMappers";
 
+import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
+import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useFavorites } from "@/presentation/hooks/food/useFavorites";
 import { useStaggerAnimation } from "@/presentation/hooks/ui/useStaggerAnimation";
 import { useToast } from "@/presentation/hooks/ui/useToast";
@@ -355,8 +357,10 @@ export default function MyFoodsScreen() {
   const { theme } = useTheme();
   const { colors, typography } = theme;
   const { showToast } = useToast();
+  const { profile } = useAuth();
   const s = makeStyles(colors, typography);
 
+  const [paywallVisible, setPaywallVisible] = useState(false);
   const [myFoods, setMyFoods] = useState<UserFoodDb[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -572,7 +576,11 @@ export default function MyFoodsScreen() {
                 title="Pedirle una receta al Coach"
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  router.push("/smart-coach-pro" as any);
+                  if (!profile?.is_premium) {
+                    setPaywallVisible(true);
+                  } else {
+                    router.push("/smart-coach-pro" as any);
+                  }
                 }}
                 icon={<MaterialCommunityIcons name="robot-happy-outline" size={18} color={colors.onCta} />}
               />
@@ -685,6 +693,11 @@ export default function MyFoodsScreen() {
 
         <View style={{ height: 20 }} />
       </ScrollView>
+
+      <PremiumPaywall
+        visible={paywallVisible}
+        onClose={() => setPaywallVisible(false)}
+      />
 
     </SafeAreaView>
   );
