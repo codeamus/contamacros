@@ -13,7 +13,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.codeamusdev2.contamacro",
-      "buildNumber": "14",
+      "buildNumber": "15",
       "supportsTablet": false,
       "usesAppleSignIn": true,
       "appleTeamId": "47CYZ3UYYK",
