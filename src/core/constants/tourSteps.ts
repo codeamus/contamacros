@@ -2,13 +2,10 @@
 
 export type TourStepId =
   | "welcome"
-  | "diary-tab"
   | "add-meal"
-  | "scan-options"
-  | "meal-type"
-  | "finish";
+  | "scan-options";
 
-export type TourScreen = "home" | "diary" | "add-food" | "finish";
+export type TourScreen = "home" | "diary" | "add-food";
 
 export type TourStepDef = {
   id: TourStepId;
@@ -25,49 +22,27 @@ export const TOUR_STEPS: TourStepDef[] = [
   {
     id: "welcome",
     screen: "home",
-    title: "Bienvenido a ContaMacros",
+    title: "Tu progreso, de un vistazo",
     description:
-      "Aquí ves tu progreso diario de calorías y macros. Te mostramos las funciones clave para que empieces rápido.",
-    spotlightPadding: 8,
-  },
-  {
-    id: "diary-tab",
-    screen: "home",
-    title: "Tu Diario",
-    description:
-      'La pestaña "Diario" es donde registras todas tus comidas. Avanza para ir ahí.',
+      "Acá ves tus calorías y macros del día en tiempo real. Una sola pantalla para saber cómo vas.",
     navigateTo: "/(tabs)/diary",
+    spotlightPadding: 8,
   },
   {
     id: "add-meal",
     screen: "diary",
-    title: "Agregar comida",
+    title: "Registra lo que comés",
     description:
-      'Toca "Añadir" para registrar una nueva comida. Puedes buscar por nombre, código de barras o foto con IA.',
+      'Toca "Añadir" para agregar una comida. Busca por nombre o usá el escaneo — es más rápido.',
     navigateTo: "/(tabs)/add-food",
     spotlightPadding: 4,
   },
   {
     id: "scan-options",
     screen: "add-food",
-    title: "Escaneo automático",
+    title: "Escaneo con código o IA",
     description:
-      "Escanea el código de barras o usa IA con una foto para detectar los macros automáticamente. Sin escribir nada.",
+      "Lee el código de barras del producto o sacá una foto del plato y la IA detecta los macros sola.",
     spotlightPadding: 6,
-  },
-  {
-    id: "meal-type",
-    screen: "add-food",
-    title: "Tipo de comida",
-    description:
-      "Selecciona desayuno, almuerzo, cena o snack para organizar tu día y ver los totales por comida.",
-    spotlightPadding: 6,
-  },
-  {
-    id: "finish",
-    screen: "finish",
-    title: "¡Listo para empezar!",
-    description:
-      "Ya conoces lo esencial. Registra tus comidas, alcanza tus macros y cumple tus objetivos. ¡Buena suerte!",
   },
 ];

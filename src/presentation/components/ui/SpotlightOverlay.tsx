@@ -19,21 +19,7 @@ import {
 
 const OVERLAY_COLOR = "rgba(0,0,0,0.82)";
 const SPOTLIGHT_BORDER_RADIUS = 16;
-const TAB_BAR_HEIGHT = Platform.OS === "ios" ? 88 : 75;
 const TOOLTIP_PADDING = 20;
-
-function computeDiaryTabLayout(): SpotlightLayout {
-  const { width, height } = Dimensions.get("window");
-  const tabCount = 4;
-  const tabWidth = width / tabCount;
-  // Diary is 2nd visible tab (index 1)
-  return {
-    x: tabWidth,
-    y: height - TAB_BAR_HEIGHT,
-    width: tabWidth,
-    height: TAB_BAR_HEIGHT,
-  };
-}
 
 export default function SpotlightOverlay() {
   const { isActive, currentStepIndex, currentStep, getLayout, nextStep, skipTour } =
@@ -91,14 +77,9 @@ export default function SpotlightOverlay() {
   if (!isActive || !currentStep) return null;
 
   // Resolve layout for current step
-  let layout: SpotlightLayout | null = null;
-  if (currentStep.id === "diary-tab") {
-    layout = computeDiaryTabLayout();
-  } else if (currentStep.screen !== "finish") {
-    layout = getLayout(currentStep.id);
-  }
+  const layout: SpotlightLayout | null = getLayout(currentStep.id);
 
-  const { width: SW, height: SH } = Dimensions.get("window");
+  const { height: SH } = Dimensions.get("window");
   const padding = currentStep.spotlightPadding ?? 0;
 
   const spot = layout
@@ -129,10 +110,8 @@ export default function SpotlightOverlay() {
     }
   }
 
-  const isFinish = currentStep.screen === "finish";
-  const isLastContentStep = currentStepIndex === TOUR_STEPS.length - 1;
-  const buttonLabel =
-    isLastContentStep || isFinish ? "¡Empezar!" : "Siguiente";
+  const isLastStep = currentStepIndex === TOUR_STEPS.length - 1;
+  const buttonLabel = isLastStep ? "¡Empezar!" : "Siguiente";
 
   function handleOutsidePress() {
     // Pulse stronger to hint "tap the spotlight"
@@ -154,10 +133,6 @@ export default function SpotlightOverlay() {
   const pulseScale = pulseAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [1, 1.04],
-  });
-  const wrongScale = wrongTouchAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 1.06],
   });
   const ringOpacity = Animated.add(
     pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.85] }),
@@ -183,9 +158,9 @@ export default function SpotlightOverlay() {
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      {/* === OVERLAY (4 views + optional center overlay for finish) === */}
-      {isFinish || !spot ? (
-        // Full overlay for finish step
+      {/* === OVERLAY === */}
+      {!spot ? (
+        // Full overlay cuando no hay layout reportado aún
         <Pressable
           style={[StyleSheet.absoluteFill, { backgroundColor: OVERLAY_COLOR }]}
           onPress={handleOutsidePress}
@@ -286,37 +261,33 @@ export default function SpotlightOverlay() {
         {/* Icon badge */}
         <View style={styles.tooltipBadge}>
           <MaterialCommunityIcons
-            name={isFinish ? "check-circle" : "map-marker-path"}
+            name="map-marker-path"
             size={20}
             color={colors.onCta}
           />
         </View>
 
         {/* Step indicator */}
-        {!isFinish && (
-          <Text style={styles.stepIndicator}>
-            {currentStepIndex + 1} / {TOUR_STEPS.length}
-          </Text>
-        )}
+        <Text style={styles.stepIndicator}>
+          {currentStepIndex + 1} / {TOUR_STEPS.length}
+        </Text>
 
         <Text style={styles.tooltipTitle}>{currentStep.title}</Text>
         <Text style={styles.tooltipDescription}>{currentStep.description}</Text>
 
         {/* Dots */}
-        {!isFinish && (
-          <View style={styles.dots}>
-            {TOUR_STEPS.map((_, i) => (
-              <View
-                key={i}
-                style={[styles.dot, i === currentStepIndex && styles.dotActive]}
-              />
-            ))}
-          </View>
-        )}
+        <View style={styles.dots}>
+          {TOUR_STEPS.map((_, i) => (
+            <View
+              key={i}
+              style={[styles.dot, i === currentStepIndex && styles.dotActive]}
+            />
+          ))}
+        </View>
 
         {/* Buttons row */}
         <View style={styles.buttonRow}>
-          {!isFinish && (
+          {!isLastStep && (
             <Pressable
               onPress={skipTour}
               style={({ pressed }) => [

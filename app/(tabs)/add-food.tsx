@@ -256,18 +256,14 @@ export default function AddFoodScreen() {
   const [showPaywall, setShowPaywall] = useState(false);
   const { checkAccess } = useFeatureAccess();
 
-  // Tour: refs para scan buttons y meal chips (pasos 'scan-options' y 'meal-type')
+  // Tour: ref para scan buttons (paso 'scan-options')
   const scanButtonsRef = useRef<View>(null);
-  const mealChipsRef = useRef<View>(null);
   const { reportLayout } = useTour();
 
   useEffect(() => {
     const timer = setTimeout(() => {
       scanButtonsRef.current?.measure((_x, _y, width, height, pageX, pageY) => {
         if (width > 0) reportLayout("scan-options", { x: pageX, y: pageY, width, height });
-      });
-      mealChipsRef.current?.measure((_x, _y, width, height, pageX, pageY) => {
-        if (width > 0) reportLayout("meal-type", { x: pageX, y: pageY, width, height });
       });
     }, 300);
     return () => clearTimeout(timer);
@@ -1227,7 +1223,7 @@ export default function AddFoodScreen() {
               </View>
 
               {/* Meal chips */}
-              <View ref={mealChipsRef}>
+              <View>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -1565,6 +1561,31 @@ export default function AddFoodScreen() {
                   </View>
                 </View>
               )}
+
+              {/* Empty state — solo para usuarios nuevos sin historial ni favoritos */}
+              {!query.trim() &&
+                recentFoods.length === 0 &&
+                favoriteFoods.length === 0 &&
+                myRecipes.length === 0 &&
+                !isSearchingLocal && (
+                  <View style={s.emptyState}>
+                    <View style={s.emptyIconWrap}>
+                      <MaterialCommunityIcons
+                        name="food-apple-outline"
+                        size={28}
+                        color={colors.brand}
+                      />
+                    </View>
+                    <Text style={s.emptyTitle}>
+                      Todavía no tenés alimentos guardados
+                    </Text>
+                    <Text style={s.emptyBody}>
+                      Buscá por nombre arriba o usá el escaneo para agregar tu
+                      primera comida. Los recientes y favoritos aparecerán acá
+                      para que registrar sea más rápido.
+                    </Text>
+                  </View>
+                )}
 
               {(isSearchingLocal || isSearchingMore) && (
                 <View style={s.loadingBox}>
@@ -2474,6 +2495,31 @@ function makeStyles(colors: any, typography: any) {
       fontSize: 12,
       color: colors.textSecondary,
       textAlign: "center",
+    },
+
+    // Empty state para usuario nuevo (sin recientes, favoritos ni recetas)
+    emptyState: {
+      marginTop: 24,
+      alignItems: "center",
+      gap: 10,
+      paddingHorizontal: 8,
+    },
+    emptyIconWrap: {
+      width: 56,
+      height: 56,
+      borderRadius: 20,
+      backgroundColor: `rgba(34,197,94,0.10)`,
+      borderWidth: 1,
+      borderColor: `rgba(34,197,94,0.20)`,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    emptyBody: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 13,
+      color: colors.textSecondary,
+      textAlign: "center",
+      lineHeight: 19,
     },
     createFoodCard: {
       flexDirection: "row",
