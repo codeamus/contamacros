@@ -66,8 +66,12 @@ export default function AuthTextField({
         style={[
           styles.inputWrap,
           {
-            backgroundColor: colors.surface,
+            // Fondo tintado + borde más grueso en error — sin salir de la paleta
+            backgroundColor: error
+              ? `rgba(122,74,46,0.10)`
+              : colors.surface,
             borderColor,
+            borderWidth: error ? 1.5 : 1,
           },
         ]}
       >

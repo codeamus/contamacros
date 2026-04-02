@@ -64,7 +64,7 @@ export default function AboutScreen() {
 
   const defaultDate = useMemo(() => {
     const now = new Date();
-    return new Date(now.getFullYear() - 25, now.getMonth(), now.getDate());
+    return new Date(now.getFullYear() - 30, now.getMonth(), now.getDate());
   }, []);
 
   const [birthDate, setBirthDate] = useState<Date>(defaultDate);
@@ -549,5 +549,6 @@ function makeStyles(colors: any, typography: any) {
       color: colors.brand,
       fontSize: 14,
     },
+
   });
 }

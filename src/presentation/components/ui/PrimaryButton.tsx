@@ -18,6 +18,12 @@ type Props = {
 
   /** Icono opcional (ej: <Feather name="log-in" size={18} />) */
   icon?: React.ReactNode;
+
+  /**
+   * Texto que se muestra junto al spinner cuando loading=true.
+   * Si no se pasa, solo se muestra el spinner (comportamiento anterior).
+   */
+  loadingTitle?: string;
 };
 
 export default function PrimaryButton({
@@ -27,6 +33,7 @@ export default function PrimaryButton({
   loading,
   testID,
   icon,
+  loadingTitle,
 }: Props) {
   const { theme } = useTheme();
   const { colors, typography } = theme;
@@ -49,7 +56,22 @@ export default function PrimaryButton({
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={colors.onCta} />
+        <View style={styles.content}>
+          <ActivityIndicator color={colors.onCta} size="small" />
+          {!!loadingTitle && (
+            <Text
+              style={[
+                styles.text,
+                {
+                  color: colors.onCta,
+                  fontFamily: typography.subtitle?.fontFamily,
+                },
+              ]}
+            >
+              {loadingTitle}
+            </Text>
+          )}
+        </View>
       ) : (
         <View style={styles.content}>
           {icon && <View style={styles.iconWrap}>{icon}</View>}

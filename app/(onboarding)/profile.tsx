@@ -211,6 +211,7 @@ export default function ProfileScreen() {
                   onPress={onFinish}
                   loading={loading}
                   disabled={!canFinish}
+                  loadingTitle="Calculando tu plan..."
                 />
               </View>
             </View>
