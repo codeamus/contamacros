@@ -1,5 +1,7 @@
 // src/presentation/hooks/smartCoach/useSmartCoachPro.ts
 import { activityLogRepository } from "@/data/activity/activityLogRepository";
+import { askFitnessCoach } from "@/data/ai/coachAdvancedService";
+import type { ChatMessage } from "@/data/ai/geminiService";
 import { exercisesRepository } from "@/data/exercise/exercisesRepository";
 import { foodLogRepository } from "@/data/food/foodLogRepository";
 import { genericFoodsRepository } from "@/data/food/genericFoodsRepository";
@@ -10,6 +12,9 @@ import type {
     SmartCoachRecommendation,
     SmartCoachState,
 } from "@/domain/models/smartCoach";
+import type { FoodFrequency, WeeklyAnalysis } from "@/domain/models/fitnessCoachChat";
+import { buildConversationContext } from "@/domain/services/coachContextBuilder";
+import { generateWeeklyAnalysis, detectFavoriteFoods } from "@/data/history/userFoodHistoryAnalyzer";
 import { todayStrLocal } from "@/presentation/utils/date";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -451,8 +456,17 @@ async function findFirstMealSuggestion(
   };
 }
 
+// ─── Tipos extendidos para el return del hook ────────────────────────
+export type FitnessCoachChatState = {
+  messages: ChatMessage[];
+  chatLoading: boolean;
+  sendMessage: (text: string) => Promise<void>;
+  clearChat: () => void;
+};
+
 /**
- * Hook para obtener recomendaciones de Smart Coach Pro
+ * Hook para obtener recomendaciones de Fitness Coach Pro
+ * (antes Smart Coach Pro — ahora con chat conversacional v2)
  */
 export function useSmartCoachPro(
   profile: ProfileDb | null,
@@ -462,11 +476,20 @@ export function useSmartCoachPro(
   carbsConsumed: number,
   fatConsumed: number,
   isPremium: boolean,
-): SmartCoachState {
+): SmartCoachState & FitnessCoachChatState {
   const [recommendation, setRecommendation] =
     useState<SmartCoachRecommendation | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // ── Chat conversacional (in-memory, session-based)
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
+
+  // Cache de análisis semanal (se carga una vez por sesión)
+  const weeklyAnalysisRef = useRef<WeeklyAnalysis | null>(null);
+  const favoriteFoodsRef = useRef<FoodFrequency[]>([]);
+  const analysisLoadedRef = useRef(false);
 
   const isProcessingRef = useRef(false);
   const lastExecutionDataRef = useRef<{
@@ -1055,10 +1078,137 @@ export function useSmartCoachPro(
     }, [fetchRecommendation, caloriesConsumed, proteinConsumed, carbsConsumed, fatConsumed])
   );
 
-  return { 
-    recommendation, 
-    loading, 
+  // ── Cargar análisis semanal y alimentos favoritos (una vez por sesión)
+  useEffect(() => {
+    if (analysisLoadedRef.current || !isPremium) return;
+    analysisLoadedRef.current = true;
+
+    const loadAnalysis = async () => {
+      try {
+        const targets = {
+          calories: Number(caloriesTarget) || 0,
+          protein: profile?.protein_g ?? 0,
+          carbs: profile?.carbs_g ?? 0,
+          fat: profile?.fat_g ?? 0,
+        };
+        const goalRaw = profile?.goal ?? "maintain";
+        const goalMapped: "lose_weight" | "maintain" | "gain_weight" =
+          goalRaw === "deficit" ? "lose_weight"
+          : goalRaw === "surplus" ? "gain_weight"
+          : "maintain";
+        const [wa, ff] = await Promise.all([
+          generateWeeklyAnalysis(targets, goalMapped),
+          detectFavoriteFoods(30, undefined, 5),
+        ]);
+        weeklyAnalysisRef.current = wa;
+        favoriteFoodsRef.current = ff;
+      } catch (err) {
+        console.warn("[FitnessCoach] Error cargando análisis semanal:", err);
+      }
+    };
+
+    loadAnalysis();
+  }, [isPremium, caloriesTarget, profile]);
+
+  // ── Función para enviar mensaje al coach
+  const sendMessage = useCallback(async (text: string) => {
+    if (!text.trim() || chatLoading) return;
+
+    const userMsg: ChatMessage = { role: "user", content: text.trim() };
+    const updatedHistory = [...chatMessages, userMsg];
+    setChatMessages(updatedHistory);
+    setChatLoading(true);
+
+    try {
+      // Construir contexto completo
+      const proteinTarget = profile?.protein_g ?? 0;
+      const carbsTarget = profile?.carbs_g ?? 0;
+      const fatTarget = profile?.fat_g ?? 0;
+
+      // Mapear goal de la BD ("deficit" | "surplus" | "maintain") al tipo del context builder
+      const goalMap: Record<string, "lose_weight" | "maintain" | "gain_weight"> = {
+        deficit: "lose_weight",
+        surplus: "gain_weight",
+        maintain: "maintain",
+      };
+      const mappedGoal: "lose_weight" | "maintain" | "gain_weight" =
+        goalMap[profile?.goal ?? "maintain"] ?? "maintain";
+
+      // Si no hay nombre, no usar fallback genérico — pasar cadena vacía
+      const userName = profile?.full_name?.trim() || "";
+
+      __DEV__ && console.log("[FitnessCoach] context → goal:", profile?.goal, "→ mapped:", mappedGoal, "| name:", userName || "(sin nombre)");
+
+      const context = buildConversationContext({
+        userName,
+        userGoal: mappedGoal,
+        weightKg: profile?.weight_kg ?? 70,
+        dietaryPreference: profile?.dietary_preference ?? null,
+        consumed: {
+          calories: Number(caloriesConsumed),
+          protein: Number(proteinConsumed),
+          carbs: Number(carbsConsumed),
+          fat: Number(fatConsumed),
+        },
+        targets: {
+          calories: Number(caloriesTarget),
+          protein: Number(proteinTarget),
+          carbs: Number(carbsTarget),
+          fat: Number(fatTarget),
+        },
+        weeklyAnalysis: weeklyAnalysisRef.current,
+        favoriteFoods: favoriteFoodsRef.current,
+        caloriesBurnedToday: 0, // Se puede pasar desde la pantalla si se tiene
+        isPremium,
+      });
+
+      const response = await askFitnessCoach(text.trim(), context, updatedHistory);
+
+      // Convertir respuesta a ChatMessage para el historial
+      const coachContent =
+        response.type === "text" || response.type === "fallback"
+          ? response.message
+          : response.message; // La pantalla maneja recipe/plan directamente via data
+
+      const coachMsg: ChatMessage = {
+        role: "assistant",
+        content: coachContent,
+        type: response.type !== "fallback" ? response.type : "text",
+        data: response.type === "recipe"
+          ? (response as any).recipe
+          : response.type === "plan"
+            ? (response as any).plan
+            : undefined,
+      };
+
+      setChatMessages((prev) => [...prev, coachMsg]);
+    } catch (err) {
+      console.error("[FitnessCoach] sendMessage error:", err);
+      const errMsg: ChatMessage = {
+        role: "assistant",
+        content: "Tuve un problema. ¿Me lo repites?",
+        type: "text",
+      };
+      setChatMessages((prev) => [...prev, errMsg]);
+    } finally {
+      setChatLoading(false);
+    }
+  }, [chatMessages, chatLoading, profile, caloriesTarget, caloriesConsumed, proteinConsumed, carbsConsumed, fatConsumed, isPremium]);
+
+  // ── Limpiar chat
+  const clearChat = useCallback(() => {
+    setChatMessages([]);
+  }, []);
+
+  return {
+    recommendation,
+    loading,
     error,
     reload: fetchRecommendation,
+    // Chat v2
+    messages: chatMessages,
+    chatLoading,
+    sendMessage,
+    clearChat,
   };
 }

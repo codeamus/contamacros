@@ -569,7 +569,7 @@ export default function MyFoodsScreen() {
             </View>
             <Text style={s.emptyTitle}>Aún no tienes recetas</Text>
             <Text style={s.emptyText}>
-              Pedile al Smart Coach que te arme una receta según tus macros del día, o créala vos combinando ingredientes.
+              Pedile al Fitness Coach que te arme una receta según tus macros del día, o créala vos combinando ingredientes.
             </Text>
             <View style={{ marginTop: 16, width: "100%", gap: 10 }}>
               <PrimaryButton

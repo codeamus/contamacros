@@ -1,50 +1,110 @@
-# Welcome to your Expo app 👋
+# ContaMacros — App móvil para contar calorías y macros
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+App móvil (iOS + Android) para contar calorías y macronutrientes con enfoque en el mercado chileno. Ayuda a personas a subir o bajar de peso mediante el seguimiento de su alimentación diaria.
 
-## Get started
+**Estado:** Pre-lanzamiento. App en desarrollo activo.
 
-1. Install dependencies
+---
 
-   ```bash
-   npm install
-   ```
+## Stack Técnico
 
-2. Start the app
+- **React Native + Expo** (Expo Router — file-based routing)
+- **Supabase** (PostgreSQL, Auth, RLS)
+- **Google Gemini 2.5 Flash** (IA: escaneo de platos + Fitness Coach Pro)
+- **OpenFoodFacts API** (escaneo de código de barras)
+- **RevenueCat** (gestión de suscripciones)
+- **TypeScript** estricto
 
-   ```bash
-   npx expo start
-   ```
+---
 
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Comandos
 
 ```bash
-npm run reset-project
+pnpm install        # Instalar dependencias
+npx expo start      # Iniciar en desarrollo
+npx expo start --ios     # Simulador iOS
+npx expo start --android # Emulador Android
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+---
 
-## Learn more
+## Estructura del Proyecto
 
-To learn more about developing your project with Expo, look at the following resources:
+```
+app/                    # Pantallas (Expo Router)
+├── (tabs)/             # Tabs principales (home, diary, add-food, scan, etc.)
+├── smart-coach-pro.tsx # Chat con Fitness Coach Pro
+└── _layout.tsx         # Layout raíz
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+src/
+├── data/               # Repositorios, servicios externos, IA
+│   ├── ai/             # Servicios Gemini (coach, escaneo IA)
+│   ├── repositories/   # Acceso a Supabase
+│   └── services/       # OpenFoodFacts, etc.
+├── domain/             # Tipos, modelos de dominio
+└── presentation/
+    ├── components/     # Componentes reutilizables
+    └── hooks/          # Hooks de lógica de negocio
 
-## Join the community
+supabase/
+└── seeds/              # Scripts SQL de seed
+    └── generic_foods_chile.sql  # ~80 alimentos típicos chilenos
 
-Join our community of developers creating universal apps.
+docs/                   # Documentación técnica
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+---
+
+## Features Principales
+
+| Feature | Descripción |
+|---------|-------------|
+| Registro de comidas | Búsqueda manual o por escaneo con cálculo automático de macros |
+| Escaneo código de barras | OpenFoodFacts API — lee el código y busca en BD mundial |
+| Escaneo IA de platos | Foto del plato → Gemini detecta alimento, porción y macros |
+| Crowdsourcing | Si el barcode no existe, el usuario lo agrega para toda la comunidad |
+| **Fitness Coach Pro** | Chat IA conversacional: recetas, planes, rutinas según macros del día |
+| Health Sync | Apple Health (iOS) y Health Connect (Android) para calorías quemadas |
+| Gamificación | XP, niveles, rachas diarias, logros, ranking de contribuidores |
+
+---
+
+## Planes y Precios
+
+| Plan | Precio | Trial |
+|------|--------|-------|
+| Gratuito | $0 | — |
+| Mensual | $4.990 CLP/mes | Sin trial |
+| Anual | $29.990 CLP/año | **7 días gratis** |
+
+El estado premium vive en `profiles.is_premium` (sincronizado con RevenueCat).
+
+---
+
+## Base de Datos
+
+Schema completo en `docs/DATABASE_SCHEMA.md` y `docs/SUPABASE_REFERENCE.md`.
+
+Tablas principales: `profiles`, `user_stats`, `generic_foods`, `user_foods`, `food_logs`, `activity_logs`, `user_achievements`.
+
+---
+
+## Documentación Técnica
+
+| Documento | Descripción |
+|-----------|-------------|
+| `docs/FITNESS_COACH_PRO.md` | Arquitectura y flujo del Fitness Coach Pro (chat IA + recomendaciones) |
+| `docs/DATABASE_SCHEMA.md` | Schema completo de todas las tablas |
+| `docs/SUPABASE_REFERENCE.md` | Referencia rápida de columnas, RLS e índices |
+| `docs/NAVIGATION_FLOW.md` | Flujo Scanner → AddFood → Diary con manejo de estados |
+| `docs/free-vs-premium.md` | Modelo Free vs Premium y feature flags |
+| `docs/TOUR_PROMPT.md` | Diseño del tour guiado para nuevos usuarios |
+| `docs/calorie-goals.md` | Cálculo de TDEE y objetivos calóricos |
+| `docs/user-profile.md` | Modelo de perfil de usuario |
+
+---
+
+## Sitio Web
+
+El sitio web (landing page) está en el repositorio `contamacros-web` (Astro 5 + TailwindCSS).
+Dominio: https://contamacros.cl

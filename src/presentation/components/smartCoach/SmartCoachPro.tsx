@@ -135,7 +135,7 @@ export default function SmartCoachPro({
         <Text style={s.message}>{content.message}</Text>
         <View style={s.actions}>
           <Text style={s.actionText}>
-            {isPremium ? "Chatear con Coach" : "Ver Smart Coach Pro"}
+            {isPremium ? "Chatear con Coach" : "Ver Fitness Coach Pro"}
           </Text>
           <MaterialCommunityIcons
             name="arrow-right"

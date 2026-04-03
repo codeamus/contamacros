@@ -1,11 +1,9 @@
 import {
-  askSmartCoach,
   type ChatMessage,
   type SmartCoachDayPlan,
   type SmartCoachMeal,
   type SmartCoachMealPlan,
   type SmartCoachRecipe,
-  type SmartCoachRefinementContext,
 } from "@/data/ai/geminiService";
 import { foodLogRepository } from "@/data/food/foodLogRepository";
 import type { DietaryPreferenceDb } from "@/domain/models/profileDb";
@@ -15,6 +13,7 @@ import { RecipeCard } from "@/presentation/components/smartCoach/RecipeCard";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useTodaySummary } from "@/presentation/hooks/diary/useTodaySummary";
 import { useHealthSync } from "@/presentation/hooks/health/useHealthSync";
+import { useSmartCoachPro } from "@/presentation/hooks/smartCoach/useSmartCoachPro";
 import { useRevenueCat } from "@/presentation/hooks/subscriptions/useRevenueCat";
 import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
@@ -65,19 +64,42 @@ export default function SmartCoachProScreen() {
   const isPremium = revenueCatPremium || profilePremium;
   const { caloriesBurned } = useHealthSync(isPremium);
 
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [chatText, setChatText] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [planLoading, setPlanLoading] = useState(false);
-  const [savingDiet, setSavingDiet] = useState(false);
-  const flatListRef = useRef<FlatList>(null);
-
   const caloriesTarget = profile?.daily_calorie_target ?? 0;
   const proteinTarget = profile?.protein_g ?? 0;
   const carbsTarget = profile?.carbs_g ?? 0;
   const fatTarget = profile?.fat_g ?? 0;
   const effectiveCaloriesTarget =
     caloriesTarget + (isPremium ? caloriesBurned : 0);
+
+  // Hook con lógica de recomendaciones + chat v2
+  const {
+    messages: hookMessages,
+    chatLoading,
+    sendMessage,
+    clearChat,
+  } = useSmartCoachPro(
+    profile,
+    effectiveCaloriesTarget,
+    totals.calories,
+    totals.protein,
+    totals.carbs,
+    totals.fat,
+    isPremium,
+  );
+
+  const [chatText, setChatText] = useState("");
+  const [planLoading, setPlanLoading] = useState(false);
+  const [savingDiet, setSavingDiet] = useState(false);
+  const flatListRef = useRef<FlatList>(null);
+
+  // Mensaje de bienvenida inicial (solo si no hay mensajes del hook)
+  const [welcomeShown, setWelcomeShown] = useState(false);
+  const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
+
+  // Combinar mensaje de bienvenida local con mensajes del hook
+  const messages = localMessages.length > 0 || hookMessages.length > 0
+    ? [...localMessages, ...hookMessages]
+    : [];
 
   const orderedDietOptions = useMemo(() => {
     const active = profile?.dietary_preference ?? null;
@@ -88,18 +110,23 @@ export default function SmartCoachProScreen() {
   }, [profile?.dietary_preference]);
 
   useEffect(() => {
-    if (messages.length === 0) {
-      setMessages([
+    if (!welcomeShown) {
+      setWelcomeShown(true);
+      const hour = new Date().getHours();
+      const greeting =
+        hour < 12 ? "¡Buenos días" : hour < 20 ? "¡Buenas tardes" : "¡Buenas noches";
+      setLocalMessages([
         {
           role: "assistant",
           content:
-            "¡Súper! Soy tu Smart Coach Pro. Estoy aquí para ayudarte a cumplir tus metas de hoy. ¿En qué te puedo ayudar? Si no sabes qué comer, ¡pídeme una recomendación!",
+            `${greeting}! Soy tu Fitness Coach Pro. Tengo contexto de tus macros de hoy y tu historial de la semana. Puedo ayudarte con comidas, recetas, planes y rutinas de ejercicio. ¿En qué empezamos?`,
         },
       ]);
     }
-    // Cleanup al desmontar: asegura que la siguiente sesión sea una "pizarra limpia"
+    // Cleanup al desmontar
     return () => {
-      setMessages([]);
+      setLocalMessages([]);
+      clearChat();
     };
   }, []);
 
@@ -110,104 +137,24 @@ export default function SmartCoachProScreen() {
 
   const handleSend = async () => {
     const text = chatText.trim();
-    if (!text || loading) return;
-
+    if (!text || chatLoading) return;
     Keyboard.dismiss();
-
-    const userMsg: ChatMessage = { role: "user", content: text };
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
     setChatText("");
-    setLoading(true);
-
-    const context: SmartCoachRefinementContext = {
-      userMessage: text,
-      calorieGap: effectiveCaloriesTarget - totals.calories,
-      proteinGap: proteinTarget - totals.protein,
-      carbsGap: carbsTarget - totals.carbs,
-      fatGap: fatTarget - totals.fat,
-      caloriesConsumed: totals.calories,
-      proteinConsumed: totals.protein,
-      carbsConsumed: totals.carbs,
-      fatConsumed: totals.fat,
-      dietaryPreference: (profile?.dietary_preference ?? null) as DietaryPreferenceDb | null,
-      currentFoodName: "",
-      currentMessage: "",
-    };
-
-    try {
-      const response = await askSmartCoach(context, newMessages);
-      const assistantMsg: ChatMessage = {
-        role: "assistant",
-        content: response.message,
-        type: response.type !== "fallback" ? (response.type as any) : "text",
-        data: (response as any).recipe || (response as any).plan || null,
-      };
-      setMessages((prev) => [...prev, assistantMsg]);
-    } catch (error) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "Lo siento, tuve un pequeño error. ¿Podrías repetirme eso?",
-        },
-      ]);
-    } finally {
-      setLoading(false);
-    }
+    await sendMessage(text);
   };
 
   const refreshAfterDietChange = async (
-    newDiet: DietaryPreferenceDb,
+    _newDiet: DietaryPreferenceDb,
     dietLabel: string,
   ) => {
-    if (loading) return;
+    if (chatLoading) return;
     const lastUserMsg = [...messages]
       .reverse()
       .find((m) => m.role === "user")?.content;
     if (!lastUserMsg) return;
 
-    setLoading(true);
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: "assistant",
-        content: `Perfecto. Ajustando tu recomendación a ${dietLabel}…`,
-      },
-    ]);
-
-    const autoPrompt = `Cambié mi preferencia alimentaria a "${newDiet}". Repite la última receta/recomendación adaptándola estrictamente a esta dieta. Petición original: "${lastUserMsg}".`;
-
-    const context: SmartCoachRefinementContext = {
-      userMessage: autoPrompt,
-      calorieGap: effectiveCaloriesTarget - totals.calories,
-      proteinGap: proteinTarget - totals.protein,
-      carbsGap: carbsTarget - totals.carbs,
-      fatGap: fatTarget - totals.fat,
-      caloriesConsumed: totals.calories,
-      proteinConsumed: totals.protein,
-      carbsConsumed: totals.carbs,
-      fatConsumed: totals.fat,
-      dietaryPreference: newDiet,
-      currentFoodName: "",
-      currentMessage: "",
-    };
-
-    try {
-      const response = await askSmartCoach(context, [
-        ...messages,
-        { role: "user", content: autoPrompt },
-      ]);
-      const assistantMsg: ChatMessage = {
-        role: "assistant",
-        content: response.message,
-        type: response.type !== "fallback" ? (response.type as any) : "text",
-        data: (response as any).recipe || (response as any).plan || null,
-      };
-      setMessages((prev) => [...prev, assistantMsg]);
-    } finally {
-      setLoading(false);
-    }
+    const autoPrompt = `Cambié mi preferencia alimentaria a "${dietLabel}". Repite la última receta/recomendación adaptándola a esta dieta. Petición original: "${lastUserMsg}".`;
+    await sendMessage(autoPrompt);
   };
 
   const handleQuickAdd = async (recipe: SmartCoachRecipe) => {
@@ -457,7 +404,7 @@ export default function SmartCoachProScreen() {
           />
         </Pressable>
         <Text style={[s.headerTitle, { color: colors.textPrimary }]}>
-          Smart Coach Pro
+          Fitness Coach Pro
         </Text>
         <View style={s.backBtn} />
       </View>
@@ -502,7 +449,7 @@ export default function SmartCoachProScreen() {
                     });
                   }
                 }}
-                disabled={savingDiet || loading}
+                disabled={savingDiet || chatLoading}
                 style={({ pressed }) => [
                   s.dietChip,
                   {
@@ -566,10 +513,10 @@ export default function SmartCoachProScreen() {
           />
           <Pressable
             onPress={handleSend}
-            disabled={loading || !chatText.trim()}
+            disabled={chatLoading || !chatText.trim()}
             style={[s.sendBtn, { backgroundColor: colors.brand }]}
           >
-            {loading ? (
+            {chatLoading ? (
               <ActivityIndicator size="small" color={colors.onCta} />
             ) : (
               <MaterialCommunityIcons

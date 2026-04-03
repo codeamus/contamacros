@@ -83,7 +83,7 @@ export default function AboutSmartCoachProScreen() {
     >
       {/* Header */}
       <View style={[s.header, { backgroundColor: colors.background }]}>
-        <Text style={s.headerTitle}>Smart Coach Pro</Text>
+        <Text style={s.headerTitle}>Fitness Coach Pro</Text>
         <Pressable
           onPress={handleClose}
           style={({ pressed }) => [s.closeBtn, pressed && { opacity: 0.7 }]}
@@ -128,7 +128,7 @@ export default function AboutSmartCoachProScreen() {
                   Hoy tienes un margen de {calorieGap} kcal
                 </Text>
                 <Text style={s.gradientCardSubtext}>
-                  Sin una estrategia, es fácil perder el progreso. Smart Coach
+                  Sin una estrategia, es fácil perder el progreso. Fitness Coach
                   Pro diseña el cierre perfecto de tu día.
                 </Text>
               </LinearGradient>
@@ -284,7 +284,7 @@ export default function AboutSmartCoachProScreen() {
             ]}
           >
             <Text style={[s.ctaButtonText, { color: colors.onCta }]}>
-              Obtener Smart Coach Pro
+              Obtener Fitness Coach Pro
             </Text>
             <MaterialCommunityIcons
               name="crown"
