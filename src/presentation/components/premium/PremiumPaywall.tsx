@@ -82,10 +82,10 @@ const BENEFITS = [
     iconColor: BENEFIT_ICON_PRO,
   },
   {
-    icon: "history" as const,
-    title: "Historial completo",
+    icon: "robot" as const,
+    title: "Fitness Coach Pro",
     description:
-      "Accede a todos tus registros históricos sin límites.",
+      "Tu coach IA conversacional. Pídele recetas, planes y rutinas según tus macros del día.",
     iconColor: BENEFIT_ICON_AI,
   },
   {
