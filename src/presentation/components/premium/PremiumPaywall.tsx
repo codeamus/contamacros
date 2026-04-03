@@ -61,11 +61,11 @@ const BENEFIT_ICON_PRO = "#FBBF24"; // Destellos — ámbar, coherente con dark
 
 const BENEFITS = [
   {
-    icon: "barcode-scan" as const,
-    title: "Escáner de código de barras ilimitado",
+    icon: "robot" as const,
+    title: "Fitness Coach Pro",
     description:
-      "Encuentra productos chilenos al instante. Sin límites de escaneos.",
-    iconColor: BENEFIT_ICON_PRO,
+      "Tu coach IA conversacional. Pídele recetas, planes y rutinas según tus macros del día.",
+    iconColor: BENEFIT_ICON_AI,
   },
   {
     icon: "camera-iris" as const,
@@ -82,17 +82,17 @@ const BENEFITS = [
     iconColor: BENEFIT_ICON_PRO,
   },
   {
-    icon: "robot" as const,
-    title: "Fitness Coach Pro",
-    description:
-      "Tu coach IA conversacional. Pídele recetas, planes y rutinas según tus macros del día.",
-    iconColor: BENEFIT_ICON_AI,
-  },
-  {
     icon: "heart-pulse" as const,
     title: "Sincronización de Salud",
     description:
       "Conecta tus calorías quemadas automáticamente con Apple Health y Google Fit.",
+    iconColor: BENEFIT_ICON_PRO,
+  },
+  {
+    icon: "barcode-scan" as const,
+    title: "Escáner de código de barras ilimitado",
+    description:
+      "Encuentra productos chilenos al instante. Sin límites de escaneos.",
     iconColor: BENEFIT_ICON_PRO,
   },
 ];
