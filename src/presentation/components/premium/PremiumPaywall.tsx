@@ -65,35 +65,35 @@ const BENEFITS = [
     title: "Fitness Coach Pro",
     description:
       "Tu coach IA conversacional. Pídele recetas, planes y rutinas según tus macros del día.",
-    iconColor: BENEFIT_ICON_AI,
+    iconColor: BENEFIT_ICON_AI,   // celeste
   },
   {
     icon: "camera-iris" as const,
     title: "Escáner nutricional IA ilimitado",
     description:
       "Fotos de tus platos para obtener macros al instante con IA.",
-    iconColor: BENEFIT_ICON_AI,
+    iconColor: BENEFIT_ICON_PRO,  // ámbar
   },
   {
     icon: "chef-hat" as const,
     title: "Recetas ilimitadas",
     description:
       "Crea menús personalizados según tus objetivos sin restricciones.",
-    iconColor: BENEFIT_ICON_PRO,
+    iconColor: BENEFIT_ICON_AI,   // celeste
   },
   {
     icon: "heart-pulse" as const,
     title: "Sincronización de Salud",
     description:
       "Conecta tus calorías quemadas automáticamente con Apple Health y Google Fit.",
-    iconColor: BENEFIT_ICON_PRO,
+    iconColor: BENEFIT_ICON_PRO,  // ámbar
   },
   {
     icon: "barcode-scan" as const,
     title: "Escáner de código de barras ilimitado",
     description:
       "Encuentra productos chilenos al instante. Sin límites de escaneos.",
-    iconColor: BENEFIT_ICON_PRO,
+    iconColor: BENEFIT_ICON_AI,   // celeste
   },
 ];
 
