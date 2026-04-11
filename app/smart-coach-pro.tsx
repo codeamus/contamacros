@@ -7,6 +7,7 @@ import {
 } from "@/data/ai/geminiService";
 import { foodLogRepository } from "@/data/food/foodLogRepository";
 import type { DietaryPreferenceDb } from "@/domain/models/profileDb";
+import { GeminiConsentModal } from "@/presentation/components/smartCoach/GeminiConsentModal";
 import { MacrosHeader } from "@/presentation/components/smartCoach/MacrosHeader";
 import { MealPlanCard } from "@/presentation/components/smartCoach/MealPlanCard";
 import { RecipeCard } from "@/presentation/components/smartCoach/RecipeCard";
@@ -19,6 +20,7 @@ import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { todayStrLocal } from "@/presentation/utils/date";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -96,10 +98,15 @@ export default function SmartCoachProScreen() {
   const [welcomeShown, setWelcomeShown] = useState(false);
   const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
 
+  // Control de consentimiento de Google Gemini (solo se muestra una vez)
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [geminiConsented, setGeminiConsented] = useState(false);
+
   // Combinar mensaje de bienvenida local con mensajes del hook
-  const messages = localMessages.length > 0 || hookMessages.length > 0
-    ? [...localMessages, ...hookMessages]
-    : [];
+  const messages =
+    localMessages.length > 0 || hookMessages.length > 0
+      ? [...localMessages, ...hookMessages]
+      : [];
 
   const orderedDietOptions = useMemo(() => {
     const active = profile?.dietary_preference ?? null;
@@ -109,17 +116,74 @@ export default function SmartCoachProScreen() {
     return [activeOpt, ...DIETARY_OPTIONS.filter((o) => o.value !== active)];
   }, [profile?.dietary_preference]);
 
+  // Verificar consentimiento de Google Gemini (solo primera vez)
   useEffect(() => {
-    if (!welcomeShown) {
+    checkGeminiConsent();
+  }, []);
+
+  const checkGeminiConsent = async () => {
+    try {
+      const hasConsented = await AsyncStorage.getItem("gemini_consent_given");
+      if (!hasConsented) {
+        // Primera vez: mostrar modal
+        setShowConsentModal(true);
+        setGeminiConsented(false);
+      } else {
+        // Ya consintió antes: permitir uso
+        setGeminiConsented(true);
+      }
+    } catch (error) {
+      console.error("Error checking Gemini consent:", error);
+      // Si hay error, permitir pero mostrar modal igualmente
+      setShowConsentModal(true);
+    }
+  };
+
+  const handleAcceptConsent = async () => {
+    try {
+      await AsyncStorage.setItem("gemini_consent_given", "true");
+      await AsyncStorage.setItem(
+        "gemini_consent_date",
+        new Date().toISOString(),
+      );
+      setGeminiConsented(true);
+      setShowConsentModal(false);
+      showToast({
+        message: "¡Listo! Ahora puedes usar Fitness Coach",
+        type: "success",
+      });
+    } catch (error) {
+      console.error("Error saving Gemini consent:", error);
+      showToast({
+        message: "Error al guardar tu consentimiento",
+        type: "error",
+      });
+    }
+  };
+
+  const handleDeclineConsent = () => {
+    setShowConsentModal(false);
+    Alert.alert(
+      "Consentimiento Requerido",
+      "Necesitas aceptar el uso de Google Gemini para usar Fitness Coach Pro. Puedes aceptar en cualquier momento desde esta pantalla.",
+      [{ text: "Entendido", style: "default" }],
+    );
+  };
+
+  useEffect(() => {
+    if (!welcomeShown && geminiConsented) {
       setWelcomeShown(true);
       const hour = new Date().getHours();
       const greeting =
-        hour < 12 ? "¡Buenos días" : hour < 20 ? "¡Buenas tardes" : "¡Buenas noches";
+        hour < 12
+          ? "¡Buenos días"
+          : hour < 20
+            ? "¡Buenas tardes"
+            : "¡Buenas noches";
       setLocalMessages([
         {
           role: "assistant",
-          content:
-            `${greeting}! Soy tu Fitness Coach Pro. Tengo contexto de tus macros de hoy y tu historial de la semana. Puedo ayudarte con comidas, recetas, planes y rutinas de ejercicio. ¿En qué empezamos?`,
+          content: `${greeting}! Soy tu Fitness Coach Pro. Tengo contexto de tus macros de hoy y tu historial de la semana. Puedo ayudarte con comidas, recetas, planes y rutinas de ejercicio. ¿En qué empezamos?`,
         },
       ]);
     }
@@ -128,7 +192,7 @@ export default function SmartCoachProScreen() {
       setLocalMessages([]);
       clearChat();
     };
-  }, []);
+  }, [geminiConsented]);
 
   const handleBack = () => {
     if (router.canGoBack()) router.back();
@@ -390,151 +454,276 @@ export default function SmartCoachProScreen() {
     );
   };
 
-  return (
-    <SafeAreaView
-      style={[s.safe, { backgroundColor: colors.background }]}
-      edges={["top", "bottom"]}
-    >
-      <View style={s.header}>
-        <Pressable onPress={handleBack} style={s.backBtn}>
-          <MaterialCommunityIcons
-            name="arrow-left"
-            size={24}
-            color={colors.textPrimary}
-          />
-        </Pressable>
-        <Text style={[s.headerTitle, { color: colors.textPrimary }]}>
-          Fitness Coach Pro
-        </Text>
-        <View style={s.backBtn} />
-      </View>
-
-      <MacrosHeader
-        protein={{ current: totals.protein, target: proteinTarget }}
-        carbs={{ current: totals.carbs, target: carbsTarget }}
-        fat={{ current: totals.fat, target: fatTarget }}
-        calories={{ current: totals.calories, target: effectiveCaloriesTarget }}
-      />
-
-      <View style={s.dietBar}>
-        <Text style={[s.dietTitle, { color: colors.textSecondary }]}>
-          Preferencia alimentaria
-        </Text>
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={orderedDietOptions}
-          keyExtractor={(item) => item.value}
-          contentContainerStyle={s.dietList}
-          renderItem={({ item }) => {
-            const selected =
-              (profile?.dietary_preference ?? null) === item.value;
-            return (
-              <Pressable
-                onPress={async () => {
-                  if (savingDiet || selected) return;
-                  setSavingDiet(true);
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  const res = await updateProfile({
-                    dietary_preference: item.value,
-                  } as any);
-                  setSavingDiet(false);
-
-                  if (res.ok) {
-                    refreshAfterDietChange(item.value, item.label);
-                  } else {
-                    showToast({
-                      message: res.message ?? "Error al guardar tu dieta",
-                      type: "error",
-                    });
-                  }
-                }}
-                disabled={savingDiet || chatLoading}
-                style={({ pressed }) => [
-                  s.dietChip,
-                  {
-                    backgroundColor: selected
-                      ? colors.brand + "14"
-                      : colors.surface,
-                    borderColor: selected ? colors.brand : colors.border,
-                    opacity: pressed ? 0.92 : 1,
-                  },
-                ]}
-              >
-                <Text style={s.dietEmoji}>{item.emoji}</Text>
-                <Text
-                  style={[
-                    s.dietLabel,
-                    { color: selected ? colors.brand : colors.textPrimary },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {item.label}
-                </Text>
-              </Pressable>
-            );
-          }}
-        />
-      </View>
-
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        renderItem={renderMessage}
-        keyExtractor={(_, index) => String(index)}
-        contentContainerStyle={s.chatList}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
-      />
-
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
+  // Si el consentimiento no está decidido aún, mostrar pantalla de carga
+  if (!geminiConsented && !showConsentModal) {
+    return (
+      <SafeAreaView
+        style={[s.safe, { backgroundColor: colors.background }]}
+        edges={["top", "bottom"]}
       >
         <View
+          style={[s.loadingContainer, { backgroundColor: colors.background }]}
+        >
+          <ActivityIndicator size="large" color={colors.brand} />
+          <Text style={[s.loadingText, { color: colors.textPrimary }]}>
+            Cargando Fitness Coach...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Si rechazó el consentimiento, mostrar mensaje
+  if (!geminiConsented && !showConsentModal) {
+    return (
+      <SafeAreaView
+        style={[s.safe, { backgroundColor: colors.background }]}
+        edges={["top", "bottom"]}
+      >
+        <View style={s.header}>
+          <Pressable onPress={handleBack} style={s.backBtn}>
+            <MaterialCommunityIcons
+              name="arrow-left"
+              size={24}
+              color={colors.textPrimary}
+            />
+          </Pressable>
+          <Text style={[s.headerTitle, { color: colors.textPrimary }]}>
+            Fitness Coach Pro
+          </Text>
+          <View style={s.backBtn} />
+        </View>
+        <View
           style={[
-            s.inputArea,
-            { backgroundColor: colors.surface, borderTopColor: colors.border },
+            s.consentDeniedContainer,
+            { backgroundColor: colors.background },
           ]}
         >
-          <TextInput
-            style={[
-              s.input,
-              {
-                backgroundColor: colors.background,
-                color: colors.textPrimary,
-                borderColor: colors.border,
-              },
-            ]}
-            placeholder="Escribe aquí..."
-            placeholderTextColor={colors.textSecondary}
-            value={chatText}
-            onChangeText={setChatText}
-            multiline
+          <MaterialCommunityIcons
+            name="alert-circle"
+            size={56}
+            color={colors.brand}
+            style={{ marginBottom: 16 }}
           />
+          <Text style={[s.consentDeniedTitle, { color: colors.textPrimary }]}>
+            Consentimiento Requerido
+          </Text>
+          <Text style={[s.consentDeniedText, { color: colors.textSecondary }]}>
+            Fitness Coach Pro utiliza Google Gemini para ofrecerte
+            recomendaciones personalizadas.
+          </Text>
           <Pressable
-            onPress={handleSend}
-            disabled={chatLoading || !chatText.trim()}
-            style={[s.sendBtn, { backgroundColor: colors.brand }]}
+            onPress={() => setShowConsentModal(true)}
+            style={[s.retryButton, { backgroundColor: colors.brand }]}
           >
-            {chatLoading ? (
-              <ActivityIndicator size="small" color={colors.onCta} />
-            ) : (
-              <MaterialCommunityIcons
-                name="send"
-                size={20}
-                color={colors.onCta}
-              />
-            )}
+            <Text style={[s.retryButtonText, { color: colors.onCta }]}>
+              Aceptar Consentimiento
+            </Text>
           </Pressable>
         </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <>
+      <GeminiConsentModal
+        visible={showConsentModal}
+        onAccept={handleAcceptConsent}
+        onDecline={handleDeclineConsent}
+      />
+      <SafeAreaView
+        style={[s.safe, { backgroundColor: colors.background }]}
+        edges={["top", "bottom"]}
+      >
+        <View style={s.header}>
+          <Pressable onPress={handleBack} style={s.backBtn}>
+            <MaterialCommunityIcons
+              name="arrow-left"
+              size={24}
+              color={colors.textPrimary}
+            />
+          </Pressable>
+          <Text style={[s.headerTitle, { color: colors.textPrimary }]}>
+            Fitness Coach Pro
+          </Text>
+          <View style={s.backBtn} />
+        </View>
+
+        <MacrosHeader
+          protein={{ current: totals.protein, target: proteinTarget }}
+          carbs={{ current: totals.carbs, target: carbsTarget }}
+          fat={{ current: totals.fat, target: fatTarget }}
+          calories={{
+            current: totals.calories,
+            target: effectiveCaloriesTarget,
+          }}
+        />
+
+        <View style={s.dietBar}>
+          <Text style={[s.dietTitle, { color: colors.textSecondary }]}>
+            Preferencia alimentaria
+          </Text>
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={orderedDietOptions}
+            keyExtractor={(item) => item.value}
+            contentContainerStyle={s.dietList}
+            renderItem={({ item }) => {
+              const selected =
+                (profile?.dietary_preference ?? null) === item.value;
+              return (
+                <Pressable
+                  onPress={async () => {
+                    if (savingDiet || selected) return;
+                    setSavingDiet(true);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    const res = await updateProfile({
+                      dietary_preference: item.value,
+                    } as any);
+                    setSavingDiet(false);
+
+                    if (res.ok) {
+                      refreshAfterDietChange(item.value, item.label);
+                    } else {
+                      showToast({
+                        message: res.message ?? "Error al guardar tu dieta",
+                        type: "error",
+                      });
+                    }
+                  }}
+                  disabled={savingDiet || chatLoading}
+                  style={({ pressed }) => [
+                    s.dietChip,
+                    {
+                      backgroundColor: selected
+                        ? colors.brand + "14"
+                        : colors.surface,
+                      borderColor: selected ? colors.brand : colors.border,
+                      opacity: pressed ? 0.92 : 1,
+                    },
+                  ]}
+                >
+                  <Text style={s.dietEmoji}>{item.emoji}</Text>
+                  <Text
+                    style={[
+                      s.dietLabel,
+                      { color: selected ? colors.brand : colors.textPrimary },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {item.label}
+                  </Text>
+                </Pressable>
+              );
+            }}
+          />
+        </View>
+
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          renderItem={renderMessage}
+          keyExtractor={(_, index) => String(index)}
+          contentContainerStyle={s.chatList}
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
+        />
+
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
+        >
+          <View
+            style={[
+              s.inputArea,
+              {
+                backgroundColor: colors.surface,
+                borderTopColor: colors.border,
+              },
+            ]}
+          >
+            <TextInput
+              style={[
+                s.input,
+                {
+                  backgroundColor: colors.background,
+                  color: colors.textPrimary,
+                  borderColor: colors.border,
+                },
+              ]}
+              placeholder="Escribe aquí..."
+              placeholderTextColor={colors.textSecondary}
+              value={chatText}
+              onChangeText={setChatText}
+              multiline
+            />
+            <Pressable
+              onPress={handleSend}
+              disabled={chatLoading || !chatText.trim()}
+              style={[s.sendBtn, { backgroundColor: colors.brand }]}
+            >
+              {chatLoading ? (
+                <ActivityIndicator size="small" color={colors.onCta} />
+              ) : (
+                <MaterialCommunityIcons
+                  name="send"
+                  size={20}
+                  color={colors.onCta}
+                />
+              )}
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </>
   );
 }
 
 function makeStyles(colors: any, typography: any) {
   return StyleSheet.create({
     safe: { flex: 1 },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      gap: 16,
+    },
+    loadingText: {
+      ...typography.body,
+      fontSize: 14,
+    },
+    consentDeniedContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 24,
+      gap: 12,
+    },
+    consentDeniedTitle: {
+      ...typography.title,
+      fontSize: 20,
+      marginBottom: 8,
+    },
+    consentDeniedText: {
+      ...typography.body,
+      fontSize: 14,
+      textAlign: "center",
+      lineHeight: 20,
+      marginBottom: 16,
+    },
+    retryButton: {
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      borderRadius: 10,
+      marginTop: 8,
+    },
+    retryButtonText: {
+      ...typography.body,
+      fontSize: 14,
+      fontWeight: "700",
+      textAlign: "center",
+    },
     header: {
       flexDirection: "row",
       alignItems: "center",
@@ -551,7 +740,12 @@ function makeStyles(colors: any, typography: any) {
       justifyContent: "center",
     },
     headerTitle: { ...typography.title, fontSize: 18 },
-    dietBar: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 6, gap: 10 },
+    dietBar: {
+      paddingHorizontal: 16,
+      paddingTop: 10,
+      paddingBottom: 6,
+      gap: 10,
+    },
     dietTitle: { ...typography.caption, fontSize: 12, fontWeight: "700" },
     dietList: { paddingRight: 8, gap: 10 },
     dietChip: {
