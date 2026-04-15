@@ -27,7 +27,9 @@
         "NSCameraUsageDescription": "Toma una foto para registrar tus comidas o actualizar tu avatar.",
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleDevelopmentRegion": "es_CL",
-        "CFBundleLocalizations": ["es"]
+        "CFBundleLocalizations": [
+          "es"
+        ]
       }
     },
     "android": {
@@ -42,8 +44,10 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
-      "versionCode": 27,
-      "proguardRuleFiles": ["proguard-rules.pro"],
+      "versionCode": 28,
+      "proguardRuleFiles": [
+        "proguard-rules.pro"
+      ],
       "intentFilters": [
         {
           "action": "VIEW",
@@ -52,7 +56,10 @@
               "scheme": "contamacro"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -63,8 +70,8 @@
         {
           "android": {
             "minSdkVersion": 26,
-            "compileSdkVersion": 35,
-            "targetSdkVersion": 35,
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
             "kotlinVersion": "2.0.20",
             "extraGradleProps": [
               {
