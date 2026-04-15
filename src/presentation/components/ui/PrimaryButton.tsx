@@ -94,7 +94,7 @@ export default function PrimaryButton({
 
 const styles = StyleSheet.create({
   btn: {
-    paddingVertical: 13,
+    paddingVertical: 16,
     paddingHorizontal: 16,
     borderRadius: 14,
     alignItems: "center",
