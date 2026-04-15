@@ -34,6 +34,8 @@ import { useRevenueCat } from "@/presentation/hooks/subscriptions/useRevenueCat"
 import { useStaggerAnimation } from "@/presentation/hooks/ui/useStaggerAnimation";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { useTour } from "@/presentation/hooks/tour/TourProvider";
+import { useSmartRatingPrompt } from "@/presentation/hooks/useSmartRatingPrompt";
+import { RatingPromptModal } from "@/presentation/components/RatingPromptModal";
 import { todayStrLocal } from "@/presentation/utils/date";
 import { MEAL_LABELS } from "@/presentation/utils/labels";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -405,6 +407,19 @@ export default function DiaryScreen() {
   const [showPaywall, setShowPaywall] = useState(false);
   const { checkAccess } = useFeatureAccess();
 
+  // Smart Rating Prompt - Aparece después de agregar la primera comida
+  const ratingPromptHook = useSmartRatingPrompt({
+    reason: "first_meal_logged",
+    onShow: () => {
+      console.log("[DiaryScreen] 📊 Rating prompt mostrado después de registrar comida");
+    },
+    onDismiss: () => {
+      console.log("[DiaryScreen] 📊 Rating prompt cerrado");
+    },
+  });
+
+  const { isVisible: isRatingVisible, isLoading: isRatingLoading, handleRate, handleLater, handleNever } = ratingPromptHook;
+
   // Tour: ref para el botón "Añadir" del header (paso 'add-meal')
   const addMealBtnRef = useRef<View>(null);
   const { reportLayout } = useTour();
@@ -446,8 +461,16 @@ export default function DiaryScreen() {
       setLogs(res.data);
       setLoading(false);
       setRefreshing(false);
+
+      // Mostrar rating prompt si hay comidas registradas y es el día de hoy
+      if (res.data.length > 0 && isToday) {
+        console.log("[DiaryScreen] 📊 Comidas detectadas, disparando rating prompt");
+        setTimeout(async () => {
+          await ratingPromptHook.showPrompt();
+        }, 500);
+      }
     },
-    [day],
+    [day, isToday, ratingPromptHook],
   );
 
   // Función para volver al día de hoy
@@ -1079,6 +1102,17 @@ export default function DiaryScreen() {
         </View>
 
         <View style={{ height: 20 }} />
+        {/* Rating Prompt Modal */}
+        {isRatingVisible && (
+          <RatingPromptModal
+            isVisible={true}
+            isLoading={isRatingLoading}
+            onRate={handleRate}
+            onLater={handleLater}
+            onNever={handleNever}
+          />
+        )}
+
         {/* Paywall Modal */}
         <PremiumPaywall
           visible={showPaywall}
