@@ -48,7 +48,7 @@ export default function PrimaryButton({
       style={({ pressed }) => [
         styles.btn,
         {
-          backgroundColor: colors.cta,
+          backgroundColor: colors.brand,
           borderColor: colors.border,
         },
         isDisabled && styles.btnDisabled,
