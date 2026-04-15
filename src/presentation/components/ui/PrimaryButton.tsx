@@ -94,8 +94,9 @@ export default function PrimaryButton({
 
 const styles = StyleSheet.create({
   btn: {
-    height: 48,
-    borderRadius: 16,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
@@ -111,7 +112,7 @@ const styles = StyleSheet.create({
   content: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
   },
   iconWrap: {
     alignItems: "center",
@@ -119,7 +120,8 @@ const styles = StyleSheet.create({
   },
 
   text: {
-    fontSize: 16,
+    fontSize: 15,
+    fontWeight: "600",
     lineHeight: 20,
   },
 });
