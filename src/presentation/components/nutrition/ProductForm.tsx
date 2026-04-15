@@ -483,13 +483,15 @@ export default function ProductForm({
               </Text>
             </Pressable>
           )}
-          <PrimaryButton
-            title={saving ? "Guardando..." : submitLabel}
-            onPress={handleSubmit}
-            loading={saving}
-            disabled={!canSubmit}
-            icon={<Feather name="check" size={18} color={theme.colors.onCta} />}
-          />
+          <View style={{ flex: 1 }}>
+            <PrimaryButton
+              title={saving ? "Guardando..." : submitLabel}
+              onPress={handleSubmit}
+              loading={saving}
+              disabled={!canSubmit}
+              icon={<Feather name="check" size={18} color={theme.colors.onCta} />}
+            />
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
