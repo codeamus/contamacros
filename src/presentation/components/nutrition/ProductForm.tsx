@@ -9,6 +9,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import React, { useCallback, useMemo, useState } from "react";
 import {
+    ActivityIndicator,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -231,18 +232,28 @@ export default function ProductForm({
         },
         actions: {
           flexDirection: "row",
-          gap: 14,
+          gap: 10,
           marginTop: 28,
         },
-        cancelBtn: {
+        actionButton: {
           flex: 1,
           paddingVertical: 16,
+          paddingHorizontal: 12,
           borderRadius: 14,
           alignItems: "center",
           justifyContent: "center",
+          borderWidth: 1,
+          minWidth: 0,
+        },
+        cancelBtn: {
           backgroundColor: colors.surface,
-          borderWidth: 1.5,
           borderColor: colors.border,
+        },
+        buttonContent: {
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
         },
       }),
     [colors, typography],
@@ -468,6 +479,7 @@ export default function ProductForm({
                 onCancel();
               }}
               style={({ pressed }) => [
+                styles.actionButton,
                 styles.cancelBtn,
                 pressed && { opacity: 0.9 },
               ]}
@@ -483,15 +495,37 @@ export default function ProductForm({
               </Text>
             </Pressable>
           )}
-          <View style={{ flex: 1 }}>
-            <PrimaryButton
-              title={saving ? "Guardando..." : submitLabel}
-              onPress={handleSubmit}
-              loading={saving}
-              disabled={!canSubmit}
-              icon={<Feather name="check" size={18} color={theme.colors.onCta} />}
-            />
-          </View>
+          <Pressable
+            onPress={handleSubmit}
+            disabled={!canSubmit || saving}
+            style={({ pressed }) => [
+              styles.actionButton,
+              {
+                backgroundColor: colors.brand,
+                borderColor: colors.border,
+              },
+              (!canSubmit || saving) && { opacity: 0.55 },
+              pressed && !(!canSubmit || saving) && { transform: [{ scale: 0.985 }], opacity: 0.96 },
+            ]}
+          >
+            {saving ? (
+              <ActivityIndicator color={colors.onCta} size="small" />
+            ) : (
+              <View style={styles.buttonContent}>
+                <Feather name="check" size={18} color={colors.onCta} />
+                <Text
+                  style={{
+                    color: colors.onCta,
+                    fontFamily: typography.subtitle?.fontFamily,
+                    fontSize: 15,
+                    fontWeight: "600",
+                  }}
+                >
+                  {submitLabel}
+                </Text>
+              </View>
+            )}
+          </Pressable>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
