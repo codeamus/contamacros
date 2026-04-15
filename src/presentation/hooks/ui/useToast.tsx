@@ -1,5 +1,6 @@
 // src/presentation/hooks/ui/useToast.tsx
 import React, { createContext, useCallback, useContext, useState } from "react";
+import { View } from "react-native";
 
 import { Toast, type ToastConfig } from "@/presentation/components/ui/Toast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
@@ -26,13 +27,26 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={{ showToast }}>
       {children}
       {toast && (
-        <Toast
-          {...toast}
-          onHide={hideToast}
-          colors={theme.colors}
-          typography={theme.typography}
-          position={toast.position}
-        />
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            pointerEvents: "box-none",
+            zIndex: 9999,
+          }}
+          pointerEvents="box-none"
+        >
+          <Toast
+            {...toast}
+            onHide={hideToast}
+            colors={theme.colors}
+            typography={theme.typography}
+            position={toast.position}
+          />
+        </View>
       )}
     </ToastContext.Provider>
   );

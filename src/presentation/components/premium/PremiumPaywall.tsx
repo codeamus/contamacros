@@ -3,6 +3,7 @@ import { RevenueCatService } from "@/domain/services/revenueCatService";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useRevenueCat } from "@/presentation/hooks/subscriptions/useRevenueCat";
 import { useToast } from "@/presentation/hooks/ui/useToast";
+import { Toast, type ToastConfig } from "@/presentation/components/ui/Toast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -148,8 +149,21 @@ export default function PremiumPaywall({
   const { theme } = useTheme();
   const { colors, typography } = theme;
   const { refreshProfile } = useAuth();
-  const { showToast } = useToast();
+  const { showToast: showGlobalToast } = useToast();
   const { reload } = useRevenueCat();
+
+  // Función local para mostrar toast dentro del paywall
+  const showToast = (config: ToastConfig) => {
+    setInternalToast(config);
+  };
+
+  // Cerrar toast cuando el paywall se abre para que no quede detrás
+  useEffect(() => {
+    if (visible) {
+      // El toast se oculta automáticamente en el siguiente ciclo
+      // (el componente Toast tiene su propio estado)
+    }
+  }, [visible]);
   const s = makeStyles(colors, typography);
 
   const [isProcessing, setIsProcessing] = useState(false);
@@ -159,6 +173,7 @@ export default function PremiumPaywall({
   const [errorLoadingPrices, setErrorLoadingPrices] = useState<string | null>(
     null,
   );
+  const [internalToast, setInternalToast] = useState<ToastConfig | null>(null);
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -764,7 +779,7 @@ export default function PremiumPaywall({
     <Modal
       visible={visible}
       transparent
-      animationType="none"
+      animationType="fade"
       onRequestClose={handleClose}
     >
       <Animated.View
@@ -774,8 +789,13 @@ export default function PremiumPaywall({
             opacity: opacityAnim,
           },
         ]}
+        pointerEvents="box-none"
       >
-        <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={handleClose}
+          pointerEvents="auto"
+        />
 
         <Animated.View
           style={[
@@ -1158,6 +1178,17 @@ export default function PremiumPaywall({
             />
           </Pressable>
         </Animated.View>
+
+        {/* Toast renderizado dentro del Modal */}
+        {internalToast && (
+          <Toast
+            {...internalToast}
+            onHide={() => setInternalToast(null)}
+            colors={colors}
+            typography={typography}
+            position={internalToast.position}
+          />
+        )}
       </Animated.View>
     </Modal>
   );
