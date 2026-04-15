@@ -5,6 +5,7 @@ import { ConfirmMacroModal } from "@/presentation/components/scanner/ConfirmMacr
 import { ScannerOverlay } from "@/presentation/components/scanner/ScannerOverlay";
 import { useMacroScanner } from "@/presentation/hooks/scanner/useMacroScanner";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
+import { ratingPromptService } from "@/domain/services/ratingPromptService";
 import { Feather } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
@@ -12,6 +13,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
+    Platform,
     Pressable,
     StyleSheet,
     Text,
@@ -44,6 +46,7 @@ export default function ScanScreen() {
   const [scanMode, setScanMode] = useState<"barcode" | "ai">("barcode");
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [paywallVisible, setPaywallVisible] = useState(false);
+
 
   // Ref para capturar foto directamente desde la CameraView (evita abrir cámara nativa 2 veces)
   const cameraRef = useRef<CameraView>(null);
@@ -83,6 +86,15 @@ export default function ScanScreen() {
       );
     },
   });
+
+  // TESTING ONLY: Reset rating prompt state on mount
+  useEffect(() => {
+    const resetRatingPrompt = async () => {
+      console.log("[ScanScreen] 🧪 TESTING MODE: Resetting rating prompt state");
+      await ratingPromptService.reset();
+    };
+    resetRatingPrompt();
+  }, []);
 
   // Resetear el estado cuando la pantalla recibe foco (para permitir escanear de nuevo)
   useFocusEffect(
