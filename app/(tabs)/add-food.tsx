@@ -37,6 +37,7 @@ import type { MealType } from "@/domain/models/foodLogDb";
 import type { OffProduct } from "@/domain/models/offProduct";
 import { UsageService } from "@/domain/services/usageService";
 import CreateGenericFoodByBarcodeModal from "@/presentation/components/nutrition/CreateGenericFoodByBarcodeModal";
+import CreateFoodModal from "@/presentation/components/nutrition/CreateFoodModal";
 import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useFavorites } from "@/presentation/hooks/food/useFavorites";
@@ -295,6 +296,7 @@ export default function AddFoodScreen() {
   /** Mostrar formulario para crear producto en generic_foods (no en OFF ni local) */
   const [showCreateGenericFoodModal, setShowCreateGenericFoodModal] =
     useState(false);
+  const [showCreateFoodModal, setShowCreateFoodModal] = useState(false);
   /** Barcode con el que abrir el formulario de creación */
   const [barcodeToCreate, setBarcodeToCreate] = useState<string | null>(null);
   const reqIdRef = useRef(0);
@@ -1626,6 +1628,32 @@ export default function AddFoodScreen() {
                 </Pressable>
               )}
 
+              {query.trim().length >= 2 && !isSearchingLocal && !isSearchingMore && (
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    setShowCreateFoodModal(true);
+                  }}
+                  style={({ pressed }) => [
+                    s.moreBtn,
+                    {
+                      borderColor: colors.brand,
+                      backgroundColor: `${colors.brand}10`,
+                    },
+                    pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="plus-circle-outline"
+                    size={18}
+                    color={colors.brand}
+                  />
+                  <Text style={[s.moreBtnText, { color: colors.brand }]}>
+                    ¿No encuentras tu alimento? ¡Agrégalo!
+                  </Text>
+                </Pressable>
+              )}
+
               {/* Results */}
               <View style={{ marginTop: 10, gap: 10 }}>
                 {results.map((it) => {
@@ -2135,6 +2163,20 @@ export default function AddFoodScreen() {
       <PremiumPaywall
         visible={showPaywall}
         onClose={() => setShowPaywall(false)}
+      />
+      <CreateFoodModal
+        visible={showCreateFoodModal}
+        initialName={query.trim()}
+        onClose={() => setShowCreateFoodModal(false)}
+        onSuccess={() => {
+          setShowCreateFoodModal(false);
+          showToast({
+            message: "¡Alimento agregado a la comunidad! Ya puedes buscarlo.",
+            type: "success",
+            icon: "check-circle",
+            duration: 3000,
+          });
+        }}
       />
     </SafeAreaView>
   );
