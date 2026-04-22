@@ -418,7 +418,7 @@ export default function DiaryScreen() {
     },
   });
 
-  const { isVisible: isRatingVisible, isLoading: isRatingLoading, handleRate, handleLater, handleNever } = ratingPromptHook;
+  const { isVisible: isRatingVisible, isLoading: isRatingLoading, handleRate, handleLater, handleNever, showPrompt } = ratingPromptHook;
 
   // Tour: ref para el botón "Añadir" del header (paso 'add-meal')
   const addMealBtnRef = useRef<View>(null);
@@ -466,11 +466,11 @@ export default function DiaryScreen() {
       if (res.data.length > 0 && isToday) {
         console.log("[DiaryScreen] 📊 Comidas detectadas, disparando rating prompt");
         setTimeout(async () => {
-          await ratingPromptHook.showPrompt();
+          await showPrompt();
         }, 500);
       }
     },
-    [day, isToday, ratingPromptHook],
+    [day, isToday, showPrompt],
   );
 
   // Función para volver al día de hoy

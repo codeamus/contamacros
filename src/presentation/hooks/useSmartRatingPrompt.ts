@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Alert, Linking, Platform } from 'react-native';
 import {
   ratingPromptService,
@@ -53,9 +53,16 @@ export const useSmartRatingPrompt = (
   const [isVisible, setIsVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  /**
-   * Check if prompt should be shown and display it
-   */
+  // Refs para evitar que los callbacks inline del caller recreen las funciones
+  const reasonRef = useRef(config.reason);
+  const onShowRef = useRef(config.onShow);
+  const onDismissRef = useRef(config.onDismiss);
+  useEffect(() => {
+    reasonRef.current = config.reason;
+    onShowRef.current = config.onShow;
+    onDismissRef.current = config.onDismiss;
+  });
+
   const checkAndShowPrompt = useCallback(async () => {
     try {
       console.log('[Rating] 📊 checkAndShowPrompt() called');
@@ -64,15 +71,15 @@ export const useSmartRatingPrompt = (
       if (shouldShow) {
         console.log('[Rating] 📊 Showing rating prompt!');
         setIsVisible(true);
-        await ratingPromptService.recordPromptShown(config.reason);
-        config.onShow?.();
+        await ratingPromptService.recordPromptShown(reasonRef.current);
+        onShowRef.current?.();
       } else {
         console.log('[Rating] 📊 Prompt should not be shown (cooldown or already shown)');
       }
     } catch (error) {
       console.error('[Rating] Error checking if should show prompt:', error);
     }
-  }, [config]);
+  }, []);
 
   /**
    * Auto-check and show prompt on mount
@@ -81,14 +88,9 @@ export const useSmartRatingPrompt = (
     checkAndShowPrompt();
   }, [checkAndShowPrompt]);
 
-  /**
-   * Handle "Rate Now" action
-   * Opens App Store / Play Store for user to leave a review
-   */
   const handleRate = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Open App Store or Play Store
       const storeUrl = Platform.select({
         ios: 'https://apps.apple.com/app/contamacros-calor%C3%ADas-y-dieta/id6758101956?action=write-review',
         android: 'https://play.google.com/store/apps/details?id=com.codeamusdev2.contamacro',
@@ -98,50 +100,40 @@ export const useSmartRatingPrompt = (
         await Linking.openURL(storeUrl);
       }
 
-      // Record successful rating
       await ratingPromptService.recordUserResponse('rated');
       setIsVisible(false);
-      config.onDismiss?.();
+      onDismissRef.current?.();
     } catch (error) {
       console.error('[Rating] Error opening store:', error);
-      // Graceful fallback - treat as "later"
       await ratingPromptService.recordUserResponse('later');
       setIsVisible(false);
-      config.onDismiss?.();
+      onDismissRef.current?.();
     } finally {
       setIsLoading(false);
     }
-  }, [config]);
+  }, []);
 
-  /**
-   * Handle "Ask Later" action
-   * Will show prompt again in 30 days
-   */
   const handleLater = useCallback(async () => {
     try {
       await ratingPromptService.recordUserResponse('later');
       setIsVisible(false);
-      config.onDismiss?.();
+      onDismissRef.current?.();
     } catch (error) {
       console.error('[Rating] Error recording "later" response:', error);
       setIsVisible(false);
     }
-  }, [config]);
+  }, []);
 
-  /**
-   * Handle "Never Ask Again" action
-   * Will never show prompt again in this app
-   */
   const handleNever = useCallback(async () => {
     try {
       await ratingPromptService.recordUserResponse('never');
       setIsVisible(false);
-      config.onDismiss?.();
+      onDismissRef.current?.();
     } catch (error) {
       console.error('[Rating] Error recording "never" response:', error);
       setIsVisible(false);
     }
-  }, [config]);
+  }, []);
 
   /**
    * Manually trigger prompt (useful for testing or manual triggers)
