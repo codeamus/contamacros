@@ -1754,45 +1754,6 @@ export default function AddFoodScreen() {
                   );
                 })}
 
-                {!isSearchingLocal &&
-                  !isSearchingMore &&
-                  query.trim().length >= 2 &&
-                  results.length === 0 && (
-                    <Pressable
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                        router.push({
-                          pathname: "/(tabs)/create-food",
-                          params: { initialName: query.trim() },
-                        });
-                      }}
-                      style={({ pressed }) => [
-                        s.createFoodCard,
-                        pressed && s.createFoodCardPressed,
-                      ]}
-                    >
-                      <View style={s.createFoodIcon}>
-                        <MaterialCommunityIcons
-                          name="plus-circle"
-                          size={32}
-                          color={colors.brand}
-                        />
-                      </View>
-                      <View style={s.createFoodContent}>
-                        <Text style={s.createFoodTitle}>
-                          ¿No encuentras "{query}"?
-                        </Text>
-                        <Text style={s.createFoodSubtitle}>
-                          ¡Agrégalo a la comunidad y gana +50 XP!
-                        </Text>
-                      </View>
-                      <MaterialCommunityIcons
-                        name="arrow-right"
-                        size={24}
-                        color={colors.brand}
-                      />
-                    </Pressable>
-                  )}
               </View>
             </>
           )}
@@ -2563,45 +2524,6 @@ function makeStyles(colors: any, typography: any) {
       textAlign: "center",
       lineHeight: 19,
     },
-    createFoodCard: {
-      flexDirection: "row",
-      alignItems: "center",
-      padding: 20,
-      borderRadius: 16,
-      backgroundColor: colors.brand + "10",
-      borderWidth: 2,
-      borderColor: colors.brand + "40",
-      gap: 16,
-      marginTop: 8,
-    },
-    createFoodCardPressed: {
-      opacity: 0.8,
-      transform: [{ scale: 0.98 }],
-    },
-    createFoodIcon: {
-      width: 56,
-      height: 56,
-      borderRadius: 28,
-      backgroundColor: colors.brand + "20",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    createFoodContent: {
-      flex: 1,
-      gap: 4,
-    },
-    createFoodTitle: {
-      ...typography.subtitle,
-      fontSize: 16,
-      fontWeight: "700",
-      color: colors.textPrimary,
-    },
-    createFoodSubtitle: {
-      ...typography.body,
-      fontSize: 13,
-      color: colors.textSecondary,
-    },
-
     card: {
       marginTop: 12,
       padding: 14,
