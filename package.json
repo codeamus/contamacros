@@ -12,7 +12,8 @@
     "-- Crear builds locales para Android y iOS": "eas build --platform android --profile production --local",
     "build:android:local": "dotenv -e .env -- eas build --platform android --profile production --local",
     "build:ios:local": "dotenv -e .env -- eas build --platform ios --profile production --local",
-    "submit:android": "eas submit --platform android --profile production"
+    "submit:android": "eas submit --platform android --profile production",
+    "submit:ios": "IPA=$(find . -maxdepth 1 -name '*.ipa' | head -1) && [ -z \"$IPA\" ] && echo 'No .ipa found in project root' && exit 1 || eas submit --platform ios --profile production --path \"$IPA\" && rm \"$IPA\" && echo 'IPA submitted and removed successfully'"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
