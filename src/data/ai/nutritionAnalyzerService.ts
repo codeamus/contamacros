@@ -90,15 +90,36 @@ CONTEXTO DEL USUARIO HOY:
 - Grasas restantes: ${userContext.remainingFat}g
 - Meta calórica diaria: ${userContext.dailyCalorieGoal} kcal
 
-CRITERIOS PARA healthScore (evalúa el perfil nutricional COMPLETO, no solo un nutriente):
-- 9-10: Excelente densidad nutricional, mínimamente procesado (ej: yogurt proteico bajo en grasa, legumbres, huevo, fruta entera)
-- 7-8: Muy bueno, procesado mínimo o perfil nutricional sólido (ej: leche, queso fresco, pan integral real, avena)
-- 5-6: Aceptable, moderadamente procesado o perfil nutricional mediocre (ej: pan blanco, cereales simples)
-- 3-4: Procesado, nutricionalmente pobre o con ingredientes cuestionables (ej: galletas, jugos azucarados)
-- 1-2: Ultra-procesado, alto en azúcar añadida/sodio/grasas trans, bajo valor nutricional (ej: snacks, bebidas energéticas, dulces)
-- 0: Sin valor nutricional real, dañino (ej: bebidas alcohólicas, productos con grasas trans altas)
+CRITERIOS PARA healthScore — aplica estas reglas numéricas en orden, la primera que aplique define el rango base:
 
-IMPORTANTE: Un yogurt proteico bajo en grasa con 12g proteína/100g y sin azúcar añadida es 8-9/10. No penalices el azúcar natural de la leche.
+REGLAS POSITIVAS (suben el score):
+- Proteína >= 10g/100g → base mínima de 7
+- Proteína >= 10g/100g Y grasa total <= 3g/100g Y sin azúcar añadida → score debe ser 8 o 9
+- Proteína >= 15g/100g Y grasa total <= 3g/100g Y sin azúcar añadida → score debe ser 9 o 10
+- Ingrediente principal es vegetal, legumbre, huevo o lácteo sin procesar → +1 punto
+
+REGLAS NEGATIVAS (bajan el score):
+- Grasas trans > 0g → score máximo 4
+- Azúcar añadida > 15g/porción → score máximo 4
+- Azúcar añadida 10-15g/porción → score máximo 6
+- Sodio > 800mg/porción → restar 1 punto
+- Lista de ingredientes con más de 10 aditivos artificiales → score máximo 5
+
+ESCALA GENERAL (cuando no aplican las reglas anteriores):
+- 9-10: Excelente (yogurt proteico sin azúcar añadida, legumbres, huevo, fruta entera)
+- 7-8: Muy bueno (leche, queso fresco, avena, pan integral real)
+- 5-6: Aceptable (pan blanco, cereales sin azúcar, productos lácteos estándar)
+- 3-4: Pobre (galletas, jugos con azúcar, embutidos procesados)
+- 1-2: Malo (snacks ultra-procesados, bebidas azucaradas, dulces)
+- 0: Dañino (grasas trans altas, sin valor nutricional)
+
+EJEMPLOS CONCRETOS para calibrar:
+- Yogurt proteico (12g prot/100g, 0.8g grasa, lactosa natural) → 8/10
+- Leche entera → 7/10
+- Pan marraqueta → 5/10
+- Coca-Cola → 2/10
+- Pechuga de pollo → 9/10
+- Papas fritas de bolsa → 3/10
 
 CRITERIOS PARA warnings (sé estricto, solo incluir si realmente se supera el umbral):
 - "Alto en azúcar añadida" SOLO si contiene azúcar añadida (sacarosa, jarabe de maíz, etc.) Y supera 10g por porción. El azúcar natural de la fruta (fructosa) o la leche (lactosa) NO cuenta como alto en azúcar.
