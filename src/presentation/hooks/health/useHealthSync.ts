@@ -58,10 +58,10 @@ export function useHealthSync(isPremium: boolean) {
 
       const activeEnergyBurnedId = "HKQuantityTypeIdentifierActiveEnergyBurned";
 
-      await HealthKit.requestAuthorization(
-        [],
-        [activeEnergyBurnedId]
-      );
+      await HealthKit.requestAuthorization({
+        toShare: [],
+        toRead: [activeEnergyBurnedId],
+      });
 
       const now = new Date();
       const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
