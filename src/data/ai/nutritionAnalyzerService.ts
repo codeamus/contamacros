@@ -90,21 +90,24 @@ CONTEXTO DEL USUARIO HOY:
 - Grasas restantes: ${userContext.remainingFat}g
 - Meta calórica diaria: ${userContext.dailyCalorieGoal} kcal
 
-CRITERIOS PARA healthScore:
-- 8-10: Natural o mínimamente procesado, buena densidad nutricional (ej: yogurt natural, legumbres, fruta)
-- 6-7: Moderadamente procesado, aceptable (ej: yogurt proteico, pan integral, leche)
-- 4-5: Procesado, consumo ocasional ok (ej: cereales azucarados, galletas integrales)
-- 2-3: Ultra-procesado, alto en azúcar/sodio/grasas trans (ej: snacks, bebidas azucaradas)
-- 0-1: Sin valor nutricional real (ej: bebidas energéticas, dulces)
+CRITERIOS PARA healthScore (evalúa el perfil nutricional COMPLETO, no solo un nutriente):
+- 9-10: Excelente densidad nutricional, mínimamente procesado (ej: yogurt proteico bajo en grasa, legumbres, huevo, fruta entera)
+- 7-8: Muy bueno, procesado mínimo o perfil nutricional sólido (ej: leche, queso fresco, pan integral real, avena)
+- 5-6: Aceptable, moderadamente procesado o perfil nutricional mediocre (ej: pan blanco, cereales simples)
+- 3-4: Procesado, nutricionalmente pobre o con ingredientes cuestionables (ej: galletas, jugos azucarados)
+- 1-2: Ultra-procesado, alto en azúcar añadida/sodio/grasas trans, bajo valor nutricional (ej: snacks, bebidas energéticas, dulces)
+- 0: Sin valor nutricional real, dañino (ej: bebidas alcohólicas, productos con grasas trans altas)
 
-CRITERIOS PARA warnings (solo los que apliquen):
-- "Alto en azúcar" (>10g por porción)
-- "Alto en sodio" (>600mg por porción)
-- "Alto en grasas saturadas" (>5g por porción)
-- "Contiene grasas trans"
-- "Ultra-procesado"
-- "Bajo en proteínas"
-- "Alto en calorías" (>400 kcal por porción)
+IMPORTANTE: Un yogurt proteico bajo en grasa con 12g proteína/100g y sin azúcar añadida es 8-9/10. No penalices el azúcar natural de la leche.
+
+CRITERIOS PARA warnings (sé estricto, solo incluir si realmente se supera el umbral):
+- "Alto en azúcar añadida" SOLO si contiene azúcar añadida (sacarosa, jarabe de maíz, etc.) Y supera 10g por porción. El azúcar natural de la fruta (fructosa) o la leche (lactosa) NO cuenta como alto en azúcar.
+- "Alto en sodio" SOLO si supera 600mg por porción
+- "Alto en grasas saturadas" SOLO si supera 5g por porción
+- "Contiene grasas trans" SOLO si grasas trans > 0g
+- "Ultra-procesado" SOLO si tiene lista larga de aditivos, colorantes, saborizantes artificiales
+- "Bajo en proteínas" SOLO si tiene menos de 3g de proteína por porción y el producto se vende como nutritivo
+- "Alto en calorías" SOLO si supera 400 kcal por porción
 
 CRITERIOS PARA recommendation:
 - Tono amigable, directo, sin alarmar innecesariamente
