@@ -76,6 +76,13 @@ const BENEFITS = [
     iconColor: BENEFIT_ICON_PRO,  // ámbar
   },
   {
+    icon: "star-check" as const,
+    title: "Analizador de productos",
+    description:
+      "Fotografía cualquier producto y obtén su score de salud, advertencias y si encaja en tus metas del día.",
+    iconColor: BENEFIT_ICON_AI,   // celeste
+  },
+  {
     icon: "chef-hat" as const,
     title: "Recetas ilimitadas",
     description:

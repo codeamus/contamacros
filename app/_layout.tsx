@@ -104,7 +104,7 @@ function AuthGate() {
     }
 
     // Pantallas raíz permitidas fuera de (tabs): no redirigir a tabs
-    const allowedRootScreens = ["smart-coach-pro", "recipe-detail"];
+    const allowedRootScreens = ["smart-coach-pro", "recipe-detail", "nutrition-analyzer"];
     if (!inTabs && !allowedRootScreens.includes(group)) {
       router.replace("/(tabs)");
     }

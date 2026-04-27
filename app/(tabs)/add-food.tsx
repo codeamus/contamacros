@@ -1185,6 +1185,31 @@ export default function AddFoodScreen() {
                 </Pressable>
               </View>
 
+              {/* Botón Analizar Producto (Premium) */}
+              <Pressable
+                onPress={async () => {
+                  const access = await checkAccess("ai");
+                  if (!access.canAccess) {
+                    setShowPaywall(true);
+                    return;
+                  }
+                  router.push({ pathname: "/nutrition-analyzer" });
+                }}
+                style={({ pressed }) => [
+                  s.scanBtn,
+                  s.scanBtnAnalyzer,
+                  pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] },
+                ]}
+              >
+                <MaterialCommunityIcons name="star-check" size={18} color="#fff" />
+                <Text style={[s.scanBtnText, { color: "#fff", flex: 1 }]}>
+                  Analizar producto
+                </Text>
+                <View style={s.premiumBadge}>
+                  <Text style={s.premiumBadgeText}>👑 PREMIUM</Text>
+                </View>
+              </Pressable>
+
               {/* Search */}
               <View style={s.searchBox}>
                 <Feather name="search" size={18} color={colors.textSecondary} />
@@ -2793,5 +2818,23 @@ function makeStyles(colors: any, typography: any) {
       // Estilos específicos para IA si es necesario
     },
     scanBtnText: { fontWeight: "800", color: "#111827" },
+    scanBtnAnalyzer: {
+      flex: undefined,
+      marginTop: 10,
+      backgroundColor: colors.brand,
+      borderColor: colors.brand,
+      paddingHorizontal: 14,
+    },
+    premiumBadge: {
+      backgroundColor: "rgba(0,0,0,0.2)",
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 10,
+    },
+    premiumBadgeText: {
+      fontSize: 10,
+      fontWeight: "800",
+      color: "#fff",
+    },
   });
 }
