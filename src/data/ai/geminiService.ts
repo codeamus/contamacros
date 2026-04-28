@@ -52,7 +52,7 @@ function cleanSearchTerm(name: string, searchTerm: string): string {
 }
 
 // --- Análisis de imagen (scan de comida): se mantiene con fetch ---
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
+const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
 
 function parseRetryDelaySeconds(data: any): number | null {
   try {
