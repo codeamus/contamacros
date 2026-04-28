@@ -1162,7 +1162,7 @@ export function useSmartCoachPro(
         isPremium,
       });
 
-      const response = await askFitnessCoach(text.trim(), context, updatedHistory);
+      const response = await askFitnessCoach(text.trim(), context, updatedHistory.slice(-10));
 
       // Convertir respuesta a ChatMessage para el historial
       const coachContent =
