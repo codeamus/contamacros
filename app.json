@@ -2,7 +2,7 @@
   "expo": {
     "name": "ContaMacros",
     "slug": "contamacros",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "portrait",
     "scheme": "contamacro",
     "userInterfaceStyle": "automatic",
@@ -13,7 +13,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.codeamusdev2.contamacro",
-      "buildNumber": "23",
+      "buildNumber": "25",
       "supportsTablet": false,
       "usesAppleSignIn": true,
       "appleTeamId": "47CYZ3UYYK",
@@ -44,7 +44,7 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
-      "versionCode": 32,
+      "versionCode": 33,
       "proguardRuleFiles": [
         "proguard-rules.pro"
       ],
