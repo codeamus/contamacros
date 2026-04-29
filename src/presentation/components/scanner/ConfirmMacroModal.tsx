@@ -77,9 +77,9 @@ export function ConfirmMacroModal({
     
     return {
       calories: Math.round(analysisResult.calories * factor),
-      protein: Math.round(analysisResult.protein * factor * 10) / 10,
-      carbs: Math.round(analysisResult.carbs * factor * 10) / 10,
-      fats: Math.round(analysisResult.fats * factor * 10) / 10,
+      protein: Math.round(analysisResult.protein * factor),
+      carbs: Math.round(analysisResult.carbs * factor),
+      fats: Math.round(analysisResult.fats * factor),
       grams: gramsNum,
     };
   }, [analysisResult, grams, defaultGrams]);
