@@ -2,7 +2,7 @@
   "expo": {
     "name": "ContaMacros",
     "slug": "contamacros",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "orientation": "portrait",
     "scheme": "contamacro",
     "userInterfaceStyle": "automatic",
@@ -13,7 +13,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.codeamusdev2.contamacro",
-      "buildNumber": "26",
+      "buildNumber": "27",
       "supportsTablet": false,
       "usesAppleSignIn": true,
       "appleTeamId": "47CYZ3UYYK",
@@ -27,7 +27,9 @@
         "NSCameraUsageDescription": "Toma una foto para registrar tus comidas o actualizar tu avatar.",
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleDevelopmentRegion": "es_CL",
-        "CFBundleLocalizations": ["es"],
+        "CFBundleLocalizations": [
+          "es"
+        ],
         "UISupportedInterfaceOrientations": [
           "UIInterfaceOrientationPortrait"
         ],
@@ -48,8 +50,10 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
-      "versionCode": 34,
-      "proguardRuleFiles": ["proguard-rules.pro"],
+      "versionCode": 36,
+      "proguardRuleFiles": [
+        "proguard-rules.pro"
+      ],
       "intentFilters": [
         {
           "action": "VIEW",
@@ -58,7 +62,10 @@
               "scheme": "contamacro"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
