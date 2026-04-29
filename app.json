@@ -13,7 +13,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.codeamusdev2.contamacro",
-      "buildNumber": "25",
+      "buildNumber": "26",
       "supportsTablet": false,
       "usesAppleSignIn": true,
       "appleTeamId": "47CYZ3UYYK",
@@ -27,7 +27,13 @@
         "NSCameraUsageDescription": "Toma una foto para registrar tus comidas o actualizar tu avatar.",
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleDevelopmentRegion": "es_CL",
-        "CFBundleLocalizations": ["es"]
+        "CFBundleLocalizations": ["es"],
+        "UISupportedInterfaceOrientations": [
+          "UIInterfaceOrientationPortrait"
+        ],
+        "UISupportedInterfaceOrientationsIPhone": [
+          "UIInterfaceOrientationPortrait"
+        ]
       }
     },
     "android": {
@@ -42,7 +48,7 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
-      "versionCode": 33,
+      "versionCode": 34,
       "proguardRuleFiles": ["proguard-rules.pro"],
       "intentFilters": [
         {
