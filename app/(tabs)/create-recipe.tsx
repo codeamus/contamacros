@@ -40,7 +40,6 @@ import type { OffProduct } from "@/domain/models/offProduct";
 import CreateGenericFoodByBarcodeModal from "@/presentation/components/nutrition/CreateGenericFoodByBarcodeModal";
 import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
 import { useFeatureAccess } from "@/presentation/hooks/premium/useFeatureAccess";
-import { useMacroScanner } from "@/presentation/hooks/scanner/useMacroScanner";
 import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -283,37 +282,17 @@ export default function CreateRecipeScreen() {
     limit: 5,
   });
 
-  // AI Scanner
-  const { isAnalyzing: isAnalyzingAi, captureAndAnalyze } = useMacroScanner({
-    onAnalysisComplete: (result) => {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      const it: ExtendedFoodSearchItem = {
-        key: `ai:${Date.now()}`,
-        source: "off",
-        name: result.foodName,
-        meta: "Escaneado con IA",
-        kcal_100g: result.calories,
-        protein_100g: result.protein,
-        carbs_100g: result.carbs,
-        fat_100g: result.fats,
-        off: null,
-        verified: false,
-        base_unit: "g",
-      };
-      setSelectedIngredient(it);
-      setSearchQuery(result.foodName);
-      setSearchResults([]);
-      setShowSearch(false);
-      setIngredientInputMode("grams");
-      setIngredientGrams("100");
-    },
-    onLimitReached: () => setShowPaywall(true),
-  });
-
   const handleOpenAiScanner = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    captureAndAnalyze();
-  }, [captureAndAnalyze]);
+    router.push({
+      pathname: "/(tabs)/scan",
+      params: {
+        returnTo: "create-recipe",
+        mode: "ai",
+        recipeId: isEditMode ? recipeId : undefined,
+      },
+    });
+  }, [isEditMode, recipeId]);
 
   // Cargar límite de recetas al montar
   useEffect(() => {
@@ -822,18 +801,12 @@ export default function CreateRecipeScreen() {
                   onPress={handleOpenAiScanner}
                   style={[s.scanBtnCompact, s.scanBtnAi]}
                 >
-                  {isAnalyzingAi ? (
-                    <ActivityIndicator size="small" color={colors.brand} />
-                  ) : (
-                    <>
-                      <MaterialCommunityIcons
-                        name={"auto-fix" as any}
-                        size={14}
-                        color={colors.brand}
-                      />
-                      <Text style={s.scanBtnText}>IA</Text>
-                    </>
-                  )}
+                  <MaterialCommunityIcons
+                    name={"auto-fix" as any}
+                    size={14}
+                    color={colors.brand}
+                  />
+                  <Text style={s.scanBtnText}>IA</Text>
                 </Pressable>
               </View>
             </View>
