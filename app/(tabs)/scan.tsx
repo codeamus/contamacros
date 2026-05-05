@@ -179,6 +179,8 @@ export default function ScanScreen() {
         pathname: "/(tabs)/create-recipe",
         params: recipeId ? { recipeId } : { reset: "true" },
       });
+    } else if (returnTo === "add-food") {
+      router.replace("/(tabs)/add-food");
     } else {
       router.back();
     }

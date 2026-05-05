@@ -1146,7 +1146,7 @@ export default function AddFoodScreen() {
                   onPress={() =>
                     router.push({
                       pathname: "/(tabs)/scan",
-                      params: { meal, mode: "barcode" },
+                      params: { meal, mode: "barcode", returnTo: "add-food" },
                     })
                   }
                   style={({ pressed }) => [
@@ -1167,7 +1167,7 @@ export default function AddFoodScreen() {
                   onPress={() =>
                     router.push({
                       pathname: "/(tabs)/scan",
-                      params: { meal, mode: "ai" },
+                      params: { meal, mode: "ai", returnTo: "add-food" },
                     })
                   }
                   style={({ pressed }) => [
