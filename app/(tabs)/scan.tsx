@@ -173,6 +173,17 @@ export default function ScanScreen() {
     }
   }, [params.mode]);
 
+  const handleClose = useCallback(() => {
+    if (returnTo === "create-recipe") {
+      router.replace({
+        pathname: "/(tabs)/create-recipe",
+        params: recipeId ? { recipeId } : { reset: "true" },
+      });
+    } else {
+      router.back();
+    }
+  }, [returnTo, recipeId]);
+
   const handleModeToggle = useCallback(() => {
     setScanMode((prev) => (prev === "barcode" ? "ai" : "barcode"));
     setScanned(false);
@@ -290,7 +301,7 @@ export default function ScanScreen() {
         <View style={[styles.overlay, { paddingTop: insets.top + 12 }]}>
           <View style={styles.topRow}>
             <Pressable
-              onPress={() => router.back()}
+              onPress={handleClose}
               style={({ pressed }) => [
                 styles.iconBtn,
                 pressed && { opacity: 0.85 },
@@ -314,7 +325,7 @@ export default function ScanScreen() {
           <View style={[styles.overlay, { paddingTop: insets.top + 12 }]}>
             <View style={styles.topRow}>
               <Pressable
-                onPress={() => router.back()}
+                onPress={handleClose}
                 style={({ pressed }) => [
                   styles.iconBtn,
                   pressed && { opacity: 0.85 },
