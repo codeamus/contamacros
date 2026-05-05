@@ -10,7 +10,9 @@ import React, {
 } from "react";
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -272,6 +274,7 @@ export default function CreateRecipeScreen() {
     useState(false);
   const [barcodeToCreate, setBarcodeToCreate] = useState<string | null>(null);
 
+  const [showBarcodeModal, setShowBarcodeModal] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const { checkAccess } = useFeatureAccess();
   const [recipeLimit, setRecipeLimit] = useState({
@@ -424,6 +427,7 @@ export default function CreateRecipeScreen() {
             setIngredientGrams("100");
           }
 
+          setShowBarcodeModal(true);
           setTimeout(() => router.setParams({ barcode: undefined }), 500);
           return;
         }
@@ -451,6 +455,7 @@ export default function CreateRecipeScreen() {
             setIngredientGrams("100");
           }
 
+          setShowBarcodeModal(true);
           setTimeout(() => router.setParams({ barcode: undefined }), 500);
           return;
         }
@@ -1154,6 +1159,263 @@ export default function CreateRecipeScreen() {
             </Text>
           )}
         </View>
+
+        {/* Modal de confirmación al escanear código de barras */}
+        <Modal
+          visible={showBarcodeModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => {
+            setShowBarcodeModal(false);
+            setSelectedIngredient(null);
+            setSearchQuery("");
+          }}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.55)" }}
+          >
+            <Pressable
+              style={StyleSheet.absoluteFillObject}
+              onPress={() => Keyboard.dismiss()}
+            />
+            <Pressable style={s.barcodeModalSheet}>
+              {selectedIngredient && (() => {
+                const isMl =
+                  selectedIngredient.unitType === "ml" ||
+                  selectedIngredient.base_unit === "ml";
+                const unitSuffix = isMl ? "ml" : "g";
+                const hasUnitsModal =
+                  selectedIngredient.grams_per_unit &&
+                  selectedIngredient.grams_per_unit > 0;
+                const unitLabel =
+                  selectedIngredient.unit_label_es || "unidad";
+                const gramsForPreview =
+                  ingredientInputMode === "units" && hasUnitsModal
+                    ? (toFloatSafe(ingredientUnits) || 1) *
+                      (selectedIngredient.grams_per_unit ?? 1)
+                    : toFloatSafe(ingredientGrams) || 100;
+                const macroPreview = computeFrom100gMacros(
+                  {
+                    kcal_100g: selectedIngredient.kcal_100g,
+                    protein_100g: selectedIngredient.protein_100g,
+                    carbs_100g: selectedIngredient.carbs_100g,
+                    fat_100g: selectedIngredient.fat_100g,
+                  },
+                  gramsForPreview,
+                );
+
+                return (
+                  <>
+                    {/* Handle bar */}
+                    <View style={s.barcodeModalHandle} />
+
+                    {/* Producto info */}
+                    <View style={s.barcodeModalHeader}>
+                      <View style={s.barcodeModalIcon}>
+                        <MaterialCommunityIcons
+                          name="barcode-scan"
+                          size={20}
+                          color="#fff"
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.barcodeModalName} numberOfLines={2}>
+                          {selectedIngredient.name}
+                        </Text>
+                        {selectedIngredient.meta && (
+                          <Text style={s.barcodeModalMeta}>
+                            {selectedIngredient.meta}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+
+                    {/* Macros preview */}
+                    <View style={s.barcodeModalMacrosGrid}>
+                      <View style={s.barcodeModalMacroChip}>
+                        <MaterialCommunityIcons name="fire" size={16} color="#F97316" />
+                        <Text style={s.barcodeModalMacroValue}>
+                          {Math.round(macroPreview.kcal)}
+                        </Text>
+                        <Text style={s.barcodeModalMacroLabel}>kcal</Text>
+                      </View>
+                      <View style={s.barcodeModalMacroChip}>
+                        <MaterialCommunityIcons name="food-steak" size={16} color="#3B82F6" />
+                        <Text style={s.barcodeModalMacroValue}>
+                          {macroPreview.protein.toFixed(1)}g
+                        </Text>
+                        <Text style={s.barcodeModalMacroLabel}>Proteína</Text>
+                      </View>
+                      <View style={s.barcodeModalMacroChip}>
+                        <MaterialCommunityIcons name="bread-slice" size={16} color="#EAB308" />
+                        <Text style={s.barcodeModalMacroValue}>
+                          {macroPreview.carbs.toFixed(1)}g
+                        </Text>
+                        <Text style={s.barcodeModalMacroLabel}>Carbs</Text>
+                      </View>
+                      <View style={s.barcodeModalMacroChip}>
+                        <MaterialCommunityIcons name="peanut" size={16} color="#A855F7" />
+                        <Text style={s.barcodeModalMacroValue}>
+                          {macroPreview.fat.toFixed(1)}g
+                        </Text>
+                        <Text style={s.barcodeModalMacroLabel}>Grasas</Text>
+                      </View>
+                    </View>
+
+                    {/* Input de cantidad */}
+                    <View style={s.barcodeModalInputSection}>
+                      <View style={s.barcodeModalInputHeader}>
+                        <Text style={s.barcodeModalInputLabel}>Cantidad</Text>
+                        {hasUnitsModal && (
+                          <View style={s.barcodeModalModeToggle}>
+                            <Pressable
+                              onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                setIngredientInputMode("units");
+                                const currentGrams = toFloatSafe(ingredientGrams) || 100;
+                                const factor = selectedIngredient.grams_per_unit ?? 1;
+                                setIngredientUnits(Math.round(currentGrams / factor).toString());
+                              }}
+                              style={[
+                                s.barcodeModalModeBtn,
+                                ingredientInputMode === "units" && s.barcodeModalModeBtnActive,
+                              ]}
+                            >
+                              <Text style={[
+                                s.barcodeModalModeBtnText,
+                                ingredientInputMode === "units" && s.barcodeModalModeBtnTextActive,
+                              ]}>
+                                {unitLabel}
+                              </Text>
+                            </Pressable>
+                            <Pressable
+                              onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                setIngredientInputMode("grams");
+                                const currentUnits = toFloatSafe(ingredientUnits) || 1;
+                                setIngredientGrams(
+                                  Math.round(currentUnits * (selectedIngredient.grams_per_unit ?? 1)).toString()
+                                );
+                              }}
+                              style={[
+                                s.barcodeModalModeBtn,
+                                ingredientInputMode === "grams" && s.barcodeModalModeBtnActive,
+                              ]}
+                            >
+                              <Text style={[
+                                s.barcodeModalModeBtnText,
+                                ingredientInputMode === "grams" && s.barcodeModalModeBtnTextActive,
+                              ]}>
+                                {isMl ? "ml" : "g"}
+                              </Text>
+                            </Pressable>
+                          </View>
+                        )}
+                      </View>
+
+                      <View style={s.barcodeModalInputRow}>
+                        <Pressable
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            if (ingredientInputMode === "units") {
+                              const v = Math.max(1, (toFloatSafe(ingredientUnits) || 1) - 1);
+                              setIngredientUnits(v.toString());
+                            } else {
+                              const step = toFloatSafe(ingredientGrams) >= 100 ? 50 : 10;
+                              const v = Math.max(1, (toFloatSafe(ingredientGrams) || 100) - step);
+                              setIngredientGrams(v.toString());
+                            }
+                          }}
+                          style={s.barcodeModalStepBtn}
+                        >
+                          <Feather name="minus" size={18} color={colors.textPrimary} />
+                        </Pressable>
+
+                        <View style={s.barcodeModalInputWrap}>
+                          <TextInput
+                            style={s.barcodeModalTextInput}
+                            value={ingredientInputMode === "units" ? ingredientUnits : ingredientGrams}
+                            onChangeText={ingredientInputMode === "units" ? setIngredientUnits : setIngredientGrams}
+                            placeholder={ingredientInputMode === "units" ? "1" : "100"}
+                            placeholderTextColor={colors.textSecondary}
+                            keyboardType="numeric"
+                            returnKeyType="done"
+                            onSubmitEditing={() => Keyboard.dismiss()}
+                            selectTextOnFocus
+                            textAlign="center"
+                          />
+                          <Text style={s.barcodeModalInputSuffix}>
+                            {ingredientInputMode === "units" ? unitLabel : unitSuffix}
+                          </Text>
+                        </View>
+
+                        <Pressable
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            if (ingredientInputMode === "units") {
+                              const v = Math.min(100, (toFloatSafe(ingredientUnits) || 1) + 1);
+                              setIngredientUnits(v.toString());
+                            } else {
+                              const step = toFloatSafe(ingredientGrams) >= 100 ? 50 : 10;
+                              const v = Math.min(2000, (toFloatSafe(ingredientGrams) || 100) + step);
+                              setIngredientGrams(v.toString());
+                            }
+                          }}
+                          style={s.barcodeModalStepBtn}
+                        >
+                          <Feather name="plus" size={18} color={colors.textPrimary} />
+                        </Pressable>
+                      </View>
+
+                      {hasUnitsModal && (
+                        <Text style={s.barcodeModalPortionHint}>
+                          1 {unitLabel.replace(/^\d+\s*/, "") || unitLabel} = {selectedIngredient.grams_per_unit}{unitSuffix}
+                        </Text>
+                      )}
+                    </View>
+
+                    {/* Botones */}
+                    <View style={s.barcodeModalActions}>
+                      <Pressable
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          setShowBarcodeModal(false);
+                          setSelectedIngredient(null);
+                          setSearchQuery("");
+                          setIngredientGrams("100");
+                          setIngredientUnits("1");
+                          setIngredientInputMode("grams");
+                        }}
+                        style={({ pressed }) => [
+                          s.barcodeModalCancelBtn,
+                          pressed && { opacity: 0.7 },
+                        ]}
+                      >
+                        <Text style={s.barcodeModalCancelText}>Cancelar</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => {
+                          setShowBarcodeModal(false);
+                          handleAddIngredient();
+                        }}
+                        style={({ pressed }) => [
+                          s.barcodeModalConfirmBtn,
+                          pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] },
+                        ]}
+                      >
+                        <Feather name="plus" size={16} color="#fff" />
+                        <Text style={s.barcodeModalConfirmText}>
+                          Agregar ingrediente
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </>
+                );
+              })()}
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Modal>
 
         <PremiumPaywall
           visible={showPaywall}
@@ -1919,6 +2181,200 @@ function makeStyles(colors: any, typography: any, insets: any) {
       fontFamily: typography.subtitle?.fontFamily,
       fontSize: 16,
       color: "white",
+    },
+
+    // Barcode confirm modal
+    barcodeModalSheet: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      padding: 24,
+      paddingBottom: Math.max(insets.bottom, 16) + 24,
+      gap: 20,
+    },
+    barcodeModalHandle: {
+      width: 40,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.border,
+      alignSelf: "center",
+      marginBottom: 4,
+    },
+    barcodeModalHeader: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 14,
+    },
+    barcodeModalIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      backgroundColor: colors.brand,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    barcodeModalName: {
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 18,
+      fontWeight: "700",
+      color: colors.textPrimary,
+      lineHeight: 24,
+    },
+    barcodeModalMeta: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 13,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    barcodeModalMacrosGrid: {
+      flexDirection: "row",
+      gap: 8,
+    },
+    barcodeModalMacroChip: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingVertical: 12,
+      alignItems: "center",
+      gap: 4,
+    },
+    barcodeModalMacroValue: {
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 15,
+      fontWeight: "700",
+      color: colors.textPrimary,
+    },
+    barcodeModalMacroLabel: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 11,
+      color: colors.textSecondary,
+    },
+    barcodeModalInputSection: {
+      gap: 10,
+    },
+    barcodeModalInputHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    barcodeModalInputLabel: {
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.textSecondary,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+    },
+    barcodeModalModeToggle: {
+      flexDirection: "row",
+      backgroundColor: colors.surface,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 3,
+      gap: 2,
+    },
+    barcodeModalModeBtn: {
+      paddingHorizontal: 12,
+      paddingVertical: 5,
+      borderRadius: 7,
+    },
+    barcodeModalModeBtnActive: {
+      backgroundColor: colors.brand,
+    },
+    barcodeModalModeBtnText: {
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 12,
+      fontWeight: "600",
+      color: colors.textSecondary,
+    },
+    barcodeModalModeBtnTextActive: {
+      color: "#fff",
+    },
+    barcodeModalInputRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+    barcodeModalStepBtn: {
+      width: 48,
+      height: 48,
+      borderRadius: 16,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    barcodeModalInputWrap: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.surface,
+      borderWidth: 1.5,
+      borderColor: colors.brand,
+      borderRadius: 16,
+      paddingHorizontal: 14,
+      height: 56,
+      gap: 6,
+    },
+    barcodeModalTextInput: {
+      flex: 1,
+      fontSize: 24,
+      fontWeight: "700",
+      color: colors.textPrimary,
+      fontFamily: typography.subtitle?.fontFamily,
+      textAlign: "center",
+    },
+    barcodeModalInputSuffix: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.textSecondary,
+      fontFamily: typography.body?.fontFamily,
+    },
+    barcodeModalPortionHint: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontFamily: typography.body?.fontFamily,
+      textAlign: "center",
+    },
+    barcodeModalActions: {
+      flexDirection: "row",
+      gap: 12,
+    },
+    barcodeModalCancelBtn: {
+      flex: 1,
+      paddingVertical: 14,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    barcodeModalCancelText: {
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 15,
+      fontWeight: "600",
+      color: colors.textSecondary,
+    },
+    barcodeModalConfirmBtn: {
+      flex: 2,
+      flexDirection: "row",
+      paddingVertical: 14,
+      borderRadius: 16,
+      backgroundColor: colors.brand,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+    },
+    barcodeModalConfirmText: {
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 15,
+      fontWeight: "700",
+      color: "#fff",
     },
   });
 }
