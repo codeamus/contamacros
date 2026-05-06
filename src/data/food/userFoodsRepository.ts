@@ -127,6 +127,13 @@ export const userFoodsRepository = {
     const uidRes = await getUid();
     if (!uidRes.ok) return uidRes;
 
+    // Nullificar referencias en food_logs antes de borrar (evita violación de FK y check constraint)
+    await supabase
+      .from("food_logs")
+      .update({ user_food_id: null, source_type: null })
+      .eq("user_food_id", id)
+      .eq("user_id", uidRes.data);
+
     const { error } = await supabase
       .from("user_foods")
       .delete()
