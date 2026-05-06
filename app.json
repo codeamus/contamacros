@@ -17,6 +17,11 @@
       "supportsTablet": false,
       "usesAppleSignIn": true,
       "appleTeamId": "47CYZ3UYYK",
+      "icon": {
+        "light": "./assets/images/ios-light.png",
+        "dark": "./assets/images/ios-dark.png",
+        "tinted": "./assets/images/ios-tinted.png"
+      },
       "entitlements": {
         "com.apple.developer.in-app-payments": []
       },
@@ -38,7 +43,7 @@
       "package": "com.codeamusdev2.contamacro",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#1B3A2F"
+        "backgroundColor": "#000000"
       },
       "permissions": [
         "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
@@ -87,8 +92,18 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon-light.png",
-          "resizeMode": "contain",
-          "backgroundColor": "#F6F7EB"
+          "resizeMode": "cover",
+          "backgroundColor": "#f6f7eb",
+          "dark": {
+            "image": "./assets/images/splash-icon-dark.png",
+            "resizeMode": "cover",
+            "backgroundColor": "#1b3a2f"
+          },
+          "android": {
+            "image": "./assets/images/splash-icon-dark.png",
+            "resizeMode": "cover",
+            "backgroundColor": "#f6f7eb"
+          }
         }
       ],
       [
