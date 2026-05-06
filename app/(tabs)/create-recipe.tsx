@@ -29,11 +29,11 @@ import {
 
 import { genericFoodsRepository } from "@/data/food/genericFoodsRepository";
 import { userFoodsRepository } from "@/data/food/userFoodsRepository";
+import { supabase } from "@/data/supabase/supabaseClient";
 import { openFoodFactsService } from "@/data/openfoodfacts/openFoodFactsService";
 import {
   mapGenericFoodDbArrayToSearchItems,
   mapGenericFoodDbToSearchItem,
-  mapUserFoodDbArrayToSearchItems,
   type FoodSearchItem,
 } from "@/domain/mappers/foodMappers";
 import type { OffProduct } from "@/domain/models/offProduct";
@@ -215,19 +215,50 @@ function parseRecipeIngredients(raw: unknown): RecipeIngredient[] {
 }
 
 async function searchLocalFoods(q: string): Promise<ExtendedFoodSearchItem[]> {
-  const [userFoodsRes, genericsRes] = await Promise.all([
-    userFoodsRepository.search(q),
+  const [genericsRes, logsRes] = await Promise.all([
     genericFoodsRepository.search(q),
+    supabase
+      .from("food_logs")
+      .select("name, calories, protein_g, carbs_g, fat_g, grams")
+      .ilike("name", `%${q}%`)
+      .not("grams", "is", null)
+      .gt("grams", 0)
+      .order("created_at", { ascending: false })
+      .limit(30),
   ]);
 
-  const userFoods = userFoodsRes.ok
-    ? mapUserFoodDbArrayToSearchItems(userFoodsRes.data)
-    : [];
   const generics = genericsRes.ok
     ? mapGenericFoodDbArrayToSearchItems(genericsRes.data)
     : [];
 
-  return [...userFoods, ...generics];
+  // Deduplicar food_logs por nombre y calcular macros por 100g
+  const genericNames = new Set(generics.map((g) => g.name.toLowerCase()));
+  const seen = new Set<string>();
+  const logFoods: ExtendedFoodSearchItem[] = [];
+
+  if (!logsRes.error && logsRes.data) {
+    for (const log of logsRes.data) {
+      const key = log.name.toLowerCase();
+      if (seen.has(key) || genericNames.has(key)) continue;
+      seen.add(key);
+
+      const factor = 100 / Number(log.grams);
+      logFoods.push({
+        key: `log:${log.name}`,
+        source: "food" as const,
+        name: log.name,
+        meta: "Registrado anteriormente",
+        kcal_100g: Math.round((log.calories ?? 0) * factor),
+        protein_100g: parseFloat(((log.protein_g ?? 0) * factor).toFixed(1)),
+        carbs_100g: parseFloat(((log.carbs_g ?? 0) * factor).toFixed(1)),
+        fat_100g: parseFloat(((log.fat_g ?? 0) * factor).toFixed(1)),
+        verified: false,
+        base_unit: "g",
+      });
+    }
+  }
+
+  return [...generics, ...logFoods];
 }
 
 export default function CreateRecipeScreen() {
