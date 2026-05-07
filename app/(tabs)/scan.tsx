@@ -168,9 +168,7 @@ export default function ScanScreen() {
   // Detectar modo desde params
   useEffect(() => {
     const mode = params.mode as "barcode" | "ai" | undefined;
-    if (mode === "ai" || mode === "barcode") {
-      setScanMode(mode);
-    }
+    setScanMode(mode === "ai" ? "ai" : "barcode");
   }, [params.mode]);
 
   const handleClose = useCallback(() => {
