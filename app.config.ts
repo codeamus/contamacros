@@ -1,5 +1,6 @@
 // app.config.ts
 import type { ConfigContext } from "@expo/config";
+// @ts-expect-error - JSON import without assertion for compatibility
 import appJson from "./app.json";
 
 import dotenv from "dotenv";
@@ -42,9 +43,13 @@ export default ({ config }: ConfigContext) => ({
       process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
       "EXPO_PUBLIC_SUPABASE_ANON_KEY"
     ),
-    EXPO_PUBLIC_GEMINI_API_KEY: required(
-      process.env.EXPO_PUBLIC_GEMINI_API_KEY,
-      "EXPO_PUBLIC_GEMINI_API_KEY"
+    EXPO_PUBLIC_GEMINI_API_KEY_ANDROID: required(
+      process.env.EXPO_PUBLIC_GEMINI_API_KEY_ANDROID,
+      "EXPO_PUBLIC_GEMINI_API_KEY_ANDROID"
+    ),
+    EXPO_PUBLIC_GEMINI_API_KEY_IOS: required(
+      process.env.EXPO_PUBLIC_GEMINI_API_KEY_IOS,
+      "EXPO_PUBLIC_GEMINI_API_KEY_IOS"
     ),
   },
 });
