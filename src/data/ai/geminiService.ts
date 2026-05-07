@@ -4,8 +4,13 @@
 import { AppError, ErrorCode } from "@/core/errors/AppError";
 import { supabase } from "@/data/supabase/supabaseClient";
 import type { DietaryPreferenceDb } from "@/domain/models/profileDb";
+import { Platform } from "react-native";
+import { env } from "@/core/config/env";
 
-const API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+// Seleccionar API key según la plataforma
+const API_KEY = Platform.OS === "android"
+  ? env.geminiApiKeyAndroid
+  : env.geminiApiKeyIos;
 
 /** Google Custom Search: CX para búsqueda de imágenes de recetas */
 const GOOGLE_CSE_CX = "05886ff69208440f3";

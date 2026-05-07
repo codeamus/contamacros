@@ -7,16 +7,17 @@
 export const env = {
   // API
   apiUrl: process.env.EXPO_PUBLIC_API_URL ?? "",
-  
-  // AI Services
-  geminiApiKey: process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? "",
+
+  // AI Services - Gemini API keys por plataforma
+  geminiApiKeyAndroid: process.env.EXPO_PUBLIC_GEMINI_API_KEY_ANDROID ?? "",
+  geminiApiKeyIos: process.env.EXPO_PUBLIC_GEMINI_API_KEY_IOS ?? "",
   /** Google Custom Search API key para imágenes de recetas (recipe_images_cache) */
   googleCseApiKey: process.env.EXPO_PUBLIC_GOOGLE_CSE_API_KEY ?? "",
-  
+
   // Environment
   isDev: __DEV__,
   isProduction: !__DEV__,
-  
+
   // Feature flags (pueden venir de env o config)
   enableAnalytics: process.env.EXPO_PUBLIC_ENABLE_ANALYTICS === "true",
 } as const;
