@@ -7,6 +7,7 @@ import { useMacroScanner } from "@/presentation/hooks/scanner/useMacroScanner";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { ratingPromptService } from "@/domain/services/ratingPromptService";
 import { Feather } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -298,27 +299,40 @@ export default function ScanScreen() {
 
       {/* Overlay */}
       {scanMode === "barcode" ? (
-        <View style={[styles.overlay, { paddingTop: insets.top + 12 }]}>
-          <View style={styles.topRow}>
-            <Pressable
-              onPress={handleClose}
-              style={({ pressed }) => [
-                styles.iconBtn,
-                pressed && { opacity: 0.85 },
-              ]}
-            >
-              <Feather name="x" size={24} color="white" />
-            </Pressable>
-
-            <Text style={styles.title}>Escanear código</Text>
-
-            {/* Espaciador para mantener el título centrado */}
-            <View style={styles.iconBtn} />
+        <>
+          {/* Blur fuera del recuadro */}
+          <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+            <BlurView intensity={60} tint="dark" style={[styles.barcodeTopOverlay, { height: insets.top + 134 }]} />
+            <View style={styles.barcodeMiddleRow}>
+              <BlurView intensity={60} tint="dark" style={styles.barcodeSideOverlay} />
+              <View style={styles.barcodeFrameGap} />
+              <BlurView intensity={60} tint="dark" style={styles.barcodeSideOverlay} />
+            </View>
+            <BlurView intensity={60} tint="dark" style={styles.barcodeBottomOverlay} />
           </View>
 
-          <View style={styles.frame} />
-          <Text style={styles.hint}>Alinea el código dentro del recuadro</Text>
-        </View>
+          <View style={[styles.overlay, { paddingTop: insets.top + 12 }]}>
+            <View style={styles.topRow}>
+              <Pressable
+                onPress={handleClose}
+                style={({ pressed }) => [
+                  styles.iconBtn,
+                  pressed && { opacity: 0.85 },
+                ]}
+              >
+                <Feather name="x" size={24} color="white" />
+              </Pressable>
+
+              <Text style={styles.title}>Escanear código</Text>
+
+              {/* Espaciador para mantener el título centrado */}
+              <View style={styles.iconBtn} />
+            </View>
+
+            <View style={styles.frame} />
+            <Text style={styles.hint}>Alinea el código dentro del recuadro</Text>
+          </View>
+        </>
       ) : (
         <>
           <ScannerOverlay isScanning={isAnalyzing} isRetrying={isRetrying} />
@@ -476,5 +490,21 @@ const styles = StyleSheet.create({
   },
   captureButtonDisabled: {
     opacity: 0.5,
+  },
+  barcodeTopOverlay: {
+    width: "100%",
+  },
+  barcodeMiddleRow: {
+    flexDirection: "row",
+    height: 190,
+  },
+  barcodeSideOverlay: {
+    flex: 1,
+  },
+  barcodeFrameGap: {
+    width: 270,
+  },
+  barcodeBottomOverlay: {
+    flex: 1,
   },
 });

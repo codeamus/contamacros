@@ -1,6 +1,7 @@
 // src/presentation/components/scanner/ScannerOverlay.tsx
 import React, { useEffect, useRef } from "react";
 import { View, StyleSheet, Animated, Text } from "react-native";
+import { BlurView } from "expo-blur";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 
 type ScannerOverlayProps = {
@@ -72,11 +73,11 @@ export function ScannerOverlay({ isScanning = false, isRetrying = false }: Scann
 
   return (
     <View style={styles.container} pointerEvents="none">
-      {/* Overlay oscuro con agujero para el frame */}
+      {/* Overlay con desenfoque fuera del frame */}
       <View style={styles.overlay}>
-        <View style={styles.topOverlay} />
+        <BlurView intensity={60} tint="dark" style={styles.topOverlay} />
         <View style={styles.middleRow}>
-          <View style={styles.sideOverlay} />
+          <BlurView intensity={60} tint="dark" style={styles.sideOverlay} />
           <View style={styles.frameContainer}>
             {/* Frame de enfoque */}
             <View style={[styles.frame, { borderColor: colors.brand }]}>
@@ -124,9 +125,9 @@ export function ScannerOverlay({ isScanning = false, isRetrying = false }: Scann
               )}
             </View>
           </View>
-          <View style={styles.sideOverlay} />
+          <BlurView intensity={60} tint="dark" style={styles.sideOverlay} />
         </View>
-        <View style={styles.bottomOverlay} />
+        <BlurView intensity={60} tint="dark" style={styles.bottomOverlay} />
       </View>
 
       {/* Texto de instrucción */}
@@ -157,7 +158,6 @@ const styles = StyleSheet.create({
   },
   topOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
   },
   middleRow: {
     flexDirection: "row",
@@ -165,7 +165,6 @@ const styles = StyleSheet.create({
   },
   sideOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
   },
   frameContainer: {
     width: FRAME_WIDTH,
@@ -224,7 +223,6 @@ const styles = StyleSheet.create({
   },
   bottomOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
   },
   hintContainer: {
     position: "absolute",
