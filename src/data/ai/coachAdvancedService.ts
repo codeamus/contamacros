@@ -15,8 +15,12 @@
 import type { SmartCoachChatResponse, ChatMessage } from "./geminiService";
 import type { ConversationContext } from "@/domain/models/fitnessCoachChat";
 import { generateSystemPrompt } from "@/domain/services/coachContextBuilder";
+import { Platform } from "react-native";
+import { env } from "@/core/config/env";
 
-const API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+const API_KEY = Platform.OS === "android"
+  ? env.geminiApiKeyAndroid
+  : env.geminiApiKeyIos;
 const MODEL = "gemini-2.5-flash";
 
 const FALLBACK_MSG =
