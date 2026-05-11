@@ -9,7 +9,6 @@ export const StorageKeys = {
   FAVORITES_CACHE: "favorites_cache",
   RECENT_FOODS: "recent_foods",
   HEALTH_CONNECTED: "health_connected",
-  FEATURE_TOUR_SEEN: "feature_tour_seen",
   WEIGHT_LOGS: "weight_logs",
 } as const;
 

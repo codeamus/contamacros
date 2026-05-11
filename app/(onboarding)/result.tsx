@@ -156,11 +156,7 @@ export default function ResultScreen() {
         return;
       }
 
-      // 3) Limpiar el flag del tour ANTES de finalizar onboarding
-      // Esto garantiza que cuando el user llegue al home, el tour aparezca
-      await storage.remove(StorageKeys.FEATURE_TOUR_SEEN);
-
-      // 4) Finalizar onboarding (AHORA SÍ)
+      // 3) Finalizar onboarding
       const res3 = await updateProfile({
         onboarding_completed: true,
       });

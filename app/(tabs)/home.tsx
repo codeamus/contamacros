@@ -10,7 +10,6 @@ import {
   MissingTargetsNotice,
   SummaryCards,
 } from "@/presentation/components/home";
-import { useTour } from "@/presentation/hooks/tour/TourProvider";
 import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
 import { useAuth } from "@/presentation/hooks/auth/AuthProvider";
 import { useTodayMeals } from "@/presentation/hooks/diary/useTodayMeals";
@@ -120,19 +119,6 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [paywallVisible, setPaywallVisible] = useState(false);
 
-  // Tour: ref para el CaloriesCard (paso 'welcome')
-  const caloriesCardRef = useRef<View>(null);
-  const { reportLayout } = useTour();
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      caloriesCardRef.current?.measure((_x, _y, width, height, pageX, pageY) => {
-        if (width > 0) reportLayout("welcome", { x: pageX, y: pageY, width, height });
-      });
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [reportLayout]);
-
   const cardAnimations = useStaggerAnimation(6, 80, 100);
   const fabScale = useRef(new Animated.Value(0)).current;
   const fabOpacity = useRef(new Animated.Value(0)).current;
@@ -215,7 +201,7 @@ export default function HomeScreen() {
           consumidasAnimation={cardAnimations[2]}
         />
 
-        <View ref={caloriesCardRef}>
+        <View>
           <CaloriesCard
             caloriesConsumed={caloriesConsumed}
             remaining={remaining}

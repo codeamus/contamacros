@@ -45,7 +45,6 @@ import { useRecentFoods } from "@/presentation/hooks/food/useRecentFoods";
 import { useFeatureAccess } from "@/presentation/hooks/premium/useFeatureAccess";
 import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
-import { useTour } from "@/presentation/hooks/tour/TourProvider";
 import { todayStrLocal } from "@/presentation/utils/date";
 import { MEAL_LABELS } from "@/presentation/utils/labels";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -256,19 +255,6 @@ export default function AddFoodScreen() {
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const { checkAccess } = useFeatureAccess();
-
-  // Tour: ref para scan buttons (paso 'scan-options')
-  const scanButtonsRef = useRef<View>(null);
-  const { reportLayout } = useTour();
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      scanButtonsRef.current?.measure((_x, _y, width, height, pageX, pageY) => {
-        if (width > 0) reportLayout("scan-options", { x: pageX, y: pageY, width, height });
-      });
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [reportLayout]);
 
   // Log cuando selected cambia
   useEffect(() => {
@@ -1141,7 +1127,7 @@ export default function AddFoodScreen() {
               </Text>
 
               {/* Botones de escaneo */}
-              <View ref={scanButtonsRef} style={s.scanButtonsContainer}>
+              <View style={s.scanButtonsContainer}>
                 <Pressable
                   onPress={() =>
                     router.push({

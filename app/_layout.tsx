@@ -1,7 +1,5 @@
 // app/_layout.tsx
 import { AuthProvider, useAuth } from "@/presentation/hooks/auth/AuthProvider";
-import SpotlightOverlay from "@/presentation/components/ui/SpotlightOverlay";
-import { TourProvider } from "@/presentation/hooks/tour/TourProvider";
 import { ToastProvider } from "@/presentation/hooks/ui/useToast";
 import { ThemeProvider } from "@/presentation/theme/ThemeProvider";
 import { Stack, useRouter, useSegments } from "expo-router";
@@ -137,10 +135,7 @@ export default function RootLayout() {
         <ThemeProvider>
           <AuthProvider>
             <ToastProvider>
-              <TourProvider>
-                <AuthGate />
-                <SpotlightOverlay />
-              </TourProvider>
+              <AuthGate />
             </ToastProvider>
           </AuthProvider>
         </ThemeProvider>

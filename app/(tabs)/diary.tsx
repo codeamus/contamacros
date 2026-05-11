@@ -33,7 +33,6 @@ import { useFeatureAccess } from "@/presentation/hooks/premium/useFeatureAccess"
 import { useRevenueCat } from "@/presentation/hooks/subscriptions/useRevenueCat";
 import { useStaggerAnimation } from "@/presentation/hooks/ui/useStaggerAnimation";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
-import { useTour } from "@/presentation/hooks/tour/TourProvider";
 import { useSmartRatingPrompt } from "@/presentation/hooks/useSmartRatingPrompt";
 import { RatingPromptModal } from "@/presentation/components/RatingPromptModal";
 import { todayStrLocal } from "@/presentation/utils/date";
@@ -419,19 +418,6 @@ export default function DiaryScreen() {
   });
 
   const { isVisible: isRatingVisible, isLoading: isRatingLoading, handleRate, handleLater, handleNever, showPrompt } = ratingPromptHook;
-
-  // Tour: ref para el botón "Añadir" del header (paso 'add-meal')
-  const addMealBtnRef = useRef<View>(null);
-  const { reportLayout } = useTour();
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      addMealBtnRef.current?.measure((_x, _y, width, height, pageX, pageY) => {
-        if (width > 0) reportLayout("add-meal", { x: pageX, y: pageY, width, height });
-      });
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [reportLayout]);
 
   useEffect(() => {
     const m = params.meal;
@@ -896,7 +882,6 @@ export default function DiaryScreen() {
           </View>
 
           <Pressable
-            ref={addMealBtnRef}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.push({
