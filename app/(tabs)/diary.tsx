@@ -652,13 +652,9 @@ export default function DiaryScreen() {
           </Pressable>
         </View>
 
-        {/* Filter chips con animación */}
+        {/* Filter chips */}
         <Animated.View
           style={{
-            flexDirection: "row",
-            flexWrap: "wrap",
-            gap: 8,
-            marginTop: 2,
             opacity: summaryAnimations[0],
             transform: [
               {
@@ -670,8 +666,18 @@ export default function DiaryScreen() {
             ],
           }}
         >
-          {(["all", "breakfast", "lunch", "dinner", "snack"] as const).map(
-            (k, index) => {
+          <View style={s.filterLabelRow}>
+            <MaterialCommunityIcons name="filter-variant" size={14} color={colors.textSecondary} />
+            <Text style={[s.filterLabel, { fontFamily: typography.body?.fontFamily }]}>
+              Mostrar:
+            </Text>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.chipsRow}
+          >
+            {(["all", "breakfast", "lunch", "dinner", "snack"] as const).map((k) => {
               const active = filterMeal === k;
               return (
                 <Pressable
@@ -684,28 +690,24 @@ export default function DiaryScreen() {
                     s.chipPill,
                     {
                       borderColor: active ? colors.brand : colors.border,
-                      backgroundColor: active
-                        ? `${colors.brand}15`
-                        : colors.surface,
+                      backgroundColor: active ? colors.brand : colors.surface,
                       opacity: pressed ? 0.8 : 1,
                       transform: [{ scale: pressed ? 0.96 : 1 }],
                     },
                   ]}
                 >
                   <MaterialCommunityIcons
-                    name={
-                      k === "all" ? "filter-variant" : mealIcon(k as MealType)
-                    }
+                    name={k === "all" ? "filter-variant" : mealIcon(k as MealType)}
                     size={16}
-                    color={active ? colors.brand : colors.textSecondary}
+                    color={active ? "#fff" : colors.textSecondary}
                   />
                   <Text
                     style={[
                       s.chipPillText,
                       {
-                        color: active ? colors.brand : colors.textSecondary,
+                        color: active ? "#fff" : colors.textSecondary,
                         fontFamily: typography.subtitle?.fontFamily,
-                        fontWeight: active ? "600" : "400",
+                        fontWeight: active ? "700" : "400",
                       },
                     ]}
                   >
@@ -713,8 +715,8 @@ export default function DiaryScreen() {
                   </Text>
                 </Pressable>
               );
-            },
-          )}
+            })}
+          </ScrollView>
         </Animated.View>
 
         {!!err && (
@@ -1113,11 +1115,20 @@ function makeStyles(colors: any, typography: any) {
     safe: { flex: 1, backgroundColor: colors.background },
     container: { padding: 18, gap: 14 },
 
+    filterLabelRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginBottom: 8,
+    },
+    filterLabel: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
     chipsRow: {
       flexDirection: "row",
-      flexWrap: "wrap",
       gap: 8,
-      marginTop: 2,
+      paddingHorizontal: 2,
     },
     chipPill: {
       flexDirection: "row",
