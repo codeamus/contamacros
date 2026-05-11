@@ -1122,79 +1122,49 @@ export default function AddFoodScreen() {
 
           {!selected && (
             <>
-              <Text style={s.subtitle}>
-                Busca alimentos y registra los gramos.
-              </Text>
-
-              {/* Botones de escaneo */}
-              <View style={s.scanButtonsContainer}>
-                <Pressable
-                  onPress={() =>
-                    router.push({
-                      pathname: "/(tabs)/scan",
-                      params: { meal, mode: "barcode", returnTo: "add-food" },
-                    })
-                  }
-                  style={({ pressed }) => [
-                    s.scanBtn,
-                    s.scanBtnBarcode,
-                    pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] },
-                  ]}
-                >
-                  <MaterialCommunityIcons
-                    name="barcode-scan"
-                    size={18}
-                    color="#111827"
-                  />
-                  <Text style={s.scanBtnText}>Escanear código</Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={() =>
-                    router.push({
-                      pathname: "/(tabs)/scan",
-                      params: { meal, mode: "ai", returnTo: "add-food" },
-                    })
-                  }
-                  style={({ pressed }) => [
-                    s.scanBtn,
-                    s.scanBtnAI,
-                    pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] },
-                  ]}
-                >
-                  <MaterialCommunityIcons
-                    name="brain"
-                    size={18}
-                    color="#111827"
-                  />
-                  <Text style={s.scanBtnText}>Escanear con IA</Text>
-                </Pressable>
-              </View>
-
-              {/* Botón Analizar Producto (Premium) */}
-              <Pressable
-                onPress={async () => {
-                  const access = await checkAccess("ai");
-                  if (!access.canAccess) {
-                    setShowPaywall(true);
-                    return;
-                  }
-                  router.push({ pathname: "/nutrition-analyzer" });
-                }}
-                style={({ pressed }) => [
-                  s.scanBtn,
-                  s.scanBtnAnalyzer,
-                  pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] },
-                ]}
-              >
-                <MaterialCommunityIcons name="star-check" size={18} color="#fff" />
-                <Text style={[s.scanBtnText, { color: "#fff", flex: 1 }]}>
-                  Analizar producto
-                </Text>
-                <View style={s.premiumBadge}>
-                  <Text style={s.premiumBadgeText}>👑 PREMIUM</Text>
+              {/* Meal chips */}
+              <View>
+                <View style={s.mealRowLabelRow}>
+                  <Text style={s.mealRowLabel}>Agregar a:</Text>
+                  <View style={s.mealSelectedBadge}>
+                    <MaterialCommunityIcons
+                      name={mealIcon(meal)}
+                      size={13}
+                      color={colors.brand}
+                    />
+                    <Text style={[s.mealSelectedBadgeText, { fontFamily: typography.subtitle?.fontFamily }]}>
+                      {MEAL_LABELS[meal]}
+                    </Text>
+                  </View>
                 </View>
-              </Pressable>
+                <View style={s.mealGrid}>
+                  {(["breakfast", "lunch", "dinner", "snack"] as MealType[]).map(
+                    (m) => {
+                      const active = meal === m;
+                      return (
+                        <Pressable
+                          key={m}
+                          onPress={() => setMeal(m)}
+                          style={({ pressed }) => [
+                            s.mealChip,
+                            active && s.mealChipActive,
+                            pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] },
+                          ]}
+                        >
+                          <MaterialCommunityIcons
+                            name={mealIcon(m)}
+                            size={18}
+                            color={active ? colors.brand : colors.textSecondary}
+                          />
+                          <Text style={[s.mealChipText, active && s.mealChipTextActive]}>
+                            {MEAL_LABELS[m]}
+                          </Text>
+                        </Pressable>
+                      );
+                    },
+                  )}
+                </View>
+              </View>
 
               {/* Search */}
               <View style={s.searchBox}>
@@ -1207,7 +1177,6 @@ export default function AddFoodScreen() {
                   }}
                   onFocus={() => {
                     setIsInputFocused(true);
-                    // Hacer scroll suave hacia el input cuando tiene focus
                     setTimeout(() => {
                       scrollViewRef.current?.scrollTo({ y: 0, animated: true });
                     }, 100);
@@ -1235,48 +1204,78 @@ export default function AddFoodScreen() {
                 )}
               </View>
 
-              {/* Meal chips */}
-              <View>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={s.mealRow}
-                style={s.mealRowContainer}
-              >
-                {(["breakfast", "lunch", "dinner", "snack"] as MealType[]).map(
-                  (m) => {
-                    const active = meal === m;
-                    return (
-                      <Pressable
-                        key={m}
-                        onPress={() => setMeal(m)}
-                        style={({ pressed }) => [
-                          s.mealChip,
-                          active && s.mealChipActive,
-                          pressed && {
-                            opacity: 0.92,
-                            transform: [{ scale: 0.99 }],
-                          },
-                        ]}
-                      >
-                        <MaterialCommunityIcons
-                          name={mealIcon(m)}
-                          size={18}
-                          color={active ? colors.brand : colors.textSecondary}
-                        />
-                        <Text
-                          style={[
-                            s.mealChipText,
-                            active && s.mealChipTextActive,
-                          ]}
-                        >
-                          {MEAL_LABELS[m]}
-                        </Text>
-                      </Pressable>
-                    );
-                  },
-                )}
-              </ScrollView>
+              {/* Botones de escaneo */}
+              <View style={s.scanButtonsContainer}>
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: "/(tabs)/scan",
+                      params: { meal, mode: "barcode", returnTo: "add-food" },
+                    })
+                  }
+                  style={({ pressed }) => [
+                    s.scanBtn,
+                    pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] },
+                  ]}
+                >
+                  <View style={s.scanBtnIconWrap}>
+                    <MaterialCommunityIcons name="barcode-scan" size={22} color="#111827" />
+                  </View>
+                  <View style={s.scanBtnTextWrap}>
+                    <Text style={s.scanBtnTitle}>Escanear código</Text>
+                    <Text style={s.scanBtnDesc}>Apunta al código de barras del empaque</Text>
+                  </View>
+                  <MaterialCommunityIcons name="chevron-right" size={18} color="#9CA3AF" />
+                </Pressable>
+
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: "/(tabs)/scan",
+                      params: { meal, mode: "ai", returnTo: "add-food" },
+                    })
+                  }
+                  style={({ pressed }) => [
+                    s.scanBtn,
+                    pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] },
+                  ]}
+                >
+                  <View style={s.scanBtnIconWrap}>
+                    <MaterialCommunityIcons name="brain" size={22} color="#111827" />
+                  </View>
+                  <View style={s.scanBtnTextWrap}>
+                    <Text style={s.scanBtnTitle}>Escanear plato con IA</Text>
+                    <Text style={s.scanBtnDesc}>Saca una foto y detecta los macros solo</Text>
+                  </View>
+                  <MaterialCommunityIcons name="chevron-right" size={18} color="#9CA3AF" />
+                </Pressable>
+
+                <Pressable
+                  onPress={async () => {
+                    const access = await checkAccess("ai");
+                    if (!access.canAccess) {
+                      setShowPaywall(true);
+                      return;
+                    }
+                    router.push({ pathname: "/nutrition-analyzer" });
+                  }}
+                  style={({ pressed }) => [
+                    s.scanBtn,
+                    s.scanBtnAnalyzer,
+                    pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] },
+                  ]}
+                >
+                  <View style={[s.scanBtnIconWrap, { backgroundColor: "rgba(255,255,255,0.15)" }]}>
+                    <MaterialCommunityIcons name="star-check" size={22} color="#fff" />
+                  </View>
+                  <View style={s.scanBtnTextWrap}>
+                    <Text style={[s.scanBtnTitle, { color: "#fff" }]}>Analizar producto</Text>
+                    <Text style={[s.scanBtnDesc, { color: "rgba(255,255,255,0.75)" }]}>Analiza el etiquetado nutricional</Text>
+                  </View>
+                  <View style={s.premiumBadge}>
+                    <Text style={s.premiumBadgeText}>PREMIUM</Text>
+                  </View>
+                </Pressable>
               </View>
 
               {/* Historial de búsqueda - Mostrar PRIMERO cuando hay focus y el input está vacío */}
@@ -2342,11 +2341,31 @@ function makeStyles(colors: any, typography: any) {
       fontSize: 13,
     },
 
-    mealRowContainer: { marginTop: 12 },
-    mealRow: {
+    mealRowLabelRow: {
       flexDirection: "row",
-      gap: 10,
-      paddingHorizontal: 2, // Pequeño padding para que el primer y último item no se corten
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 10,
+    },
+    mealSelectedBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      backgroundColor: `${colors.brand}18`,
+      borderWidth: 1,
+      borderColor: `${colors.brand}40`,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 999,
+    },
+    mealSelectedBadgeText: {
+      fontSize: 12,
+      color: colors.brand,
+    },
+    mealGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
     },
     mealChip: {
       flexDirection: "row",
@@ -2358,15 +2377,16 @@ function makeStyles(colors: any, typography: any) {
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surface,
+      width: "48%",
     },
     mealChipActive: {
       borderColor: colors.brand,
-      backgroundColor: "rgba(34,197,94,0.10)",
+      backgroundColor: `${colors.brand}12`,
     },
     mealChipText: {
       color: colors.textSecondary,
       fontFamily: typography.subtitle?.fontFamily,
-      fontSize: 12,
+      fontSize: 13,
     },
     mealChipTextActive: { color: colors.textPrimary },
 
@@ -2782,37 +2802,46 @@ function makeStyles(colors: any, typography: any) {
     },
     scanButtonsContainer: {
       marginTop: 10,
-      flexDirection: "row",
-      gap: 10,
+      gap: 8,
     },
     scanBtn: {
-      flex: 1,
-      height: 48,
-      borderRadius: 14,
+      borderRadius: 16,
       borderWidth: 1,
       borderColor: "#E5E7EB",
       backgroundColor: "white",
       flexDirection: "row",
       alignItems: "center",
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      gap: 12,
+    },
+    scanBtnIconWrap: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: "#F3F4F6",
+      alignItems: "center",
       justifyContent: "center",
-      gap: 10,
     },
-    scanBtnBarcode: {
-      // Estilos específicos para barcode si es necesario
+    scanBtnTextWrap: {
+      flex: 1,
+      gap: 2,
     },
-    scanBtnAI: {
-      // Estilos específicos para IA si es necesario
+    scanBtnTitle: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: "#111827",
     },
-    scanBtnText: { fontWeight: "800", color: "#111827" },
+    scanBtnDesc: {
+      fontSize: 12,
+      color: "#6B7280",
+    },
     scanBtnAnalyzer: {
-      flex: undefined,
-      marginTop: 10,
       backgroundColor: colors.brand,
       borderColor: colors.brand,
-      paddingHorizontal: 14,
     },
     premiumBadge: {
-      backgroundColor: "rgba(0,0,0,0.2)",
+      backgroundColor: "#fff",
       paddingHorizontal: 8,
       paddingVertical: 3,
       borderRadius: 10,
@@ -2820,7 +2849,13 @@ function makeStyles(colors: any, typography: any) {
     premiumBadgeText: {
       fontSize: 10,
       fontWeight: "800",
-      color: "#fff",
+      color: "#1B3A2F",
+    },
+    mealRowLabel: {
+      fontSize: 13,
+      fontFamily: typography.subtitle?.fontFamily,
+      color: colors.textSecondary,
+      marginBottom: 8,
     },
   });
 }
