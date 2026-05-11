@@ -1,8 +1,12 @@
 // src/data/ai/nutritionAnalyzerService.ts
 
 import { AppError, ErrorCode } from "@/core/errors/AppError";
+import { Platform } from "react-native";
+import { env } from "@/core/config/env";
 
-const API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+const API_KEY = Platform.OS === "android"
+  ? env.geminiApiKeyAndroid
+  : env.geminiApiKeyIos;
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
 
 export type NutritionAnalysisResult = {
