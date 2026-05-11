@@ -3,7 +3,7 @@ import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 type SmartCoachProProps = {
@@ -102,7 +102,14 @@ export default function SmartCoachPro({
     };
   }, [caloriesConsumed, caloriesTarget, colors]);
 
-  const handlePress = () => {
+  const [expanded, setExpanded] = useState(false);
+
+  const handleChipPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setExpanded((v) => !v);
+  };
+
+  const handleChatPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (!isPremium) {
       onShowPaywall?.();
@@ -111,48 +118,88 @@ export default function SmartCoachPro({
     }
   };
 
+  if (!expanded) {
+    return (
+      <Pressable
+        onPress={handleChipPress}
+        style={({ pressed }) => [
+          s.chip,
+          { borderColor: isPremium ? colors.brand + "40" : colors.border },
+          pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+        ]}
+      >
+        <View style={[s.chipIcon, { backgroundColor: content.iconColor + "18" }]}>
+          <MaterialCommunityIcons name={content.icon} size={16} color={content.iconColor} />
+        </View>
+        <Text style={s.chipTitle} numberOfLines={1}>{content.title}</Text>
+        <MaterialCommunityIcons name="chevron-down" size={16} color={colors.textSecondary} />
+      </Pressable>
+    );
+  }
+
   return (
     <Pressable
-      onPress={handlePress}
+      onPress={handleChipPress}
       style={({ pressed }) => [
         s.card,
         { borderColor: isPremium ? colors.brand + "40" : colors.border },
         pressed && { opacity: 0.9, transform: [{ scale: 0.99 }] },
       ]}
     >
-      <View
-        style={[s.iconContainer, { backgroundColor: content.iconColor + "15" }]}
-      >
-        <MaterialCommunityIcons
-          name={content.icon}
-          size={24}
-          color={content.iconColor}
-        />
+      <View style={[s.iconContainer, { backgroundColor: content.iconColor + "15" }]}>
+        <MaterialCommunityIcons name={content.icon} size={24} color={content.iconColor} />
       </View>
 
       <View style={s.textContainer}>
         <Text style={s.title}>{content.title}</Text>
         <Text style={s.message}>{content.message}</Text>
-        <View style={s.actions}>
+        <Pressable
+          onPress={handleChatPress}
+          style={s.actions}
+          hitSlop={8}
+        >
           <Text style={s.actionText}>
             {isPremium ? "Chatear con Coach" : "Ver Fitness Coach Pro"}
           </Text>
-          <MaterialCommunityIcons
-            name="arrow-right"
-            size={14}
-            color={colors.brand}
-          />
-        </View>
+          <MaterialCommunityIcons name="arrow-right" size={14} color={colors.brand} />
+        </Pressable>
       </View>
+
+      <MaterialCommunityIcons name="chevron-up" size={16} color={colors.textSecondary} />
     </Pressable>
   );
 }
 
 function makeStyles(colors: any, typography: any) {
   return StyleSheet.create({
-    card: {
+    chip: {
       flexDirection: "row",
       alignItems: "center",
+      backgroundColor: colors.surface,
+      borderRadius: 999,
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+      borderWidth: 1,
+      gap: 8,
+      alignSelf: "flex-start",
+    },
+    chipIcon: {
+      width: 24,
+      height: 24,
+      borderRadius: 8,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    chipTitle: {
+      flex: 1,
+      ...typography.subtitle,
+      fontSize: 13,
+      fontWeight: "700",
+      color: colors.textPrimary,
+    },
+    card: {
+      flexDirection: "row",
+      alignItems: "flex-start",
       backgroundColor: colors.surface,
       borderRadius: 20,
       padding: 16,
@@ -186,7 +233,7 @@ function makeStyles(colors: any, typography: any) {
       flexDirection: "row",
       alignItems: "center",
       gap: 4,
-      marginTop: 4,
+      marginTop: 6,
     },
     actionText: {
       ...typography.caption,

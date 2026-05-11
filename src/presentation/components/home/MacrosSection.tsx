@@ -1,5 +1,6 @@
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { MacroCard } from "./MacroCard";
@@ -72,7 +73,7 @@ export function MacrosSection({
             Macros
           </Text>
         </View>
-        <Pressable onPress={() => {}}>
+        <Pressable onPress={() => router.push("/(tabs)/diary")}>
           <Text
             style={[
               styles.sectionAction,

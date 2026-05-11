@@ -4,7 +4,6 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
-import { MealRow } from "./MealRow";
 
 type MealData = { count: number; calories: number };
 
@@ -17,6 +16,83 @@ type MealsSectionProps = {
   loading: boolean;
   cardAnimation: Animated.Value | null | undefined;
 };
+
+const MEAL_CONFIG: { key: MealType; label: string; icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"] }[] = [
+  { key: "breakfast", label: "Desayuno", icon: "coffee" },
+  { key: "lunch",     label: "Almuerzo", icon: "food" },
+  { key: "dinner",    label: "Cena",     icon: "food-variant" },
+  { key: "snack",     label: "Snack",    icon: "cookie" },
+];
+
+export function MealsSection({
+  breakfast,
+  lunch,
+  dinner,
+  snack,
+  loading,
+  cardAnimation,
+}: MealsSectionProps) {
+  const { theme } = useTheme();
+  const { colors, typography } = theme;
+
+  const dataMap: Record<MealType, MealData> = { breakfast, lunch, dinner, snack };
+  const mealsWithFood = MEAL_CONFIG.filter((m) => dataMap[m.key].count > 0);
+
+  if (loading || mealsWithFood.length === 0) return null;
+
+  return (
+    <>
+      <View style={styles.sectionHeader}>
+        <View style={styles.sectionTitleRow}>
+          <MaterialCommunityIcons name="silverware-fork-knife" size={18} color={colors.textPrimary} />
+          <Text style={[styles.sectionTitle, { fontFamily: typography.subtitle?.fontFamily, color: colors.textPrimary }]}>
+            Comidas de hoy
+          </Text>
+        </View>
+        <Pressable onPress={() => router.push("/(tabs)/diary")}>
+          <Text style={[styles.sectionAction, { fontFamily: typography.body?.fontFamily, color: colors.brand }]}>
+            Ver todo
+          </Text>
+        </Pressable>
+      </View>
+
+      <Animated.View
+        style={[
+          styles.card,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+          cardAnimation && {
+            opacity: cardAnimation,
+            transform: [{ translateY: cardAnimation.interpolate({ inputRange: [0, 1], outputRange: [30, 0] }) }],
+          },
+        ]}
+      >
+        {mealsWithFood.map((m, i) => {
+          const data = dataMap[m.key];
+          return (
+            <React.Fragment key={m.key}>
+              {i > 0 && <View style={[styles.divider, { backgroundColor: colors.border }]} />}
+              <Pressable
+                onPress={() => router.push({ pathname: "/(tabs)/diary", params: { meal: m.key } })}
+                style={({ pressed }) => [styles.row, pressed && { opacity: 0.8 }]}
+              >
+                <View style={[styles.iconWrap, { borderColor: colors.border }]}>
+                  <MaterialCommunityIcons name={m.icon} size={18} color={colors.textPrimary} />
+                </View>
+                <Text style={[styles.mealLabel, { fontFamily: typography.subtitle?.fontFamily, color: colors.textPrimary }]}>
+                  {m.label}
+                </Text>
+                <Text style={[styles.kcal, { fontFamily: typography.body?.fontFamily, color: colors.textSecondary }]}>
+                  {Math.round(data.calories)} kcal
+                </Text>
+                <MaterialCommunityIcons name="chevron-right" size={16} color={colors.textSecondary} />
+              </Pressable>
+            </React.Fragment>
+          );
+        })}
+      </Animated.View>
+    </>
+  );
+}
 
 const styles = StyleSheet.create({
   sectionHeader: {
@@ -31,141 +107,25 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 22,
     borderWidth: 1,
-    padding: 16,
-    gap: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    gap: 0,
   },
-  divider: { height: 1, opacity: 0.7 },
+  divider: { height: 1, opacity: 0.6 },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+  },
+  iconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mealLabel: { flex: 1, fontSize: 14 },
+  kcal: { fontSize: 13 },
 });
-
-export function MealsSection({
-  breakfast,
-  lunch,
-  dinner,
-  snack,
-  totalCalories,
-  loading,
-  cardAnimation,
-}: MealsSectionProps) {
-  const { theme } = useTheme();
-  const { colors, typography } = theme;
-
-  const navigateToDiary = (meal: MealType) => {
-    router.push({
-      pathname: "/(tabs)/diary",
-      params: { meal },
-    });
-  };
-
-  const navigateToAddFood = (meal: MealType) => {
-    router.push({
-      pathname: "/(tabs)/add-food",
-      params: { meal },
-    });
-  };
-
-  return (
-    <>
-      <View style={styles.sectionHeader}>
-        <View style={styles.sectionTitleRow}>
-          <MaterialCommunityIcons
-            name="silverware-fork-knife"
-            size={18}
-            color={colors.textPrimary}
-          />
-          <Text
-            style={[
-              styles.sectionTitle,
-              {
-                fontFamily: typography.subtitle?.fontFamily,
-                color: colors.textPrimary,
-              },
-            ]}
-          >
-            Comidas
-          </Text>
-        </View>
-        <Pressable onPress={() => router.push("/(tabs)/diary")}>
-          <Text
-            style={[
-              styles.sectionAction,
-              {
-                fontFamily: typography.body?.fontFamily,
-                color: colors.brand,
-              },
-            ]}
-          >
-            Ver todo
-          </Text>
-        </Pressable>
-      </View>
-
-      <Animated.View
-        style={[
-          styles.card,
-          {
-            backgroundColor: colors.surface,
-            borderColor: colors.border,
-          },
-          cardAnimation && {
-            opacity: cardAnimation,
-            transform: [
-              {
-                translateY: cardAnimation.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [30, 0],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
-        <MealRow
-          title="Desayuno"
-          icon="coffee"
-          count={breakfast.count}
-          kcal={breakfast.calories}
-          totalKcal={totalCalories}
-          loading={loading}
-          onOpen={() => navigateToDiary("breakfast")}
-          onAdd={() => navigateToAddFood("breakfast")}
-        />
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-        <MealRow
-          title="Almuerzo"
-          icon="food"
-          count={lunch.count}
-          kcal={lunch.calories}
-          totalKcal={totalCalories}
-          loading={loading}
-          onOpen={() => navigateToDiary("lunch")}
-          onAdd={() => navigateToAddFood("lunch")}
-        />
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-        <MealRow
-          title="Cena"
-          icon="food-variant"
-          count={dinner.count}
-          kcal={dinner.calories}
-          totalKcal={totalCalories}
-          loading={loading}
-          onOpen={() => navigateToDiary("dinner")}
-          onAdd={() => navigateToAddFood("dinner")}
-        />
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-        <MealRow
-          title="Snack"
-          icon="food-apple"
-          count={snack.count}
-          kcal={snack.calories}
-          totalKcal={totalCalories}
-          loading={loading}
-          onOpen={() => navigateToDiary("snack")}
-          onAdd={() => navigateToAddFood("snack")}
-        />
-      </Animated.View>
-    </>
-  );
-}
