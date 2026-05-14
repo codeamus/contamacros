@@ -440,7 +440,8 @@ export default function MyFoodsScreen() {
   useFocusEffect(
     useCallback(() => {
       loadMyFoods();
-    }, [loadMyFoods]),
+      loadFavoriteFoods();
+    }, [loadMyFoods, loadFavoriteFoods]),
   );
 
 
