@@ -44,7 +44,6 @@ import CreateFoodModal from "@/presentation/components/nutrition/CreateFoodModal
 import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
 import { useFavorites } from "@/presentation/hooks/food/useFavorites";
-import { useRecentFoods } from "@/presentation/hooks/food/useRecentFoods";
 import { useFeatureAccess } from "@/presentation/hooks/premium/useFeatureAccess";
 import { useToast } from "@/presentation/hooks/ui/useToast";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
@@ -255,7 +254,6 @@ export default function AddFoodScreen() {
   const { colors, typography } = theme;
   const { showToast } = useToast();
   const { favorites, isFavorite, toggleFavorite, toggleScannedFavorite } = useFavorites();
-  const { recentFoods, addRecent } = useRecentFoods();
   const s = makeStyles(colors, typography);
 
   const day = todayStrLocal();
@@ -1110,11 +1108,6 @@ export default function AddFoodScreen() {
     const updatedHistory = await getSearchHistory();
     setSearchHistory(updatedHistory);
 
-    // Guardar en recientes (solo si es de generic_foods o user_foods, no de OFF)
-    if (selected.source === "food" || selected.source === "user_food") {
-      await addRecent(selected);
-    }
-
     setSelected(null);
     setQuery("");
     setResults([]);
@@ -1479,122 +1472,6 @@ export default function AddFoodScreen() {
                 </View>
               )}
 
-              {/* Recientes - Solo cuando no hay búsqueda */}
-              {!query.trim() && recentFoods.length > 0 && (
-                <View style={{ gap: 8, marginTop: 12 }}>
-                  <View style={s.sectionHeader}>
-                    <MaterialCommunityIcons
-                      name="clock-outline"
-                      size={18}
-                      color={colors.textPrimary}
-                    />
-                    <Text style={s.sectionTitle}>
-                      🕒 Consumidos Recientemente
-                    </Text>
-                  </View>
-                  <View style={{ gap: 8 }}>
-                    {recentFoods.map((recent) => {
-                      // Buscar el alimento completo en favoritos o recetas
-                      const foodItem =
-                        favoriteFoods.find((f) => f.key === recent.key) ||
-                        myRecipes.find((r) => r.key === recent.key);
-
-                      return (
-                        <Pressable
-                          key={recent.key}
-                          onPress={async () => {
-                            Haptics.impactAsync(
-                              Haptics.ImpactFeedbackStyle.Light,
-                            );
-
-                            // Si ya tenemos el alimento completo, usarlo
-                            if (foodItem) {
-                              justSelectedManuallyRef.current = true;
-                              setSelected(foodItem);
-                              setTimeout(() => {
-                                justSelectedManuallyRef.current = false;
-                              }, 500);
-                              return;
-                            }
-
-                            // Si no, buscar desde generic_foods o user_foods
-                            if (recent.food_id) {
-                              const foodRes =
-                                await genericFoodsRepository.getByIds([
-                                  recent.food_id,
-                                ]);
-                              if (foodRes.ok && foodRes.data.length > 0) {
-                                const fullFood =
-                                  mapGenericFoodDbArrayToSearchItems(
-                                    foodRes.data,
-                                  )[0];
-                                justSelectedManuallyRef.current = true;
-                                setSelected(fullFood);
-                                setTimeout(() => {
-                                  justSelectedManuallyRef.current = false;
-                                }, 500);
-                                return;
-                              }
-                            } else if (recent.user_food_id) {
-                              const userFoodRes =
-                                await userFoodsRepository.getById(
-                                  recent.user_food_id,
-                                );
-                              if (userFoodRes.ok && userFoodRes.data) {
-                                const fullFood =
-                                  mapUserFoodDbArrayToSearchItems([
-                                    userFoodRes.data,
-                                  ])[0];
-                                justSelectedManuallyRef.current = true;
-                                setSelected(fullFood);
-                                setTimeout(() => {
-                                  justSelectedManuallyRef.current = false;
-                                }, 500);
-                                return;
-                              }
-                            }
-
-                            // Si no se puede cargar, mostrar error
-                            showToast({
-                              message: "No se pudo cargar el alimento",
-                              type: "error",
-                            });
-                          }}
-                          style={({ pressed }) => [
-                            s.historyItem,
-                            pressed && {
-                              opacity: 0.95,
-                              transform: [{ scale: 0.997 }],
-                            },
-                          ]}
-                        >
-                          <View style={s.historyIcon}>
-                            <MaterialCommunityIcons
-                              name="clock-outline"
-                              size={16}
-                              color={colors.textSecondary}
-                            />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={s.historyName}>{recent.name}</Text>
-                            <Text style={s.historyMeta}>
-                              {foodItem?.kcal_100g
-                                ? `${foodItem.kcal_100g} kcal / 100g`
-                                : "Recientemente agregado"}
-                            </Text>
-                          </View>
-                          <Feather
-                            name="chevron-right"
-                            size={16}
-                            color={colors.textSecondary}
-                          />
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-              )}
-
               {/* Mis Recetas - Siempre visible */}
               {myRecipes.length > 0 && (
                 <View style={{ gap: 8, marginTop: 12 }}>
@@ -1657,7 +1534,6 @@ export default function AddFoodScreen() {
 
               {/* Empty state — solo para usuarios nuevos sin historial ni favoritos */}
               {!query.trim() &&
-                recentFoods.length === 0 &&
                 favoriteFoods.length === 0 &&
                 myRecipes.length === 0 &&
                 !isSearchingLocal && (
