@@ -10,6 +10,7 @@ import React, {
 import {
     ActivityIndicator,
     KeyboardAvoidingView,
+    Modal,
     Platform,
     Pressable,
     ScrollView,
@@ -289,7 +290,7 @@ export default function AddFoodScreen() {
   const [favoriteFoods, setFavoriteFoods] = useState<ExtendedFoodSearchItem[]>(
     [],
   );
-  const [loadingFavorites, setLoadingFavorites] = useState(false);
+  const [, setLoadingFavorites] = useState(false);
 
   const [gramsStr, setGramsStr] = useState("100");
   const [unitsStr, setUnitsStr] = useState("1");
@@ -304,6 +305,10 @@ export default function AddFoodScreen() {
   const [showCreateGenericFoodModal, setShowCreateGenericFoodModal] =
     useState(false);
   const [showCreateFoodModal, setShowCreateFoodModal] = useState(false);
+  const [showRecipesModal, setShowRecipesModal] = useState(false);
+  const [showFavoritesModal, setShowFavoritesModal] = useState(false);
+  const [recipeFilter, setRecipeFilter] = useState("");
+  const [favoriteFilter, setFavoriteFilter] = useState("");
   /** Barcode con el que abrir el formulario de creación */
   const [barcodeToCreate, setBarcodeToCreate] = useState<string | null>(null);
   const reqIdRef = useRef(0);
@@ -1410,128 +1415,41 @@ export default function AddFoodScreen() {
                 </View>
               )}
 
-              {/* Favoritos - Solo cuando no hay búsqueda */}
-              {!query.trim() && favoriteFoods.length > 0 && (
-                <View style={{ gap: 8, marginTop: 12 }}>
-                  <View style={s.sectionHeader}>
-                    <MaterialCommunityIcons
-                      name="star"
-                      size={18}
-                      color={colors.brand}
-                    />
-                    <Text style={s.sectionTitle}>⭐ Mis Favoritos</Text>
-                  </View>
-                  {loadingFavorites ? (
-                    <View style={s.loadingBox}>
-                      <ActivityIndicator size="small" color={colors.brand} />
-                    </View>
-                  ) : (
-                    <View style={{ gap: 8 }}>
-                      {favoriteFoods.map((food) => (
-                        <Pressable
-                          key={food.key}
-                          onPress={() => {
-                            Haptics.impactAsync(
-                              Haptics.ImpactFeedbackStyle.Light,
-                            );
-                            justSelectedManuallyRef.current = true;
-                            setSelected(food);
-                            setTimeout(() => {
-                              justSelectedManuallyRef.current = false;
-                            }, 500);
-                          }}
-                          style={({ pressed }) => [
-                            s.historyItem,
-                            pressed && {
-                              opacity: 0.95,
-                              transform: [{ scale: 0.997 }],
-                            },
-                          ]}
-                        >
-                          <View style={s.historyIcon}>
-                            <MaterialCommunityIcons
-                              name="star"
-                              size={16}
-                              color={colors.brand}
-                            />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={s.historyName}>{food.name}</Text>
-                            <Text style={s.historyMeta}>
-                              {food.kcal_100g
-                                ? `${food.kcal_100g} kcal / 100g`
-                                : "Alimento favorito"}
-                            </Text>
-                          </View>
-                          <Feather
-                            name="chevron-right"
-                            size={16}
-                            color={colors.textSecondary}
-                          />
-                        </Pressable>
-                      ))}
-                    </View>
+              {/* Botones de acceso rápido: Favoritos y Recetas */}
+              {!query.trim() && (myRecipes.length > 0 || favoriteFoods.length > 0) && (
+                <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+                  {favoriteFoods.length > 0 && (
+                    <Pressable
+                      onPress={() => {
+                        setFavoriteFilter("");
+                        setShowFavoritesModal(true);
+                      }}
+                      style={({ pressed }) => [
+                        s.quickAccessBtn,
+                        pressed && { opacity: 0.88, transform: [{ scale: 0.98 }] },
+                      ]}
+                    >
+                      <MaterialCommunityIcons name="heart" size={20} color="#EF4444" />
+                      <Text style={s.quickAccessTitle}>Mis favoritos</Text>
+                      <Text style={s.quickAccessCount}>{favoriteFoods.length} guardados</Text>
+                    </Pressable>
                   )}
-                </View>
-              )}
-
-              {/* Mis Recetas - Siempre visible */}
-              {myRecipes.length > 0 && (
-                <View style={{ gap: 8, marginTop: 12 }}>
-                  <View style={s.sectionHeader}>
-                    <MaterialCommunityIcons
-                      name="chef-hat"
-                      size={18}
-                      color={colors.textPrimary}
-                    />
-                    <Text style={s.sectionTitle}>Mis recetas</Text>
-                  </View>
-                  <View style={{ gap: 8 }}>
-                    {myRecipes.map((recipe) => (
-                      <Pressable
-                        key={recipe.key}
-                        onPress={() => {
-                          Haptics.impactAsync(
-                            Haptics.ImpactFeedbackStyle.Light,
-                          );
-                          justSelectedManuallyRef.current = true; // Marcar que el usuario seleccionó manualmente
-                          setSelected(recipe);
-                          // Resetear el flag después de un delay para permitir que useFocusEffect lo proteja
-                          setTimeout(() => {
-                            justSelectedManuallyRef.current = false;
-                          }, 500);
-                        }}
-                        style={({ pressed }) => [
-                          s.historyItem,
-                          pressed && {
-                            opacity: 0.95,
-                            transform: [{ scale: 0.997 }],
-                          },
-                        ]}
-                      >
-                        <View style={s.historyIcon}>
-                          <MaterialCommunityIcons
-                            name="chef-hat"
-                            size={16}
-                            color={colors.brand}
-                          />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={s.historyName}>{recipe.name}</Text>
-                          <Text style={s.historyMeta}>
-                            {recipe.kcal_100g
-                              ? `${recipe.kcal_100g} kcal / 100g`
-                              : "Receta personalizada"}
-                          </Text>
-                        </View>
-                        <Feather
-                          name="chevron-right"
-                          size={16}
-                          color={colors.textSecondary}
-                        />
-                      </Pressable>
-                    ))}
-                  </View>
+                  {myRecipes.length > 0 && (
+                    <Pressable
+                      onPress={() => {
+                        setRecipeFilter("");
+                        setShowRecipesModal(true);
+                      }}
+                      style={({ pressed }) => [
+                        s.quickAccessBtn,
+                        pressed && { opacity: 0.88, transform: [{ scale: 0.98 }] },
+                      ]}
+                    >
+                      <MaterialCommunityIcons name="chef-hat" size={20} color={colors.brand} />
+                      <Text style={s.quickAccessTitle}>Mis recetas</Text>
+                      <Text style={s.quickAccessCount}>{myRecipes.length} guardadas</Text>
+                    </Pressable>
+                  )}
                 </View>
               )}
 
@@ -2209,6 +2127,140 @@ export default function AddFoodScreen() {
           });
         }}
       />
+      {/* Modal Mis Favoritos */}
+      <Modal visible={showFavoritesModal} animationType="slide" transparent onRequestClose={() => setShowFavoritesModal(false)}>
+        <Pressable style={s.modalOverlay} onPress={() => setShowFavoritesModal(false)}>
+          <Pressable style={s.modalSheet} onPress={() => {}}>
+            <View style={s.modalHandle} />
+            <View style={s.modalHeaderRow}>
+              <Text style={s.modalTitle}>Mis favoritos</Text>
+              <Pressable onPress={() => setShowFavoritesModal(false)}>
+                <Feather name="x" size={20} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+            <View style={s.modalSearchBox}>
+              <Feather name="search" size={16} color={colors.textSecondary} />
+              <TextInput
+                value={favoriteFilter}
+                onChangeText={setFavoriteFilter}
+                placeholder="Filtrar favoritos..."
+                placeholderTextColor={colors.textSecondary}
+                style={s.modalSearchInput}
+                autoCapitalize="none"
+              />
+              {!!favoriteFilter && (
+                <Pressable onPress={() => setFavoriteFilter("")}>
+                  <Feather name="x" size={14} color={colors.textSecondary} />
+                </Pressable>
+              )}
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {favoriteFoods
+                .filter(f => !favoriteFilter.trim() || f.name.toLowerCase().includes(favoriteFilter.toLowerCase()))
+                .length === 0 ? (
+                <View style={s.modalEmpty}>
+                  <MaterialCommunityIcons name="heart-off-outline" size={32} color={colors.textSecondary} />
+                  <Text style={s.modalEmptyText}>
+                    {favoriteFilter.trim() ? "Sin resultados para tu búsqueda" : "No tenés favoritos guardados"}
+                  </Text>
+                </View>
+              ) : (
+                favoriteFoods
+                  .filter(f => !favoriteFilter.trim() || f.name.toLowerCase().includes(favoriteFilter.toLowerCase()))
+                  .map(food => (
+                    <Pressable
+                      key={food.key}
+                      style={({ pressed }) => [s.modalItem, pressed && { opacity: 0.7 }]}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        justSelectedManuallyRef.current = true;
+                        setSelected(food);
+                        setShowFavoritesModal(false);
+                      }}
+                    >
+                      <View style={s.modalItemIcon}>
+                        <MaterialCommunityIcons name="heart" size={16} color="#EF4444" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.modalItemName} numberOfLines={1}>{food.name}</Text>
+                        <Text style={s.modalItemMeta}>{food.kcal_100g ? `${food.kcal_100g} kcal / 100g` : "Favorito"}</Text>
+                      </View>
+                      <Feather name="chevron-right" size={16} color={colors.textSecondary} />
+                    </Pressable>
+                  ))
+              )}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Modal Mis Recetas */}
+      <Modal visible={showRecipesModal} animationType="slide" transparent onRequestClose={() => setShowRecipesModal(false)}>
+        <Pressable style={s.modalOverlay} onPress={() => setShowRecipesModal(false)}>
+          <Pressable style={s.modalSheet} onPress={() => {}}>
+            <View style={s.modalHandle} />
+            <View style={s.modalHeaderRow}>
+              <Text style={s.modalTitle}>Mis recetas</Text>
+              <Pressable onPress={() => setShowRecipesModal(false)}>
+                <Feather name="x" size={20} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+            <View style={s.modalSearchBox}>
+              <Feather name="search" size={16} color={colors.textSecondary} />
+              <TextInput
+                value={recipeFilter}
+                onChangeText={setRecipeFilter}
+                placeholder="Filtrar recetas..."
+                placeholderTextColor={colors.textSecondary}
+                style={s.modalSearchInput}
+                autoCapitalize="none"
+              />
+              {!!recipeFilter && (
+                <Pressable onPress={() => setRecipeFilter("")}>
+                  <Feather name="x" size={14} color={colors.textSecondary} />
+                </Pressable>
+              )}
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {myRecipes
+                .filter(r => !recipeFilter.trim() || r.name.toLowerCase().includes(recipeFilter.toLowerCase()))
+                .length === 0 ? (
+                <View style={s.modalEmpty}>
+                  <MaterialCommunityIcons name="chef-hat" size={32} color={colors.textSecondary} />
+                  <Text style={s.modalEmptyText}>
+                    {recipeFilter.trim() ? "Sin resultados para tu búsqueda" : "No tenés recetas guardadas"}
+                  </Text>
+                </View>
+              ) : (
+                myRecipes
+                  .filter(r => !recipeFilter.trim() || r.name.toLowerCase().includes(recipeFilter.toLowerCase()))
+                  .map(recipe => (
+                    <Pressable
+                      key={recipe.key}
+                      style={({ pressed }) => [s.modalItem, pressed && { opacity: 0.7 }]}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        justSelectedManuallyRef.current = true;
+                        setSelected(recipe);
+                        setShowRecipesModal(false);
+                      }}
+                    >
+                      <View style={s.modalItemIcon}>
+                        <MaterialCommunityIcons name="chef-hat" size={16} color={colors.brand} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.modalItemName} numberOfLines={1}>{recipe.name}</Text>
+                        <Text style={s.modalItemMeta}>{recipe.kcal_100g ? `${recipe.kcal_100g} kcal / 100g` : "Receta personalizada"}</Text>
+                      </View>
+                      <Feather name="chevron-right" size={16} color={colors.textSecondary} />
+                    </Pressable>
+                  ))
+              )}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* Overlay de carga al buscar por código de barras */}
       {isBarcodeLoading && (
         <View style={s.barcodeLoadingOverlay}>
@@ -2956,6 +3008,116 @@ function makeStyles(colors: any, typography: any) {
       fontFamily: typography.subtitle?.fontFamily,
       color: colors.textSecondary,
       marginBottom: 8,
+    },
+    quickAccessBtn: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 16,
+      paddingVertical: 14,
+      paddingHorizontal: 12,
+      alignItems: "center",
+      gap: 6,
+    },
+    quickAccessTitle: {
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 13,
+      color: colors.textPrimary,
+    },
+    quickAccessCount: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 11,
+      color: colors.textSecondary,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.55)",
+      justifyContent: "flex-end",
+    },
+    modalSheet: {
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      paddingTop: 12,
+      paddingHorizontal: 18,
+      paddingBottom: 32,
+      maxHeight: "80%",
+    },
+    modalHandle: {
+      width: 40,
+      height: 4,
+      borderRadius: 999,
+      backgroundColor: colors.border,
+      alignSelf: "center",
+      marginBottom: 16,
+    },
+    modalHeaderRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 14,
+    },
+    modalTitle: {
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 16,
+      color: colors.textPrimary,
+    },
+    modalSearchBox: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      height: 42,
+      marginBottom: 12,
+    },
+    modalSearchInput: {
+      flex: 1,
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 14,
+      color: colors.textPrimary,
+    },
+    modalItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    modalItemIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    modalItemName: {
+      fontFamily: typography.subtitle?.fontFamily,
+      fontSize: 14,
+      color: colors.textPrimary,
+    },
+    modalItemMeta: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    modalEmpty: {
+      paddingVertical: 32,
+      alignItems: "center",
+      gap: 8,
+    },
+    modalEmptyText: {
+      fontFamily: typography.body?.fontFamily,
+      fontSize: 13,
+      color: colors.textSecondary,
+      textAlign: "center",
     },
   });
 }
