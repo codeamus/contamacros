@@ -367,7 +367,7 @@ export default function MyFoodsScreen() {
   const [err, setErr] = useState<string | null>(null);
 
   // Favoritos
-  const { favorites, toggleFavorite } = useFavorites();
+  const { favorites, removeFavorite } = useFavorites();
   const [favoriteFoods, setFavoriteFoods] = useState<FoodSearchItem[]>([]);
   const [loadingFavorites, setLoadingFavorites] = useState(false);
 
@@ -514,12 +514,11 @@ export default function MyFoodsScreen() {
   const handleRemoveFavorite = useCallback(
     async (foodId: string) => {
       try {
-        await toggleFavorite(foodId);
+        await removeFavorite(foodId);
         showToast({
           message: "Producto eliminado de favoritos",
           type: "success",
         });
-        // Los favoritos se actualizarán automáticamente cuando cambie el estado
       } catch {
         showToast({
           message: "Error al eliminar de favoritos",
@@ -527,7 +526,7 @@ export default function MyFoodsScreen() {
         });
       }
     },
-    [toggleFavorite, showToast],
+    [removeFavorite, showToast],
   );
 
   return (

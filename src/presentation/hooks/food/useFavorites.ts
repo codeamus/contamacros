@@ -186,6 +186,32 @@ export function useFavorites() {
     [favorites],
   );
 
+  /**
+   * Elimina un favorito por identifier (food_id UUID o barcode). Nunca agrega.
+   */
+  const removeFavorite = useCallback(
+    async (identifier: string): Promise<void> => {
+      const previousFavorites = new Set(favorites);
+      const newFavorites = new Set(favorites);
+      newFavorites.delete(identifier);
+      setFavorites(newFavorites);
+
+      const newArr = Array.from(newFavorites);
+      await storage.setJson(StorageKeys.FAVORITES_CACHE, { foodIds: newArr, timestamp: Date.now() });
+
+      const res = await userFavoritesRepository.remove(identifier);
+      if (!res.ok) {
+        setFavorites(previousFavorites);
+        await storage.setJson(StorageKeys.FAVORITES_CACHE, {
+          foodIds: Array.from(previousFavorites),
+          timestamp: Date.now(),
+        });
+        throw new Error(res.message);
+      }
+    },
+    [favorites],
+  );
+
   const isFavorite = useCallback(
     (identifier: string): boolean => {
       return favorites.has(identifier);
@@ -200,6 +226,7 @@ export function useFavorites() {
     isFavorite,
     toggleFavorite,
     toggleScannedFavorite,
+    removeFavorite,
     loading,
     syncing,
     refresh: loadFavorites,
