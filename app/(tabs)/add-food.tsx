@@ -26,6 +26,7 @@ import { StorageKeys } from "@/core/storage/keys";
 import { storage } from "@/core/storage/storage";
 import { foodLogRepository } from "@/data/food/foodLogRepository";
 import { genericFoodsRepository } from "@/data/food/genericFoodsRepository";
+import { userFavoritesRepository } from "@/data/food/userFavoritesRepository";
 import { userFoodsRepository } from "@/data/food/userFoodsRepository";
 import { openFoodFactsService } from "@/data/openfoodfacts/openFoodFactsService";
 import { supabase } from "@/data/supabase/supabaseClient";
@@ -339,45 +340,58 @@ export default function AddFoodScreen() {
     })();
   }, []);
 
-  // Función para cargar alimentos favoritos
-  const loadFavoriteFoods = useCallback(async (favoriteIds: string[]) => {
-    if (favoriteIds.length === 0) {
-      setFavoriteFoods([]);
-      return;
-    }
-
+  // Función para cargar alimentos favoritos (generic_foods + productos escaneados inline)
+  const loadFavoriteFoods = useCallback(async () => {
     setLoadingFavorites(true);
     try {
-      const favoritesRes = await genericFoodsRepository.getByIds(favoriteIds);
-      if (favoritesRes.ok) {
-        const favoriteItems = mapGenericFoodDbArrayToSearchItems(
-          favoritesRes.data,
-        );
-        setFavoriteFoods(favoriteItems);
+      const allRes = await userFavoritesRepository.getAllWithData();
+      if (!allRes.ok) return;
+
+      const rows = allRes.data;
+      const inlineItems: ExtendedFoodSearchItem[] = [];
+      const genericFoodIds: string[] = [];
+
+      for (const row of rows) {
+        if (row.food_id) {
+          genericFoodIds.push(row.food_id);
+        } else if (row.name) {
+          inlineItems.push({
+            key: `scanned:${row.barcode ?? row.id}`,
+            source: "off",
+            name: row.name,
+            kcal_100g: row.kcal_100g ?? 0,
+            protein_100g: row.protein_100g ?? 0,
+            carbs_100g: row.carbs_100g ?? 0,
+            fat_100g: row.fat_100g ?? 0,
+          });
+        }
       }
+
+      const genericItems: ExtendedFoodSearchItem[] = [];
+      if (genericFoodIds.length > 0) {
+        const favoritesRes = await genericFoodsRepository.getByIds(genericFoodIds);
+        if (favoritesRes.ok) {
+          genericItems.push(...mapGenericFoodDbArrayToSearchItems(favoritesRes.data));
+        }
+      }
+
+      setFavoriteFoods([...genericItems, ...inlineItems]);
     } catch (error) {
       console.error("[AddFoodScreen] Error loading favorite foods:", error);
     } finally {
       setLoadingFavorites(false);
     }
-  }, []); // Sin dependencias para evitar recreaciones
+  }, []);
 
   // Cargar alimentos favoritos cuando cambian los favoritos
-  // Usar useMemo para crear una clave estable basada en el contenido del array
   const favoritesKey = useMemo(() => favorites.join(","), [favorites]);
 
   useEffect(() => {
-    // Solo cargar si la clave cambió (evitar cargas duplicadas)
     if (favoritesKey !== lastFavoritesKeyRef.current) {
       lastFavoritesKeyRef.current = favoritesKey;
-
-      if (favorites.length > 0) {
-        loadFavoriteFoods(favorites);
-      } else {
-        setFavoriteFoods([]);
-      }
+      loadFavoriteFoods();
     }
-  }, [favoritesKey, favorites, loadFavoriteFoods]);
+  }, [favoritesKey, loadFavoriteFoods]);
 
   useFocusEffect(
     useCallback(() => {
@@ -386,11 +400,7 @@ export default function AddFoodScreen() {
       const currentKey = favorites.join(",");
       if (currentKey !== lastFavoritesKeyRef.current) {
         lastFavoritesKeyRef.current = currentKey;
-        if (favorites.length > 0) {
-          loadFavoriteFoods(favorites);
-        } else {
-          setFavoriteFoods([]);
-        }
+        loadFavoriteFoods();
       }
 
       // ✅ cada vez que entras a AddFood, parte limpio
