@@ -99,6 +99,167 @@ function filterLabel(k: MealFilter) {
   return MEAL_LABELS[k];
 }
 
+// ─── Skeleton Components ──────────────────────────────────────────────────────
+
+function useShimmer() {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(anim, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(anim, {
+          toValue: 0,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+    ).start();
+  }, [anim]);
+  return anim;
+}
+
+function SkeletonBox({
+  width,
+  height,
+  borderRadius = 8,
+  shimmer,
+  style,
+}: {
+  width: number | string;
+  height: number;
+  borderRadius?: number;
+  shimmer: Animated.Value;
+  style?: object;
+}) {
+  const opacity = shimmer.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.25, 0.55],
+  });
+  return (
+    <Animated.View
+      style={[
+        {
+          width: width as any,
+          height,
+          borderRadius,
+          backgroundColor: "#4a7a66",
+          opacity,
+        },
+        style,
+      ]}
+    />
+  );
+}
+
+function SummaryCardSkeleton({
+  colors,
+  shimmer,
+}: {
+  colors: any;
+  shimmer: Animated.Value;
+}) {
+  return (
+    <View
+      style={{
+        backgroundColor: colors.surface,
+        borderRadius: 20,
+        padding: 20,
+        gap: 16,
+      }}
+    >
+      {/* Header row */}
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <SkeletonBox width={36} height={36} borderRadius={12} shimmer={shimmer} />
+          <SkeletonBox width={130} height={16} shimmer={shimmer} />
+        </View>
+        <SkeletonBox width={90} height={28} borderRadius={12} shimmer={shimmer} />
+      </View>
+
+      {/* Big calorie number */}
+      <SkeletonBox width={160} height={44} borderRadius={10} shimmer={shimmer} />
+
+      {/* Progress track */}
+      <SkeletonBox width="100%" height={12} borderRadius={999} shimmer={shimmer} />
+
+      {/* Hint row */}
+      <SkeletonBox width="65%" height={14} borderRadius={6} shimmer={shimmer} />
+
+      {/* 3 macro bars */}
+      {[0, 1, 2].map((i) => (
+        <View key={i} style={{ gap: 10 }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+              <SkeletonBox width={18} height={18} borderRadius={4} shimmer={shimmer} />
+              <SkeletonBox width={60} height={13} borderRadius={5} shimmer={shimmer} />
+            </View>
+            <SkeletonBox width={70} height={12} borderRadius={5} shimmer={shimmer} />
+          </View>
+          <SkeletonBox width="100%" height={10} borderRadius={999} shimmer={shimmer} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function MealsSkeleton({
+  colors,
+  shimmer,
+}: {
+  colors: any;
+  shimmer: Animated.Value;
+}) {
+  return (
+    <View style={{ gap: 12 }}>
+      {[0, 1, 2].map((i) => (
+        <View
+          key={i}
+          style={{
+            backgroundColor: colors.surface,
+            borderRadius: 20,
+            padding: 16,
+            gap: 12,
+          }}
+        >
+          {/* Meal header */}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <SkeletonBox width={40} height={40} borderRadius={12} shimmer={shimmer} />
+              <View style={{ gap: 6 }}>
+                <SkeletonBox width={80} height={14} borderRadius={5} shimmer={shimmer} />
+                <SkeletonBox width={120} height={12} borderRadius={5} shimmer={shimmer} />
+              </View>
+            </View>
+            <SkeletonBox width={64} height={30} borderRadius={10} shimmer={shimmer} />
+          </View>
+          {/* Food item placeholders (only first card shows items) */}
+          {i === 0 && (
+            <View style={{ gap: 10, marginTop: 4 }}>
+              {[0, 1].map((j) => (
+                <View key={j} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 4 }}>
+                  <View style={{ gap: 6, flex: 1 }}>
+                    <SkeletonBox width="55%" height={14} borderRadius={5} shimmer={shimmer} />
+                    <SkeletonBox width="75%" height={11} borderRadius={5} shimmer={shimmer} />
+                  </View>
+                  <SkeletonBox width={18} height={18} borderRadius={4} shimmer={shimmer} />
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
  * Barra de progreso animada para macros
  */
@@ -380,7 +541,7 @@ function FoodItem({
 export default function DiaryScreen() {
   const params = useLocalSearchParams<{ meal?: string; day?: string }>();
 
-  const { profile } = useAuth();
+  const { profile, initializing: profileInitializing } = useAuth();
   const { theme } = useTheme();
   const { colors, typography } = theme;
 
@@ -396,8 +557,10 @@ export default function DiaryScreen() {
   // Si no, siempre usar el día de hoy (no persistir días anteriores)
   const day = params.day && params.day !== "" ? params.day : todayStrLocal();
 
+  const shimmer = useShimmer();
+
   const [logs, setLogs] = useState<FoodLogDb[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -742,6 +905,9 @@ export default function DiaryScreen() {
         )}
 
         {/* Summary Card con animaciones */}
+        {(profileInitializing || loading) && !refreshing ? (
+          <SummaryCardSkeleton colors={colors} shimmer={shimmer} />
+        ) : (
         <Animated.View
           style={[
             s.card,
@@ -854,8 +1020,13 @@ export default function DiaryScreen() {
             />
           </View>
         </Animated.View>
+        )}
 
         {/* Meals Section */}
+        {loading && !refreshing ? (
+          <MealsSkeleton colors={colors} shimmer={shimmer} />
+        ) : (
+        <>
         <Animated.View
           style={[
             s.sectionHeader,
@@ -1087,6 +1258,8 @@ export default function DiaryScreen() {
             </Animated.View>
           )}
         </View>
+        </>
+        )}
 
         <View style={{ height: 20 }} />
         {/* Rating Prompt Modal */}

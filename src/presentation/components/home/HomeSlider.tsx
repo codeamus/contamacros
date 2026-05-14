@@ -6,6 +6,7 @@ import { ActivityCard } from "./ActivityCard";
 type HomeSliderProps = {
   slideAnimation: Animated.Value | null | undefined;
   isPremium: boolean;
+  isLoadingPremium?: boolean;
   caloriesConsumed: number;
   caloriesTargetForCoach: number;
   onShowPaywall: () => void;
@@ -19,6 +20,7 @@ type HomeSliderProps = {
 export function HomeSlider({
   slideAnimation,
   isPremium,
+  isLoadingPremium = false,
   caloriesConsumed,
   caloriesTargetForCoach,
   onShowPaywall,
@@ -55,6 +57,7 @@ export function HomeSlider({
 
         <ActivityCard
           isPremium={isPremium}
+          isLoading={isLoadingPremium}
           caloriesBurned={caloriesBurned}
           isSyncing={isSyncing}
           syncCalories={syncCalories}

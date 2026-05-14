@@ -47,7 +47,7 @@ export default function HomeScreen() {
   const { colors, typography } = theme;
   const styles = useMemo(() => makeStyles(colors, typography), [colors, typography]);
 
-  const { profile } = useAuth();
+  const { profile, initializing: profileInitializing } = useAuth();
   const { day, totals, loading, reload: reloadSummary } = useTodaySummary();
   const { meals, loading: mealsLoading, reload: reloadMeals } = useTodayMeals(day);
 
@@ -60,7 +60,9 @@ export default function HomeScreen() {
   const profilePremium = profile?.is_premium ?? false;
   const isPremium = revenueCatPremium || profilePremium;
 
-  const { caloriesBurned, isSyncing, syncCalories, cancelSync, reload: reloadHealth } = useHealthSync(isPremium);
+  const { caloriesBurned, loading: healthLoading, isSyncing, syncCalories, cancelSync, reload: reloadHealth } = useHealthSync(isPremium);
+
+  const isLoadingPremium = profileInitializing || profile === null || (isPremium && healthLoading);
 
   const effectiveTargetForCoach = useMemo(() => {
     if (caloriesTarget <= 0) return caloriesTarget;
@@ -129,6 +131,7 @@ export default function HomeScreen() {
         <HomeSlider
           slideAnimation={cardAnimations[0]}
           isPremium={isPremium}
+          isLoadingPremium={isLoadingPremium}
           caloriesConsumed={totals.calories}
           caloriesTargetForCoach={effectiveTargetForCoach}
           onShowPaywall={() => setPaywallVisible(true)}

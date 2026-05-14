@@ -2,9 +2,11 @@ import Skeleton from "@/presentation/components/ui/Skeleton";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Platform,
   Pressable,
   StyleSheet,
@@ -14,6 +16,7 @@ import {
 
 type ActivityCardProps = {
   isPremium: boolean;
+  isLoading?: boolean;
   caloriesBurned: number;
   isSyncing: boolean;
   syncCalories: () => Promise<void>;
@@ -134,6 +137,89 @@ const styles = StyleSheet.create({
   },
 });
 
+function ActivityCardSkeleton({ colors }: { colors: any }) {
+  const shimmer = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmer, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(shimmer, {
+          toValue: 0,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+    ).start();
+  }, [shimmer]);
+
+  const opacity = shimmer.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.25, 0.55],
+  });
+
+  const Box = ({
+    w,
+    h,
+    r = 8,
+    style,
+  }: {
+    w: number | string;
+    h: number;
+    r?: number;
+    style?: object;
+  }) => (
+    <Animated.View
+      style={[
+        {
+          width: w as any,
+          height: h,
+          borderRadius: r,
+          backgroundColor: "#4a7a66",
+          opacity,
+        },
+        style,
+      ]}
+    />
+  );
+
+  return (
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+      ]}
+    >
+      {/* Header row */}
+      <View style={[styles.header, { justifyContent: "space-between" }]}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <Box w={40} h={40} r={14} />
+          <View style={{ gap: 6 }}>
+            <Box w={110} h={14} r={6} />
+            <Box w={80} h={11} r={5} />
+          </View>
+        </View>
+        <Box w={32} h={32} r={10} />
+      </View>
+
+      {/* Value row */}
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+        <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8 }}>
+          <Box w={70} h={28} r={8} />
+          <Box w={90} h={13} r={5} />
+        </View>
+        <Box w={95} h={28} r={999} />
+      </View>
+    </View>
+  );
+}
+
 function PremiumUpsell({ onShowPaywall }: { onShowPaywall: () => void }) {
   const { theme } = useTheme();
   const { colors, typography } = theme;
@@ -210,6 +296,7 @@ function PremiumUpsell({ onShowPaywall }: { onShowPaywall: () => void }) {
 
 export function ActivityCard({
   isPremium,
+  isLoading = false,
   caloriesBurned,
   isSyncing,
   syncCalories,
@@ -218,6 +305,10 @@ export function ActivityCard({
 }: ActivityCardProps) {
   const { theme } = useTheme();
   const { colors, typography } = theme;
+
+  if (isLoading) {
+    return <ActivityCardSkeleton colors={colors} />;
+  }
 
   return (
     <View
