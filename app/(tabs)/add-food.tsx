@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import {
     ActivityIndicator,
+    Alert,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -20,6 +21,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { barcodeOverrideService } from "@/core/storage/barcodeOverrideService";
 import { StorageKeys } from "@/core/storage/keys";
 import { storage } from "@/core/storage/storage";
 import { foodLogRepository } from "@/data/food/foodLogRepository";
@@ -37,6 +39,7 @@ import type { MealType } from "@/domain/models/foodLogDb";
 import type { OffProduct } from "@/domain/models/offProduct";
 import { UsageService } from "@/domain/services/usageService";
 import CreateGenericFoodByBarcodeModal from "@/presentation/components/nutrition/CreateGenericFoodByBarcodeModal";
+import ProductNotFoundModal from "@/presentation/components/nutrition/ProductNotFoundModal";
 import CreateFoodModal from "@/presentation/components/nutrition/CreateFoodModal";
 import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
 import PrimaryButton from "@/presentation/components/ui/PrimaryButton";
@@ -238,7 +241,15 @@ async function removeFromSearchHistory(query: string): Promise<void> {
 }
 
 export default function AddFoodScreen() {
-  const params = useLocalSearchParams<{ meal?: string; barcode?: string }>();
+  const params = useLocalSearchParams<{
+    meal?: string;
+    barcode?: string;
+    aiName?: string;
+    aiKcal?: string;
+    aiProtein?: string;
+    aiCarbs?: string;
+    aiFat?: string;
+  }>();
 
   const { theme } = useTheme();
   const { colors, typography } = theme;
@@ -259,6 +270,7 @@ export default function AddFoodScreen() {
 
   const [isSearchingLocal, setIsSearchingLocal] = useState(false);
   const [isSearchingMore, setIsSearchingMore] = useState(false);
+  const [isBarcodeLoading, setIsBarcodeLoading] = useState(false);
 
   const [results, setResults] = useState<ExtendedFoodSearchItem[]>([]);
   const [selected, setSelected] = useState<ExtendedFoodSearchItem | null>(null);
@@ -290,6 +302,9 @@ export default function AddFoodScreen() {
   const unitsNum = useMemo(() => toFloatSafe(unitsStr), [unitsStr]);
 
   /** Mostrar formulario para crear producto en generic_foods (no en OFF ni local) */
+  const [showProductNotFoundModal, setShowProductNotFoundModal] = useState(false);
+  const [aiPrefill, setAiPrefill] = useState<{ name?: string; kcal_100g?: number; protein_100g?: number; carbs_100g?: number; fat_100g?: number } | undefined>(undefined);
+
   const [showCreateGenericFoodModal, setShowCreateGenericFoodModal] =
     useState(false);
   const [showCreateFoodModal, setShowCreateFoodModal] = useState(false);
@@ -495,6 +510,28 @@ export default function AddFoodScreen() {
     if (isMealType(params.meal)) setMeal(params.meal);
   }, [params.meal]);
 
+  // Resultado de escaneo IA de tabla nutricional → pre-llenar formulario manual
+  useEffect(() => {
+    if (!params.aiKcal) return;
+    const barcode = typeof params.barcode === "string" ? params.barcode.trim() : "";
+    if (!barcode) return;
+
+    setAiPrefill({
+      name: params.aiName || undefined,
+      kcal_100g: params.aiKcal ? Number(params.aiKcal) : undefined,
+      protein_100g: params.aiProtein ? Number(params.aiProtein) : undefined,
+      carbs_100g: params.aiCarbs ? Number(params.aiCarbs) : undefined,
+      fat_100g: params.aiFat ? Number(params.aiFat) : undefined,
+    });
+    setBarcodeToCreate(barcode);
+    setShowCreateGenericFoodModal(true);
+    router.setParams({
+      aiName: undefined, aiKcal: undefined,
+      aiProtein: undefined, aiCarbs: undefined,
+      aiFat: undefined, barcode: undefined,
+    });
+  }, [params.aiKcal]);
+
   // Barcode -> OpenFoodFacts directo
   useEffect(() => {
     const barcode =
@@ -511,6 +548,9 @@ export default function AddFoodScreen() {
       console.log("[AddFoodScreen] ⚠️ Barcode vacío, saliendo del useEffect");
       return;
     }
+
+    // Si vienen datos de IA junto con el barcode, el useEffect de aiKcal ya maneja el flujo
+    if (params.aiKcal) return;
 
     // Cancelar búsqueda anterior si existe
     if (abortControllerRef.current) {
@@ -537,9 +577,37 @@ export default function AddFoodScreen() {
           return;
         }
 
-        isBarcodeSearchRef.current = true; // Marcar que hay búsqueda de barcode en curso
+        isBarcodeSearchRef.current = true;
         setErr(null);
         setIsSearchingMore(true);
+        setIsBarcodeLoading(true);
+
+        // Si el usuario ya corrigió este barcode antes, saltear OFF y usar versión local
+        const isOverridden = await barcodeOverrideService.has(barcode);
+        if (isOverridden) {
+          const localRes = await genericFoodsRepository.getByBarcode(barcode);
+          if (myReqId !== reqIdRef.current || abortController.signal.aborted) return;
+          isBarcodeSearchRef.current = false;
+          setIsSearchingMore(false);
+          setIsBarcodeLoading(false);
+          if (localRes.ok && localRes.data) {
+            const it = mapGenericFoodDbToSearchItem(localRes.data);
+            setSelected(it as ExtendedFoodSearchItem);
+            setQuery(localRes.data.name_es);
+            setResults([]);
+            setErr(null);
+            justProcessedBarcodeRef.current = true;
+            setTimeout(() => {
+              router.setParams({ barcode: undefined });
+              setTimeout(() => { justProcessedBarcodeRef.current = false; }, 500);
+            }, 200);
+          } else {
+            setBarcodeToCreate(barcode);
+            setShowProductNotFoundModal(true);
+            setTimeout(() => router.setParams({ barcode: undefined }), 200);
+          }
+          return;
+        }
 
         const res = await openFoodFactsService.getByBarcode(
           barcode,
@@ -562,6 +630,7 @@ export default function AddFoodScreen() {
         }
 
         setIsSearchingMore(false);
+        setIsBarcodeLoading(false);
         isBarcodeSearchRef.current = false;
 
         if (!res.ok && res.message === "Búsqueda cancelada.") {
@@ -636,10 +705,11 @@ export default function AddFoodScreen() {
           return;
         }
 
-        // 3) No en OFF ni local: mostrar formulario para crear en generic_foods
+        // 3) No en OFF ni local: mostrar modal intermedio amigable
         setErr(null);
+        setIsBarcodeLoading(false);
         setBarcodeToCreate(barcode);
-        setShowCreateGenericFoodModal(true);
+        setShowProductNotFoundModal(true);
         setTimeout(() => router.setParams({ barcode: undefined }), 200);
       } catch (error: any) {
         console.error("[AddFoodScreen] 💥 Excepción en búsqueda por barcode:", {
@@ -649,7 +719,8 @@ export default function AddFoodScreen() {
         });
 
         setIsSearchingMore(false);
-        isBarcodeSearchRef.current = false; // Limpiar el flag en caso de excepción
+        setIsBarcodeLoading(false);
+        isBarcodeSearchRef.current = false;
 
         if (error?.name !== "AbortError" && !abortController.signal.aborted) {
           setErr(error?.message || "Error al buscar producto");
@@ -2096,12 +2167,72 @@ export default function AddFoodScreen() {
                 icon={<Feather name="plus" size={18} color={colors.onCta} />}
               />
 
+              {selected?.source === "off" && (
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    Alert.alert(
+                      "¿Qué está mal?",
+                      "Ayúdanos a mejorar la base de datos",
+                      [
+                        {
+                          text: "El nombre / producto no coincide",
+                          onPress: () => {
+                            const barcode = selected.off?.barcode ?? selected.off?.id ?? null;
+                            setSelected(null);
+                            if (barcode) {
+                              setBarcodeToCreate(barcode);
+                              setShowProductNotFoundModal(true);
+                            }
+                          },
+                        },
+                        {
+                          text: "Los macros están mal",
+                          onPress: () => {
+                            const barcode = selected.off?.barcode ?? selected.off?.id ?? null;
+                            setSelected(null);
+                            if (barcode) {
+                              setBarcodeToCreate(barcode);
+                              setShowProductNotFoundModal(true);
+                            }
+                          },
+                        },
+                        { text: "Cancelar", style: "cancel" },
+                      ],
+                    );
+                  }}
+                  style={({ pressed }) => [
+                    {
+                      marginTop: 4,
+                      alignSelf: "center",
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 4,
+                      paddingVertical: 6,
+                      paddingHorizontal: 10,
+                      opacity: pressed ? 0.6 : 1,
+                    },
+                  ]}
+                >
+                  <Feather name="flag" size={12} color={colors.textSecondary} />
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: colors.textSecondary,
+                      fontFamily: typography.body?.fontFamily,
+                    }}
+                  >
+                    ¿Los datos son incorrectos?
+                  </Text>
+                </Pressable>
+              )}
+
               <Pressable
                 onPress={() => {
                   justSelectedManuallyRef.current = false; // Resetear el flag
                   setSelected(null);
                 }}
-                style={{ marginTop: 10 }}
+                style={{ marginTop: 6 }}
               >
                 {({ pressed }) => (
                   <Text style={[s.backLink, pressed && { opacity: 0.75 }]}>
@@ -2116,14 +2247,47 @@ export default function AddFoodScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
+      <ProductNotFoundModal
+        visible={showProductNotFoundModal}
+        barcode={barcodeToCreate ?? ""}
+        onClose={() => {
+          setShowProductNotFoundModal(false);
+          setBarcodeToCreate(null);
+        }}
+        onScanWithAI={() => {
+          setShowProductNotFoundModal(false);
+          router.push({
+            pathname: "/(tabs)/scan",
+            params: {
+              meal,
+              mode: "ai",
+              returnTo: "add-food",
+              barcode: barcodeToCreate ?? undefined,
+            },
+          });
+        }}
+        onShowPaywall={() => {
+          setShowProductNotFoundModal(false);
+          setShowPaywall(true);
+        }}
+        onEnterManually={() => {
+          setShowProductNotFoundModal(false);
+          setShowCreateGenericFoodModal(true);
+        }}
+      />
+
       <CreateGenericFoodByBarcodeModal
         visible={showCreateGenericFoodModal}
         barcode={barcodeToCreate ?? ""}
+        initialValues={aiPrefill}
         onClose={() => {
           setShowCreateGenericFoodModal(false);
           setBarcodeToCreate(null);
+          setAiPrefill(undefined);
+          setIsBarcodeLoading(false);
         }}
         onSuccess={(food) => {
+          setIsBarcodeLoading(false);
           const it = mapGenericFoodDbToSearchItem(
             food,
           ) as ExtendedFoodSearchItem;
@@ -2131,7 +2295,12 @@ export default function AddFoodScreen() {
           setQuery(food.name_es);
           setResults([]);
           setShowCreateGenericFoodModal(false);
+          // Guardar override: en futuros escaneos se priorizará esta versión
+          if (barcodeToCreate) {
+            barcodeOverrideService.add(barcodeToCreate).catch(() => {});
+          }
           setBarcodeToCreate(null);
+          setAiPrefill(undefined);
           showToast({
             message:
               "Producto agregado a la base comunitaria. ¡Gracias por contribuir!",
@@ -2159,6 +2328,15 @@ export default function AddFoodScreen() {
           });
         }}
       />
+      {/* Overlay de carga al buscar por código de barras */}
+      {isBarcodeLoading && (
+        <View style={s.barcodeLoadingOverlay}>
+          <View style={s.barcodeLoadingBox}>
+            <ActivityIndicator size="large" color="#22C55E" />
+            <Text style={s.barcodeLoadingText}>Buscando producto…</Text>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -2242,6 +2420,30 @@ function makeStyles(colors: any, typography: any) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
     container: { padding: 18, gap: 14 },
+    barcodeLoadingOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "rgba(0,0,0,0.45)",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 999,
+    },
+    barcodeLoadingBox: {
+      backgroundColor: colors.surface,
+      borderRadius: 20,
+      padding: 28,
+      alignItems: "center",
+      gap: 14,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.25,
+      shadowRadius: 12,
+      elevation: 8,
+    },
+    barcodeLoadingText: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: "600",
+    },
     containerFocused: { paddingBottom: 40 }, // Espacio adicional cuando el input tiene focus
 
     header: {
