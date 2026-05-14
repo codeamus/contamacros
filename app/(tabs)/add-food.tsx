@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import {
     ActivityIndicator,
+    Keyboard,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -22,8 +23,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { barcodeOverrideService } from "@/core/storage/barcodeOverrideService";
-import { StorageKeys } from "@/core/storage/keys";
-import { storage } from "@/core/storage/storage";
 import { foodLogRepository } from "@/data/food/foodLogRepository";
 import { genericFoodsRepository } from "@/data/food/genericFoodsRepository";
 import { userFavoritesRepository } from "@/data/food/userFavoritesRepository";
@@ -214,31 +213,6 @@ async function searchLocalFoods(q: string): Promise<ExtendedFoodSearchItem[]> {
   return [...userFoods, ...generics];
 }
 
-// Funciones para manejar historial de búsqueda
-const MAX_HISTORY_ITEMS = 10;
-
-async function getSearchHistory(): Promise<string[]> {
-  const history = await storage.getJson<string[]>(StorageKeys.SEARCH_HISTORY);
-  return history || [];
-}
-
-async function addToSearchHistory(query: string): Promise<void> {
-  const q = query.trim().toLowerCase();
-  if (q.length < 2) return;
-
-  const history = await getSearchHistory();
-  // Remover si ya existe
-  const filtered = history.filter((item) => item !== q);
-  // Agregar al inicio
-  const updated = [q, ...filtered].slice(0, MAX_HISTORY_ITEMS);
-  await storage.setJson(StorageKeys.SEARCH_HISTORY, updated);
-}
-
-async function removeFromSearchHistory(query: string): Promise<void> {
-  const history = await getSearchHistory();
-  const filtered = history.filter((item) => item !== query.toLowerCase());
-  await storage.setJson(StorageKeys.SEARCH_HISTORY, filtered);
-}
 
 export default function AddFoodScreen() {
   const params = useLocalSearchParams<{
@@ -286,7 +260,6 @@ export default function AddFoodScreen() {
       selectedSource: selected?.source,
     });
   }, [selected]);
-  const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [myRecipes, setMyRecipes] = useState<ExtendedFoodSearchItem[]>([]);
   const [favoriteFoods, setFavoriteFoods] = useState<ExtendedFoodSearchItem[]>(
     [],
@@ -325,13 +298,9 @@ export default function AddFoodScreen() {
   const lastFavoritesKeyRef = useRef<string>(""); // Ref para rastrear la última clave de favoritos cargada
   const scrollViewRef = useRef<ScrollView>(null);
 
-  // Cargar historial, recetas y favoritos al montar
+  // Cargar recetas al montar
   useEffect(() => {
     (async () => {
-      const history = await getSearchHistory();
-      setSearchHistory(history);
-
-      // Cargar recetas personalizadas
       const recipesRes = await userFoodsRepository.listAll();
       if (recipesRes.ok) {
         const recipes = mapUserFoodDbArrayToSearchItems(recipesRes.data);
@@ -769,12 +738,6 @@ export default function AddFoodScreen() {
         if (myReqId !== reqIdRef.current) return;
         setResults(merged);
         setIsSearchingLocal(false);
-        // Guardar en historial si hay resultados
-        if (merged.length > 0) {
-          await addToSearchHistory(q);
-          const updatedHistory = await getSearchHistory();
-          setSearchHistory(updatedHistory);
-        }
       } catch {
         if (myReqId !== reqIdRef.current) return;
         setResults([]);
@@ -1114,11 +1077,6 @@ export default function AddFoodScreen() {
 
     console.log("[AddFoodScreen] ✅ Alimento guardado exitosamente");
 
-    // Guardar en historial de búsqueda
-    await addToSearchHistory(selected.name);
-    const updatedHistory = await getSearchHistory();
-    setSearchHistory(updatedHistory);
-
     setSelected(null);
     setQuery("");
     setResults([]);
@@ -1139,22 +1097,6 @@ export default function AddFoodScreen() {
       router.replace("/(tabs)/diary");
     }, 2000);
   }, [selected, gramsError, gramsNum, day, meal, showToast, router]);
-
-  const handleSelectFromHistory = useCallback(async (historyItem: string) => {
-    setQuery(historyItem);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, []);
-
-  const handleRemoveHistoryItem = useCallback(
-    async (historyItem: string, e: any) => {
-      e.stopPropagation();
-      await removeFromSearchHistory(historyItem);
-      const updatedHistory = await getSearchHistory();
-      setSearchHistory(updatedHistory);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    },
-    [],
-  );
 
   return (
     <SafeAreaView style={s.safe}>
@@ -1258,44 +1200,6 @@ export default function AddFoodScreen() {
                 </View>
               </View>
 
-              {/* Search */}
-              <View style={s.searchBox}>
-                <Feather name="search" size={18} color={colors.textSecondary} />
-                <TextInput
-                  value={query}
-                  onChangeText={(t) => {
-                    setQuery(t);
-                    setErr(null);
-                  }}
-                  onFocus={() => {
-                    setIsInputFocused(true);
-                    setTimeout(() => {
-                      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-                    }, 100);
-                  }}
-                  onBlur={() => setTimeout(() => setIsInputFocused(false), 200)}
-                  placeholder="Ej: arroz, yogurt, pollo..."
-                  placeholderTextColor={colors.textSecondary}
-                  autoCapitalize="none"
-                  style={s.searchInput}
-                />
-                {!!query && (
-                  <Pressable
-                    onPress={() => {
-                      setQuery("");
-                      setErr(null);
-                      setResults([]);
-                    }}
-                    style={({ pressed }) => [
-                      s.clearBtn,
-                      pressed && { opacity: 0.8 },
-                    ]}
-                  >
-                    <Feather name="x" size={16} color={colors.textSecondary} />
-                  </Pressable>
-                )}
-              </View>
-
               {/* Botones de escaneo */}
               <View style={s.scanButtonsContainer}>
                 <Pressable
@@ -1370,61 +1274,6 @@ export default function AddFoodScreen() {
                 </Pressable>
               </View>
 
-              {/* Historial de búsqueda - Mostrar PRIMERO cuando hay focus y el input está vacío */}
-              {isInputFocused && !query.trim() && searchHistory.length > 0 && (
-                <View style={[s.searchHistoryContainer, { marginTop: 12 }]}>
-                  <View style={s.sectionHeader}>
-                    <Feather
-                      name="clock"
-                      size={18}
-                      color={colors.textPrimary}
-                    />
-                    <Text style={s.sectionTitle}>Búsquedas recientes</Text>
-                  </View>
-                  <View style={{ gap: 6 }}>
-                    {searchHistory.map((historyItem) => (
-                      <Pressable
-                        key={historyItem}
-                        onPress={() => handleSelectFromHistory(historyItem)}
-                        style={({ pressed }) => [
-                          s.historyItem,
-                          pressed && {
-                            opacity: 0.95,
-                            transform: [{ scale: 0.997 }],
-                          },
-                        ]}
-                      >
-                        <View style={s.historyIcon}>
-                          <Feather
-                            name="clock"
-                            size={16}
-                            color={colors.textSecondary}
-                          />
-                        </View>
-                        <Text style={[s.historyName, { flex: 1 }]}>
-                          {historyItem}
-                        </Text>
-                        <Pressable
-                          onPress={(e) =>
-                            handleRemoveHistoryItem(historyItem, e)
-                          }
-                          style={({ pressed }) => [
-                            s.historyRemoveBtn,
-                            pressed && { opacity: 0.7 },
-                          ]}
-                        >
-                          <Feather
-                            name="x"
-                            size={14}
-                            color={colors.textSecondary}
-                          />
-                        </Pressable>
-                      </Pressable>
-                    ))}
-                  </View>
-                </View>
-              )}
-
               {/* Botones de acceso rápido: Favoritos y Recetas */}
               {!query.trim() && (myRecipes.length > 0 || favoriteFoods.length > 0) && (
                 <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
@@ -1462,6 +1311,45 @@ export default function AddFoodScreen() {
                   )}
                 </View>
               )}
+
+              {/* Search */}
+              <View style={s.searchBox}>
+                <Feather name="search" size={18} color={colors.textSecondary} />
+                <TextInput
+                  value={query}
+                  onChangeText={(t) => {
+                    setQuery(t);
+                    setErr(null);
+                  }}
+                  onFocus={() => {
+                    setIsInputFocused(true);
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollToEnd({ animated: true });
+                    }, 150);
+                  }}
+                  onBlur={() => setTimeout(() => setIsInputFocused(false), 200)}
+                  placeholder="Ej: arroz, yogurt, pollo..."
+                  placeholderTextColor={colors.textSecondary}
+                  autoCapitalize="none"
+                  autoFocus={false}
+                  style={s.searchInput}
+                />
+                {!!query && (
+                  <Pressable
+                    onPress={() => {
+                      setQuery("");
+                      setErr(null);
+                      setResults([]);
+                    }}
+                    style={({ pressed }) => [
+                      s.clearBtn,
+                      pressed && { opacity: 0.8 },
+                    ]}
+                  >
+                    <Feather name="x" size={16} color={colors.textSecondary} />
+                  </Pressable>
+                )}
+              </View>
 
               {/* Empty state — solo para usuarios nuevos sin historial ni favoritos */}
               {!query.trim() &&
@@ -2138,13 +2026,13 @@ export default function AddFoodScreen() {
         }}
       />
       {/* Modal Mis Favoritos */}
-      <Modal visible={showFavoritesModal} animationType="slide" transparent onRequestClose={() => setShowFavoritesModal(false)}>
-        <Pressable style={s.modalOverlay} onPress={() => setShowFavoritesModal(false)}>
+      <Modal visible={showFavoritesModal} animationType="slide" transparent onRequestClose={() => { Keyboard.dismiss(); setShowFavoritesModal(false); }}>
+        <Pressable style={s.modalOverlay} onPress={() => { Keyboard.dismiss(); setShowFavoritesModal(false); }}>
           <Pressable style={s.modalSheet} onPress={() => {}}>
             <View style={s.modalHandle} />
             <View style={s.modalHeaderRow}>
               <Text style={s.modalTitle}>Mis favoritos</Text>
-              <Pressable onPress={() => setShowFavoritesModal(false)}>
+              <Pressable onPress={() => { Keyboard.dismiss(); setShowFavoritesModal(false); }}>
                 <Feather name="x" size={20} color={colors.textSecondary} />
               </Pressable>
             </View>
@@ -2157,6 +2045,7 @@ export default function AddFoodScreen() {
                 placeholderTextColor={colors.textSecondary}
                 style={s.modalSearchInput}
                 autoCapitalize="none"
+                autoFocus={false}
               />
               {!!favoriteFilter && (
                 <Pressable onPress={() => setFavoriteFilter("")}>
@@ -2185,6 +2074,7 @@ export default function AddFoodScreen() {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         justSelectedManuallyRef.current = true;
                         setSelected(food);
+                        Keyboard.dismiss();
                         setShowFavoritesModal(false);
                       }}
                     >
@@ -2205,13 +2095,13 @@ export default function AddFoodScreen() {
       </Modal>
 
       {/* Modal Mis Recetas */}
-      <Modal visible={showRecipesModal} animationType="slide" transparent onRequestClose={() => setShowRecipesModal(false)}>
-        <Pressable style={s.modalOverlay} onPress={() => setShowRecipesModal(false)}>
+      <Modal visible={showRecipesModal} animationType="slide" transparent onRequestClose={() => { Keyboard.dismiss(); setShowRecipesModal(false); }}>
+        <Pressable style={s.modalOverlay} onPress={() => { Keyboard.dismiss(); setShowRecipesModal(false); }}>
           <Pressable style={s.modalSheet} onPress={() => {}}>
             <View style={s.modalHandle} />
             <View style={s.modalHeaderRow}>
               <Text style={s.modalTitle}>Mis recetas</Text>
-              <Pressable onPress={() => setShowRecipesModal(false)}>
+              <Pressable onPress={() => { Keyboard.dismiss(); setShowRecipesModal(false); }}>
                 <Feather name="x" size={20} color={colors.textSecondary} />
               </Pressable>
             </View>
@@ -2252,6 +2142,7 @@ export default function AddFoodScreen() {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         justSelectedManuallyRef.current = true;
                         setSelected(recipe);
+                        Keyboard.dismiss();
                         setShowRecipesModal(false);
                       }}
                     >
@@ -2614,62 +2505,6 @@ function makeStyles(colors: any, typography: any) {
       padding: 16,
       gap: 8,
       alignItems: "center",
-    },
-    sectionHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      marginBottom: 4,
-    },
-    sectionTitle: {
-      fontFamily: typography.subtitle?.fontFamily,
-      fontSize: 14,
-      color: colors.textPrimary,
-      fontWeight: "600",
-    },
-    searchHistoryContainer: {
-      gap: 8,
-      paddingBottom: 20, // Espacio adicional cuando el input tiene focus
-    },
-    historyItem: {
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 14,
-      padding: 12,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-    },
-    historyIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: "transparent",
-    },
-    historyName: {
-      fontFamily: typography.subtitle?.fontFamily,
-      color: colors.textPrimary,
-      fontSize: 14,
-    },
-    historyMeta: {
-      fontFamily: typography.body?.fontFamily,
-      color: colors.textSecondary,
-      fontSize: 12,
-      marginTop: 2,
-    },
-    historyRemoveBtn: {
-      width: 28,
-      height: 28,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: colors.border,
-      alignItems: "center",
-      justifyContent: "center",
     },
     emptyIcon: {
       width: 48,
