@@ -287,7 +287,6 @@ export default function AddFoodScreen() {
   }, [selected]);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [myRecipes, setMyRecipes] = useState<ExtendedFoodSearchItem[]>([]);
-  const [loadingRecipes, setLoadingRecipes] = useState(false);
   const [favoriteFoods, setFavoriteFoods] = useState<ExtendedFoodSearchItem[]>(
     [],
   );
@@ -328,13 +327,11 @@ export default function AddFoodScreen() {
       setSearchHistory(history);
 
       // Cargar recetas personalizadas
-      setLoadingRecipes(true);
       const recipesRes = await userFoodsRepository.listAll();
       if (recipesRes.ok) {
         const recipes = mapUserFoodDbArrayToSearchItems(recipesRes.data);
         setMyRecipes(recipes);
       }
-      setLoadingRecipes(false);
     })();
   }, []);
 
@@ -1756,7 +1753,6 @@ export default function AddFoodScreen() {
                   </Text>
                 </View>
 
-                {/* Corazón de favorito en la tarjeta de detalle */}
                 {(selected.source === "food" || selected.source === "off") && (() => {
                   const selIdentifier = selected.food_id ?? selected.off?.barcode ?? null;
                   const selFavorite = selIdentifier ? isFavorite(selIdentifier) : false;
@@ -1787,20 +1783,19 @@ export default function AddFoodScreen() {
                           showToast({ message: "Error al actualizar favorito", type: "error" });
                         }
                       }}
-                      style={({ pressed }) => [s.favoriteButton, pressed && { opacity: 0.7 }]}
+                      style={({ pressed }) => [
+                        s.favoriteButton,
+                        pressed && { opacity: 0.7, transform: [{ scale: 0.92 }] },
+                      ]}
                     >
                       <MaterialCommunityIcons
                         name={selFavorite ? "heart" : "heart-outline"}
-                        size={22}
+                        size={28}
                         color={selFavorite ? "#EF4444" : colors.textSecondary}
                       />
                     </Pressable>
                   );
                 })()}
-
-                <View style={s.badgePill}>
-                  <Text style={s.badgePillText}>{badgeText(selected)}</Text>
-                </View>
               </View>
 
               <View style={{ marginTop: 12 }}>
@@ -2564,6 +2559,13 @@ function makeStyles(colors: any, typography: any) {
     favoriteButton: {
       padding: 6,
       marginRight: 4,
+    },
+    favoriteCornerBtn: {
+      position: "absolute",
+      bottom: 12,
+      right: 12,
+      zIndex: 1,
+      padding: 6,
     },
 
     kcalBadge: {
