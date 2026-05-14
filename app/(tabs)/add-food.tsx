@@ -125,6 +125,14 @@ function isMealType(x: unknown): x is MealType {
   return typeof x === "string" && (MEALS as string[]).includes(x);
 }
 
+function getMealByHour(): MealType {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 11) return "breakfast";
+  if (hour >= 11 && hour < 16) return "lunch";
+  if (hour >= 16 && hour < 19) return "snack";
+  return "dinner";
+}
+
 async function getUid(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();
   return data.session?.user?.id ?? null;
@@ -245,7 +253,9 @@ export default function AddFoodScreen() {
   const [saveLoading, setSaveLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const [meal, setMeal] = useState<MealType>("snack");
+  const [meal, setMeal] = useState<MealType>(
+    isMealType(params.meal) ? params.meal : getMealByHour(),
+  );
 
   const [isSearchingLocal, setIsSearchingLocal] = useState(false);
   const [isSearchingMore, setIsSearchingMore] = useState(false);
