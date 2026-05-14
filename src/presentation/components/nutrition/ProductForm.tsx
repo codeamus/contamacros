@@ -31,9 +31,19 @@ function parseFloatInput(s: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+export type ProductFormInitialValues = {
+  name?: string;
+  kcal_100g?: number;
+  protein_100g?: number;
+  carbs_100g?: number;
+  fat_100g?: number;
+};
+
 export type ProductFormProps = {
   /** Código de barras pre-llenado desde el scanner (solo lectura). */
   barcode: string;
+  /** Valores iniciales pre-llenados (ej: desde escaneo IA de tabla nutricional). */
+  initialValues?: ProductFormInitialValues;
   /** Llamado al guardar con éxito; recibe el alimento creado. */
   onSuccess: (food: GenericFoodDb) => void;
   /** Llamado al cancelar (opcional). */
@@ -44,6 +54,7 @@ export type ProductFormProps = {
 
 export default function ProductForm({
   barcode,
+  initialValues,
   onSuccess,
   onCancel,
   submitLabel = "Crear",
@@ -52,11 +63,11 @@ export default function ProductForm({
   const { colors, typography } = theme;
 
   const [baseUnit, setBaseUnit] = useState<BaseUnit>("g");
-  const [nameEs, setNameEs] = useState("");
-  const [kcal, setKcal] = useState("");
-  const [protein, setProtein] = useState("");
-  const [carbs, setCarbs] = useState("");
-  const [fat, setFat] = useState("");
+  const [nameEs, setNameEs] = useState(initialValues?.name ?? "");
+  const [kcal, setKcal] = useState(initialValues?.kcal_100g != null ? String(initialValues.kcal_100g) : "");
+  const [protein, setProtein] = useState(initialValues?.protein_100g != null ? String(initialValues.protein_100g) : "");
+  const [carbs, setCarbs] = useState(initialValues?.carbs_100g != null ? String(initialValues.carbs_100g) : "");
+  const [fat, setFat] = useState(initialValues?.fat_100g != null ? String(initialValues.fat_100g) : "");
   
   // Unit support
   const [isUnit, setIsUnit] = useState(false);

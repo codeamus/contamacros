@@ -10,6 +10,7 @@ export const StorageKeys = {
   RECENT_FOODS: "recent_foods",
   HEALTH_CONNECTED: "health_connected",
   WEIGHT_LOGS: "weight_logs",
+  BARCODE_OVERRIDES: "barcode_overrides",
 } as const;
 
 export type StorageKey = (typeof StorageKeys)[keyof typeof StorageKeys];

@@ -1,6 +1,6 @@
 // src/presentation/components/nutrition/CreateGenericFoodByBarcodeModal.tsx
 import type { GenericFoodDb } from "@/data/food/genericFoodsRepository";
-import ProductForm from "@/presentation/components/nutrition/ProductForm";
+import ProductForm, { type ProductFormInitialValues } from "@/presentation/components/nutrition/ProductForm";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import React from "react";
 import { Modal, StyleSheet, View } from "react-native";
@@ -9,6 +9,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 type Props = {
   visible: boolean;
   barcode: string;
+  initialValues?: ProductFormInitialValues;
   onClose: () => void;
   onSuccess: (food: GenericFoodDb) => void;
 };
@@ -16,6 +17,7 @@ type Props = {
 export default function CreateGenericFoodByBarcodeModal({
   visible,
   barcode,
+  initialValues,
   onClose,
   onSuccess,
 }: Props) {
@@ -52,6 +54,7 @@ export default function CreateGenericFoodByBarcodeModal({
           <ProductForm
             key={barcode}
             barcode={barcode}
+            initialValues={initialValues}
             onSuccess={(food) => {
               onSuccess(food);
               onClose();
