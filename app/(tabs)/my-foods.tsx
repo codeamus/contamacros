@@ -27,6 +27,7 @@ import {
   userFoodsRepository,
   type UserFoodDb,
 } from "@/data/food/userFoodsRepository";
+import { userFavoritesRepository } from "@/data/food/userFavoritesRepository";
 
 import {
   mapGenericFoodDbArrayToSearchItems,
@@ -387,20 +388,43 @@ export default function MyFoodsScreen() {
     setLoading(false);
   }, []);
 
-  // Cargar alimentos favoritos
-  const loadFavoriteFoods = useCallback(async (favoriteIds: string[]) => {
-    if (favoriteIds.length === 0) {
-      setFavoriteFoods([]);
-      return;
-    }
-
+  // Cargar alimentos favoritos (soporta generic_foods + productos escaneados inline)
+  const loadFavoriteFoods = useCallback(async () => {
     setLoadingFavorites(true);
     try {
-      const favoritesRes = await genericFoodsRepository.getByIds(favoriteIds);
-      if (favoritesRes.ok) {
-        const favoriteItems = mapGenericFoodDbArrayToSearchItems(favoritesRes.data);
-        setFavoriteFoods(favoriteItems);
+      const allRes = await userFavoritesRepository.getAllWithData();
+      if (!allRes.ok) return;
+
+      const rows = allRes.data;
+      const inlineItems: FoodSearchItem[] = [];
+      const genericFoodIds: string[] = [];
+
+      for (const row of rows) {
+        if (row.food_id) {
+          genericFoodIds.push(row.food_id);
+        } else if (row.name) {
+          // Producto escaneado con datos inline
+          inlineItems.push({
+            key: `scanned:${row.barcode ?? row.id}`,
+            source: "off",
+            name: row.name,
+            kcal_100g: row.kcal_100g ?? 0,
+            protein_100g: row.protein_100g ?? 0,
+            carbs_100g: row.carbs_100g ?? 0,
+            fat_100g: row.fat_100g ?? 0,
+          });
+        }
       }
+
+      const genericItems: FoodSearchItem[] = [];
+      if (genericFoodIds.length > 0) {
+        const favoritesRes = await genericFoodsRepository.getByIds(genericFoodIds);
+        if (favoritesRes.ok) {
+          genericItems.push(...mapGenericFoodDbArrayToSearchItems(favoritesRes.data));
+        }
+      }
+
+      setFavoriteFoods([...genericItems, ...inlineItems]);
     } catch (error) {
       console.error("[MyFoodsScreen] Error loading favorite foods:", error);
     } finally {
@@ -408,13 +432,9 @@ export default function MyFoodsScreen() {
     }
   }, []);
 
-  // Cargar favoritos cuando cambian los IDs
+  // Cargar favoritos al montar y cuando cambian
   useEffect(() => {
-    if (favorites.length > 0) {
-      loadFavoriteFoods(favorites);
-    } else {
-      setFavoriteFoods([]);
-    }
+    loadFavoriteFoods();
   }, [favorites, loadFavoriteFoods]);
 
   useFocusEffect(

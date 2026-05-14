@@ -254,7 +254,7 @@ export default function AddFoodScreen() {
   const { theme } = useTheme();
   const { colors, typography } = theme;
   const { showToast } = useToast();
-  const { favorites, isFavorite, toggleFavorite } = useFavorites();
+  const { favorites, isFavorite, toggleFavorite, toggleScannedFavorite } = useFavorites();
   const { recentFoods, addRecent } = useRecentFoods();
   const s = makeStyles(colors, typography);
 
@@ -1748,7 +1748,8 @@ export default function AddFoodScreen() {
               {/* Results */}
               <View style={{ marginTop: 10, gap: 10 }}>
                 {results.map((it) => {
-                  const favorite = it.food_id ? isFavorite(it.food_id) : false;
+                  const favoriteIdentifier = it.food_id ?? it.off?.barcode ?? null;
+                  const favorite = favoriteIdentifier ? isFavorite(favoriteIdentifier) : false;
                   return (
                     <Pressable
                       key={it.key}
@@ -1798,16 +1799,26 @@ export default function AddFoodScreen() {
                         </View>
                       </View>
 
-                      {/* Icono de favorito - Solo para alimentos de generic_foods */}
-                      {it.food_id && it.source === "food" && (
+                      {/* Icono de favorito - generic_foods y productos OFF */}
+                      {(it.source === "food" || it.source === "off") && (
                         <Pressable
                           onPress={async (e) => {
                             e.stopPropagation();
-                            Haptics.impactAsync(
-                              Haptics.ImpactFeedbackStyle.Light,
-                            );
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                             try {
-                              await toggleFavorite(it.food_id!);
+                              if (it.source === "food" && it.food_id) {
+                                await toggleFavorite(it.food_id);
+                              } else if (it.source === "off") {
+                                await toggleScannedFavorite({
+                                  name: it.name,
+                                  kcal_100g: it.kcal_100g ?? null,
+                                  protein_100g: it.protein_100g ?? null,
+                                  carbs_100g: it.carbs_100g ?? null,
+                                  fat_100g: it.fat_100g ?? null,
+                                  barcode: it.off?.barcode ?? undefined,
+                                  source: "off",
+                                });
+                              }
                               Haptics.notificationAsync(
                                 favorite
                                   ? Haptics.NotificationFeedbackType.Warning
@@ -1868,6 +1879,48 @@ export default function AddFoodScreen() {
                     {isMl ? "100 ml" : "100 g"}
                   </Text>
                 </View>
+
+                {/* Corazón de favorito en la tarjeta de detalle */}
+                {(selected.source === "food" || selected.source === "off") && (() => {
+                  const selIdentifier = selected.food_id ?? selected.off?.barcode ?? null;
+                  const selFavorite = selIdentifier ? isFavorite(selIdentifier) : false;
+                  return (
+                    <Pressable
+                      onPress={async () => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        try {
+                          if (selected.source === "food" && selected.food_id) {
+                            await toggleFavorite(selected.food_id);
+                          } else if (selected.source === "off") {
+                            await toggleScannedFavorite({
+                              name: selected.name,
+                              kcal_100g: selected.kcal_100g ?? null,
+                              protein_100g: selected.protein_100g ?? null,
+                              carbs_100g: selected.carbs_100g ?? null,
+                              fat_100g: selected.fat_100g ?? null,
+                              barcode: selected.off?.barcode ?? undefined,
+                              source: "off",
+                            });
+                          }
+                          Haptics.notificationAsync(
+                            selFavorite
+                              ? Haptics.NotificationFeedbackType.Warning
+                              : Haptics.NotificationFeedbackType.Success,
+                          );
+                        } catch {
+                          showToast({ message: "Error al actualizar favorito", type: "error" });
+                        }
+                      }}
+                      style={({ pressed }) => [s.favoriteButton, pressed && { opacity: 0.7 }]}
+                    >
+                      <MaterialCommunityIcons
+                        name={selFavorite ? "heart" : "heart-outline"}
+                        size={22}
+                        color={selFavorite ? "#EF4444" : colors.textSecondary}
+                      />
+                    </Pressable>
+                  );
+                })()}
 
                 <View style={s.badgePill}>
                   <Text style={s.badgePillText}>{badgeText(selected)}</Text>
