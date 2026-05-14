@@ -1,4 +1,3 @@
-import Skeleton from "@/presentation/components/ui/Skeleton";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -135,6 +134,50 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
   },
+  // Syncing state
+  syncingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 4,
+  },
+  syncingText: {
+    fontSize: 13,
+    flex: 1,
+  },
+  cancelLink: {
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  cancelLinkText: {
+    fontSize: 13,
+  },
+  // Last sync label
+  lastSync: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  // No data state
+  noDataRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  noDataText: {
+    fontSize: 13,
+  },
+  syncSecondaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  syncSecondaryText: {
+    fontSize: 13,
+  },
 });
 
 function ActivityCardSkeleton({ colors }: { colors: any }) {
@@ -209,7 +252,13 @@ function ActivityCardSkeleton({ colors }: { colors: any }) {
       </View>
 
       {/* Value row */}
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
         <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8 }}>
           <Box w={70} h={28} r={8} />
           <Box w={90} h={13} r={5} />
@@ -404,43 +453,60 @@ export function ActivityCard({
       {/* Body */}
       {isPremium ? (
         <>
-          <View style={[styles.content, { minHeight: 34 }]}>
-            <View
-              style={[
-                styles.valueContainer,
-                isSyncing && { alignItems: "center" },
-              ]}
-            >
-              {isSyncing ? (
-                <>
-                  <Skeleton
-                    height={28}
-                    width={80}
-                    radius={8}
-                    bg={colors.border}
-                    highlight={colors.border}
-                  />
-                  <Skeleton
-                    height={14}
-                    width={100}
-                    radius={6}
-                    bg={colors.border}
-                    highlight={colors.border}
-                  />
-                </>
-              ) : (
-                <>
-                  <Text
-                    style={[
-                      styles.value,
-                      {
-                        fontFamily: typography.title?.fontFamily,
-                        color: colors.textPrimary,
-                      },
-                    ]}
-                  >
-                    {caloriesBurned > 0 ? caloriesBurned.toLocaleString() : "0"}
-                  </Text>
+          {/* Estado: sincronizando */}
+          {isSyncing ? (
+            <View style={styles.syncingRow}>
+              <ActivityIndicator size="small" color={colors.brand} />
+              <Text
+                style={[
+                  styles.syncingText,
+                  {
+                    fontFamily: typography.body?.fontFamily,
+                    color: colors.textSecondary,
+                  },
+                ]}
+              >
+                Sincronizando...
+              </Text>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  cancelSync();
+                }}
+                style={({ pressed }) => [
+                  styles.cancelLink,
+                  pressed && { opacity: 0.6 },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.cancelLinkText,
+                    {
+                      fontFamily: typography.body?.fontFamily,
+                      color: colors.brand,
+                    },
+                  ]}
+                >
+                  Cancelar
+                </Text>
+              </Pressable>
+            </View>
+          ) : caloriesBurned > 0 ? (
+            /* Estado: datos disponibles */
+            <View style={styles.content}>
+              <View style={styles.valueContainer}>
+                <Text
+                  style={[
+                    styles.value,
+                    {
+                      fontFamily: typography.title?.fontFamily,
+                      color: colors.textPrimary,
+                    },
+                  ]}
+                >
+                  {caloriesBurned.toLocaleString()}
+                </Text>
+                <View>
                   <Text
                     style={[
                       styles.unit,
@@ -452,10 +518,8 @@ export function ActivityCard({
                   >
                     kcal quemadas
                   </Text>
-                </>
-              )}
-            </View>
-            {caloriesBurned > 0 && !isSyncing && (
+                </View>
+              </View>
               <View
                 style={[
                   styles.badge,
@@ -483,105 +547,59 @@ export function ActivityCard({
                   Sincronizado
                 </Text>
               </View>
-            )}
-          </View>
-
-          {caloriesBurned === 0 && (
-            <>
-              {isSyncing ? (
-                <View
-                  style={[styles.emptyState, { borderTopColor: colors.border }]}
-                >
-                  <Text
-                    style={[
-                      styles.emptyText,
-                      {
-                        fontFamily: typography.body?.fontFamily,
-                        color: colors.textSecondary,
-                      },
-                    ]}
-                  >
-                    Buscando datos...
-                  </Text>
-                  <Pressable
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      cancelSync();
-                    }}
-                    style={({ pressed }) => [
-                      {
-                        marginTop: 10,
-                        paddingVertical: 6,
-                        paddingHorizontal: 12,
-                      },
-                      pressed && { opacity: 0.7 },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.emptyText,
-                        {
-                          fontFamily: typography.body?.fontFamily,
-                          color: colors.brand,
-                          fontSize: 13,
-                        },
-                      ]}
-                    >
-                      Cancelar
-                    </Text>
-                  </Pressable>
-                </View>
-              ) : (
-                <Pressable
-                  onPress={async () => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    try {
-                      // ✅ Primero intenta sincronizar (mostrará permission request nativo de iOS/Android)
-                      await syncCalories();
-                    } catch (error) {
-                      // Si falla, el usuario verá el error pero el permission request fue mostrado
-                      console.log("[ActivityCard] Sync error:", error);
-                    }
-                  }}
-                  disabled={isSyncing}
-                  style={({ pressed }) => [
-                    styles.emptyState,
-                    { borderTopColor: colors.border },
+            </View>
+          ) : (
+            /* Estado: sin datos, acción manual requerida */
+            <View style={styles.noDataRow}>
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={[
+                    styles.noDataText,
                     {
-                      backgroundColor: `${colors.brand}14`,
-                      borderWidth: 1,
-                      borderColor: `${colors.brand}40`,
-                      borderRadius: 12,
-                      paddingVertical: 20,
-                      paddingHorizontal: 20,
-                      marginHorizontal: 4,
-                      minHeight: 72,
-                      justifyContent: "center",
-                    },
-                    (pressed || isSyncing) && {
-                      opacity: 0.85,
-                      backgroundColor: `${colors.brand}22`,
+                      fontFamily: typography.body?.fontFamily,
+                      color: colors.textSecondary,
                     },
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.emptyText,
-                      {
-                        fontFamily: typography.body?.fontFamily,
-                        fontWeight: "600",
-                        color: colors.brand,
-                        fontSize: 15,
-                        lineHeight: 22,
-                      },
-                    ]}
-                    numberOfLines={2}
-                  >
-                    {isSyncing ? "Sincronizando..." : "Continuar"}
-                  </Text>
-                </Pressable>
-              )}
-            </>
+                  Sin datos de actividad hoy
+                </Text>
+              </View>
+              <Pressable
+                onPress={async () => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  try {
+                    await syncCalories();
+                  } catch (error) {
+                    console.log("[ActivityCard] Sync error:", error);
+                  }
+                }}
+                style={({ pressed }) => [
+                  styles.syncSecondaryBtn,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.surface,
+                  },
+                  pressed && { opacity: 0.7, transform: [{ scale: 0.97 }] },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="sync"
+                  size={14}
+                  color={colors.brand}
+                />
+                <Text
+                  style={[
+                    styles.syncSecondaryText,
+                    {
+                      fontFamily: typography.subtitle?.fontFamily,
+                      color: colors.brand,
+                    },
+                  ]}
+                >
+                  Sincronizar
+                </Text>
+              </Pressable>
+            </View>
           )}
         </>
       ) : (
