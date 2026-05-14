@@ -3,6 +3,7 @@ import type { MealType } from "@/domain/models/foodLogDb";
 import PremiumPaywall from "@/presentation/components/premium/PremiumPaywall";
 import { ConfirmMacroModal } from "@/presentation/components/scanner/ConfirmMacroModal";
 import { ScannerOverlay } from "@/presentation/components/scanner/ScannerOverlay";
+import { useLabelScanner } from "@/presentation/hooks/scanner/useLabelScanner";
 import { useMacroScanner } from "@/presentation/hooks/scanner/useMacroScanner";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { ratingPromptService } from "@/domain/services/ratingPromptService";
@@ -18,6 +19,7 @@ import {
     Pressable,
     StyleSheet,
     Text,
+    useWindowDimensions,
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -27,18 +29,32 @@ function isMealType(x: unknown): x is MealType {
   return typeof x === "string" && MEALS.includes(x as MealType);
 }
 
+const CORNER_SIZE = 22;
+const CORNER_THICKNESS = 3;
+
+function parseSuggestedGrams(servingSize: string): number {
+  const match = servingSize.toLowerCase().match(/(\d+)\s*(g|gr|gramos?|ml|mililitros?)/);
+  return match ? parseInt(match[1], 10) : 100;
+}
+
 export default function ScanScreen() {
   const { theme } = useTheme();
   const { colors, typography } = theme;
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
+
+  const FRAME_W = Math.round(screenWidth * 0.82);
+  const FRAME_H = 210;
 
   const params = useLocalSearchParams<{
     meal?: string;
     returnTo?: string;
     mode?: string;
     recipeId?: string;
+    barcode?: string;
   }>();
   const meal: MealType = isMealType(params.meal) ? params.meal : "snack";
+  const pendingBarcode = typeof params.barcode === "string" && params.barcode.trim() ? params.barcode.trim() : null;
   const returnTo = params.returnTo || "add-food";
   const recipeId = typeof params.recipeId === "string" ? params.recipeId : "";
 
@@ -55,7 +71,7 @@ export default function ScanScreen() {
   // Evita dobles lecturas (iOS puede disparar 2 veces)
   const lockRef = useRef(false);
 
-  // Hook para escaneo por IA
+  // Hook para escaneo por IA (platos de comida)
   const {
     isAnalyzing,
     isRetrying,
@@ -63,30 +79,40 @@ export default function ScanScreen() {
     captureAndAnalyze,
     resetAnalysis,
   } = useMacroScanner({
-    onAnalysisComplete: () => {
-      // Navegación automática: abrir modal de confirmación con los macros precargados
+    onAnalysisComplete: (result) => {
       setShowConfirmModal(true);
     },
     onLimitReached: () => {
-      // Mostrar Alert cuando se alcanza el límite
       Alert.alert(
         "Función exclusiva Premium",
         "El escaneo por IA es exclusivo para usuarios Premium. ¡Activa tu plan para usarlo sin límites!",
         [
-          {
-            text: "Cancelar",
-            style: "cancel",
-          },
-          {
-            text: "Ver Premium",
-            onPress: () => setPaywallVisible(true),
-            style: "default",
-          },
+          { text: "Cancelar", style: "cancel" },
+          { text: "Ver Premium", onPress: () => setPaywallVisible(true), style: "default" },
         ],
         { cancelable: true },
       );
     },
   });
+
+  // Hook para leer etiquetas nutricionales con IA (viene del flujo barcode no encontrado)
+  const { isScanning: isLabelScanning, isRetrying: isLabelRetrying, captureAndRead } = useLabelScanner({
+    onSuccess: (result) => {
+      router.replace({
+        pathname: "/(tabs)/add-food",
+        params: {
+          meal,
+          barcode: pendingBarcode ?? undefined,
+          ...(result.productName ? { aiName: result.productName } : {}),
+          ...(result.kcal_100g != null ? { aiKcal: String(result.kcal_100g) } : {}),
+          ...(result.protein_100g != null ? { aiProtein: String(result.protein_100g) } : {}),
+          ...(result.carbs_100g != null ? { aiCarbs: String(result.carbs_100g) } : {}),
+          ...(result.fat_100g != null ? { aiFat: String(result.fat_100g) } : {}),
+        },
+      });
+    },
+  });
+
 
   // TESTING ONLY: Reset rating prompt state on mount
   useEffect(() => {
@@ -193,10 +219,14 @@ export default function ScanScreen() {
   }, [resetAnalysis]);
 
   const handleCapture = useCallback(() => {
-    if (scanMode === "ai" && !isAnalyzing) {
-      captureAndAnalyze(cameraRef);
+    if (scanMode !== "ai") return;
+    // Si hay un barcode pendiente → leer la etiqueta nutricional
+    if (pendingBarcode) {
+      if (!isLabelScanning) captureAndRead(cameraRef);
+    } else {
+      if (!isAnalyzing) captureAndAnalyze(cameraRef);
     }
-  }, [scanMode, isAnalyzing, captureAndAnalyze, cameraRef]);
+  }, [scanMode, pendingBarcode, isAnalyzing, isLabelScanning, captureAndAnalyze, captureAndRead, cameraRef]);
 
   const handleCloseConfirmModal = useCallback(() => {
     setShowConfirmModal(false);
@@ -300,37 +330,46 @@ export default function ScanScreen() {
       {/* Overlay */}
       {scanMode === "barcode" ? (
         <>
-          {/* Blur fuera del recuadro */}
+          {/* Overlay oscuro recortado alrededor del frame */}
           <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
-            <BlurView intensity={60} tint="dark" style={[styles.barcodeTopOverlay, { height: insets.top + 134 }]} />
-            <View style={styles.barcodeMiddleRow}>
-              <BlurView intensity={60} tint="dark" style={styles.barcodeSideOverlay} />
-              <View style={styles.barcodeFrameGap} />
-              <BlurView intensity={60} tint="dark" style={styles.barcodeSideOverlay} />
+            <BlurView
+              intensity={70}
+              tint="dark"
+              style={[styles.barcodeTopOverlay, { height: insets.top + 116 }]}
+            />
+            <View style={[styles.barcodeMiddleRow, { height: FRAME_H }]}>
+              <BlurView intensity={70} tint="dark" style={styles.barcodeSideOverlay} />
+              <View style={{ width: FRAME_W }} />
+              <BlurView intensity={70} tint="dark" style={styles.barcodeSideOverlay} />
             </View>
-            <BlurView intensity={60} tint="dark" style={styles.barcodeBottomOverlay} />
+            <BlurView intensity={70} tint="dark" style={styles.barcodeBottomOverlay} />
           </View>
 
           <View style={[styles.overlay, { paddingTop: insets.top + 12 }]}>
             <View style={styles.topRow}>
               <Pressable
                 onPress={handleClose}
-                style={({ pressed }) => [
-                  styles.iconBtn,
-                  pressed && { opacity: 0.85 },
-                ]}
+                style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
               >
                 <Feather name="x" size={24} color="white" />
               </Pressable>
-
               <Text style={styles.title}>Escanear código</Text>
-
-              {/* Espaciador para mantener el título centrado */}
               <View style={styles.iconBtn} />
             </View>
 
-            <View style={styles.frame} />
-            <Text style={styles.hint}>Alinea el código dentro del recuadro</Text>
+            {/* Frame con esquinas iluminadas */}
+            <View style={[styles.frame, { width: FRAME_W, height: FRAME_H }]}>
+              {/* Esquina top-left */}
+              <View style={[styles.corner, styles.cornerTL]} />
+              {/* Esquina top-right */}
+              <View style={[styles.corner, styles.cornerTR]} />
+              {/* Esquina bottom-left */}
+              <View style={[styles.corner, styles.cornerBL]} />
+              {/* Esquina bottom-right */}
+              <View style={[styles.corner, styles.cornerBR]} />
+            </View>
+
+            <Text style={styles.hint}>Apunta la cámara al código de barras</Text>
           </View>
         </>
       ) : (
@@ -348,31 +387,42 @@ export default function ScanScreen() {
                 <Feather name="x" size={24} color="white" />
               </Pressable>
 
-              <Text style={styles.title}>Escaneo por IA</Text>
+              <Text style={styles.title}>
+                {pendingBarcode ? "Leer etiqueta" : "Escaneo por IA"}
+              </Text>
 
-              <Pressable
-                onPress={handleModeToggle}
-                style={({ pressed }) => [
-                  styles.iconBtn,
-                  pressed && { opacity: 0.85 },
-                ]}
-              >
-                <Feather name="maximize-2" size={24} color="white" />
-              </Pressable>
+              {!pendingBarcode ? (
+                <Pressable
+                  onPress={handleModeToggle}
+                  style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
+                >
+                  <Feather name="maximize-2" size={24} color="white" />
+                </Pressable>
+              ) : (
+                <View style={styles.iconBtn} />
+              )}
             </View>
+
+            {pendingBarcode && (
+              <Text style={styles.hint}>
+                {isLabelScanning
+                  ? isLabelRetrying ? "Analizando…" : "Leyendo etiqueta…"
+                  : "Enfoca la tabla nutricional y toca el botón"}
+              </Text>
+            )}
 
             {/* Botón de captura */}
             <View style={styles.captureContainer}>
               <Pressable
                 onPress={handleCapture}
-                disabled={isAnalyzing}
+                disabled={pendingBarcode ? isLabelScanning : isAnalyzing}
                 style={({ pressed }) => [
                   styles.captureButton,
-                  isAnalyzing && styles.captureButtonDisabled,
+                  (pendingBarcode ? isLabelScanning : isAnalyzing) && styles.captureButtonDisabled,
                   pressed && { opacity: 0.9, transform: [{ scale: 0.95 }] },
                 ]}
               >
-                {isAnalyzing ? (
+                {(pendingBarcode ? isLabelScanning : isAnalyzing) ? (
                   <ActivityIndicator size="large" color="white" />
                 ) : (
                   <View style={styles.captureButtonInner} />
@@ -395,6 +445,7 @@ export default function ScanScreen() {
         }}
         analysisResult={analysisResult}
         meal={meal}
+        barcodeToRegister={pendingBarcode}
       />
 
       {/* Premium Paywall Modal */}
@@ -439,15 +490,48 @@ const styles = StyleSheet.create({
   },
   title: { color: "white", fontSize: 16, fontWeight: "800" },
   frame: {
-    marginTop: 70,
-    width: 270,
-    height: 190,
-    borderRadius: 22,
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.9)",
-    backgroundColor: "rgba(255,255,255,0.06)",
+    marginTop: 54,
+    borderRadius: 16,
+    backgroundColor: "transparent",
   },
-  hint: { marginTop: 16, color: "rgba(255,255,255,0.9)", fontSize: 13 },
+  corner: {
+    position: "absolute",
+    width: CORNER_SIZE,
+    height: CORNER_SIZE,
+  },
+  cornerTL: {
+    top: 0,
+    left: 0,
+    borderTopWidth: CORNER_THICKNESS,
+    borderLeftWidth: CORNER_THICKNESS,
+    borderColor: "rgba(255,255,255,0.95)",
+    borderTopLeftRadius: 10,
+  },
+  cornerTR: {
+    top: 0,
+    right: 0,
+    borderTopWidth: CORNER_THICKNESS,
+    borderRightWidth: CORNER_THICKNESS,
+    borderColor: "rgba(255,255,255,0.95)",
+    borderTopRightRadius: 10,
+  },
+  cornerBL: {
+    bottom: 0,
+    left: 0,
+    borderBottomWidth: CORNER_THICKNESS,
+    borderLeftWidth: CORNER_THICKNESS,
+    borderColor: "rgba(255,255,255,0.95)",
+    borderBottomLeftRadius: 10,
+  },
+  cornerBR: {
+    bottom: 0,
+    right: 0,
+    borderBottomWidth: CORNER_THICKNESS,
+    borderRightWidth: CORNER_THICKNESS,
+    borderColor: "rgba(255,255,255,0.95)",
+    borderBottomRightRadius: 10,
+  },
+  hint: { marginTop: 20, color: "rgba(255,255,255,0.85)", fontSize: 13, letterSpacing: 0.2 },
   cta: {
     height: 48,
     borderRadius: 16,
@@ -496,13 +580,9 @@ const styles = StyleSheet.create({
   },
   barcodeMiddleRow: {
     flexDirection: "row",
-    height: 190,
   },
   barcodeSideOverlay: {
     flex: 1,
-  },
-  barcodeFrameGap: {
-    width: 270,
   },
   barcodeBottomOverlay: {
     flex: 1,

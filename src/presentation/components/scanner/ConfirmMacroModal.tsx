@@ -17,6 +17,8 @@ import * as Haptics from "expo-haptics";
 import { useTheme } from "@/presentation/theme/ThemeProvider";
 import { useToast } from "@/presentation/hooks/ui/useToast";
 import { foodLogRepository } from "@/data/food/foodLogRepository";
+import { genericFoodsRepository } from "@/data/food/genericFoodsRepository";
+import { barcodeOverrideService } from "@/core/storage/barcodeOverrideService";
 import type { MacroAnalysisResult } from "@/data/ai/geminiService";
 import type { MealType } from "@/domain/models/foodLogDb";
 import { todayStrLocal } from "@/presentation/utils/date";
@@ -27,6 +29,7 @@ type ConfirmMacroModalProps = {
   onSuccess?: () => void;
   analysisResult: MacroAnalysisResult | null;
   meal: MealType;
+  barcodeToRegister?: string | null;
 };
 
 export function ConfirmMacroModal({
@@ -35,6 +38,7 @@ export function ConfirmMacroModal({
   onSuccess,
   analysisResult,
   meal,
+  barcodeToRegister,
 }: ConfirmMacroModalProps) {
   const { theme } = useTheme();
   const { colors, typography } = theme;
@@ -98,6 +102,23 @@ export function ConfirmMacroModal({
 
     try {
       const day = todayStrLocal();
+
+      // Si viene de un barcode no encontrado, crear primero el producto en generic_foods
+      if (barcodeToRegister) {
+        const per100Factor = 100 / (calculatedMacros.grams || 100);
+        await genericFoodsRepository.createByBarcode({
+          name_es: analysisResult.foodName,
+          barcode: barcodeToRegister,
+          base_unit: "g",
+          kcal_100g: Math.round(calculatedMacros.calories * per100Factor),
+          protein_100g: Math.round(calculatedMacros.protein * per100Factor * 10) / 10,
+          carbs_100g: Math.round(calculatedMacros.carbs * per100Factor * 10) / 10,
+          fat_100g: Math.round(calculatedMacros.fats * per100Factor * 10) / 10,
+        });
+        // Marcar override para que futuros escaneos usen esta versión local
+        barcodeOverrideService.add(barcodeToRegister).catch(() => {});
+      }
+
       const result = await foodLogRepository.create({
         day,
         meal,
