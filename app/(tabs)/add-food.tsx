@@ -9,7 +9,6 @@ import React, {
 } from "react";
 import {
     ActivityIndicator,
-    Alert,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -1185,7 +1184,14 @@ export default function AddFoodScreen() {
 
             <Pressable
               style={s.iconBtn}
-              onPress={() => router.replace("/(tabs)/diary")}
+              onPress={() => {
+                if (selected) {
+                  justSelectedManuallyRef.current = false;
+                  setSelected(null);
+                } else {
+                  router.replace("/(tabs)/diary");
+                }
+              }}
             >
               <Feather name="x" size={18} color={colors.textPrimary} />
             </Pressable>
@@ -1621,7 +1627,7 @@ export default function AddFoodScreen() {
               {/* Results */}
               <View style={{ marginTop: 10, gap: 10 }}>
                 {results.map((it) => {
-                  const favoriteIdentifier = it.food_id ?? it.off?.barcode ?? null;
+                  const favoriteIdentifier = it.food_id ?? it.off?.barcode ?? it.off?.id ?? null;
                   const favorite = favoriteIdentifier ? isFavorite(favoriteIdentifier) : false;
                   return (
                     <Pressable
@@ -1679,24 +1685,29 @@ export default function AddFoodScreen() {
                             e.stopPropagation();
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                             try {
+                              let added = false;
                               if (it.source === "food" && it.food_id) {
-                                await toggleFavorite(it.food_id);
+                                added = await toggleFavorite(it.food_id);
                               } else if (it.source === "off") {
-                                await toggleScannedFavorite({
+                                added = await toggleScannedFavorite({
                                   name: it.name,
                                   kcal_100g: it.kcal_100g ?? null,
                                   protein_100g: it.protein_100g ?? null,
                                   carbs_100g: it.carbs_100g ?? null,
                                   fat_100g: it.fat_100g ?? null,
-                                  barcode: it.off?.barcode ?? undefined,
+                                  barcode: it.off?.barcode ?? it.off?.id ?? undefined,
                                   source: "off",
                                 });
                               }
                               Haptics.notificationAsync(
-                                favorite
-                                  ? Haptics.NotificationFeedbackType.Warning
-                                  : Haptics.NotificationFeedbackType.Success,
+                                added
+                                  ? Haptics.NotificationFeedbackType.Success
+                                  : Haptics.NotificationFeedbackType.Warning,
                               );
+                              showToast({
+                                message: added ? "Agregado a favoritos" : "Eliminado de favoritos",
+                                type: added ? "success" : "info",
+                              });
                             } catch (error) {
                               showToast({
                                 message:
@@ -1754,31 +1765,37 @@ export default function AddFoodScreen() {
                 </View>
 
                 {(selected.source === "food" || selected.source === "off") && (() => {
-                  const selIdentifier = selected.food_id ?? selected.off?.barcode ?? null;
+                  const selIdentifier = selected.food_id ?? selected.off?.barcode ?? selected.off?.id ?? null;
                   const selFavorite = selIdentifier ? isFavorite(selIdentifier) : false;
                   return (
                     <Pressable
                       onPress={async () => {
+                        justSelectedManuallyRef.current = true;
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         try {
+                          let added = false;
                           if (selected.source === "food" && selected.food_id) {
-                            await toggleFavorite(selected.food_id);
+                            added = await toggleFavorite(selected.food_id);
                           } else if (selected.source === "off") {
-                            await toggleScannedFavorite({
+                            added = await toggleScannedFavorite({
                               name: selected.name,
                               kcal_100g: selected.kcal_100g ?? null,
                               protein_100g: selected.protein_100g ?? null,
                               carbs_100g: selected.carbs_100g ?? null,
                               fat_100g: selected.fat_100g ?? null,
-                              barcode: selected.off?.barcode ?? undefined,
+                              barcode: selected.off?.barcode ?? selected.off?.id ?? undefined,
                               source: "off",
                             });
                           }
                           Haptics.notificationAsync(
-                            selFavorite
-                              ? Haptics.NotificationFeedbackType.Warning
-                              : Haptics.NotificationFeedbackType.Success,
+                            added
+                              ? Haptics.NotificationFeedbackType.Success
+                              : Haptics.NotificationFeedbackType.Warning,
                           );
+                          showToast({
+                            message: added ? "Agregado a favoritos" : "Eliminado de favoritos",
+                            type: added ? "success" : "info",
+                          });
                         } catch {
                           showToast({ message: "Error al actualizar favorito", type: "error" });
                         }
@@ -2091,67 +2108,7 @@ export default function AddFoodScreen() {
                 icon={<Feather name="plus" size={18} color={colors.onCta} />}
               />
 
-              {selected?.source === "off" && (
-                <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    Alert.alert(
-                      "¿Qué está mal?",
-                      "Ayúdanos a mejorar la base de datos",
-                      [
-                        {
-                          text: "El nombre / producto no coincide",
-                          onPress: () => {
-                            const barcode = selected.off?.barcode ?? selected.off?.id ?? null;
-                            setSelected(null);
-                            if (barcode) {
-                              setBarcodeToCreate(barcode);
-                              setShowProductNotFoundModal(true);
-                            }
-                          },
-                        },
-                        {
-                          text: "Los macros están mal",
-                          onPress: () => {
-                            const barcode = selected.off?.barcode ?? selected.off?.id ?? null;
-                            setSelected(null);
-                            if (barcode) {
-                              setBarcodeToCreate(barcode);
-                              setShowProductNotFoundModal(true);
-                            }
-                          },
-                        },
-                        { text: "Cancelar", style: "cancel" },
-                      ],
-                    );
-                  }}
-                  style={({ pressed }) => [
-                    {
-                      marginTop: 4,
-                      alignSelf: "center",
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 4,
-                      paddingVertical: 6,
-                      paddingHorizontal: 10,
-                      opacity: pressed ? 0.6 : 1,
-                    },
-                  ]}
-                >
-                  <Feather name="flag" size={12} color={colors.textSecondary} />
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      color: colors.textSecondary,
-                      fontFamily: typography.body?.fontFamily,
-                    }}
-                  >
-                    ¿Los datos son incorrectos?
-                  </Text>
-                </Pressable>
-              )}
-
-              <Pressable
+<Pressable
                 onPress={() => {
                   justSelectedManuallyRef.current = false; // Resetear el flag
                   setSelected(null);
